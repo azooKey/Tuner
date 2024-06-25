@@ -4,21 +4,27 @@
 //
 //  Created by 高橋直希 on 2024/06/26.
 //
-
 import SwiftUI
 
 struct ContentView: View {
+    @EnvironmentObject var textModel: TextModel
+    
     var body: some View {
-        VStack {
-            Image(systemName: "globe")
-                .imageScale(.large)
-                .foregroundStyle(.tint)
-            Text("Hello, world!")
+        
+        ScrollView {
+            VStack(alignment: .leading) {
+                ForEach(textModel.texts, id: \.self) { text in
+                    Text(text)
+                        .padding()
+                }
+            }
         }
         .padding()
+        .frame(minWidth: 480, minHeight: 300)
+        
     }
 }
 
-#Preview {
-    ContentView()
+class TextModel: ObservableObject {
+    @Published var texts: [String] = []
 }

@@ -11,6 +11,7 @@
 		E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73852C2B4B9F0049C3C6 /* ContentView.swift */; };
 		E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */; };
 		E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */; };
+		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,6 +21,7 @@
 		E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ContextDatabaseApp.entitlements; sourceTree = "<group>"; };
+		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,6 +54,7 @@
 		E94A73822C2B4B9F0049C3C6 /* ContextDatabaseApp */ = {
 			isa = PBXGroup;
 			children = (
+				E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */,
 				E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */,
 				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
 				E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */,
@@ -139,6 +142,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
 				E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */,
 			);
