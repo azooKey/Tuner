@@ -1,9 +1,3 @@
-//
-//  ContentView.swift
-//  ContextDatabaseApp
-//
-//  Created by 高橋直希 on 2024/06/26.
-//
 import SwiftUI
 
 struct ContentView: View {
@@ -27,21 +21,60 @@ struct ContentView: View {
 class TextModel: ObservableObject {
     @Published var texts: [String] = [] {
         didSet {
-            saveToUserDefaults()
+            saveToFile()
         }
     }
 
     init() {
-        loadFromUserDefaults()
+        createAppDirectory()
+        loadFromFile()
+        printFileURL() // ファイルパスを表示
     }
 
-    private func saveToUserDefaults() {
-        UserDefaults.standard.set(texts, forKey: "savedTexts")
+    private func getDocumentsDirectory() -> URL {
+        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
+        return paths[0]
     }
 
-    private func loadFromUserDefaults() {
-        if let savedTexts = UserDefaults.standard.stringArray(forKey: "savedTexts") {
-            texts = savedTexts
+    private func getAppDirectory() -> URL {
+        let appDirectory = getDocumentsDirectory().appendingPathComponent("ContextDatabaseApp")
+        return appDirectory
+    }
+
+    private func getFileURL() -> URL {
+        return getAppDirectory().appendingPathComponent("savedTexts.txt")
+    }
+
+    private func createAppDirectory() {
+        let appDirectory = getAppDirectory()
+        do {
+            try FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            print("Failed to create app directory: \(error.localizedDescription)")
         }
+    }
+
+    private func saveToFile() {
+        do {
+            let data = try JSONEncoder().encode(texts)
+            try data.write(to: getFileURL())
+        } catch {
+            print("Failed to save texts: \(error.localizedDescription)")
+        }
+    }
+
+    private func loadFromFile() {
+        let fileURL = getFileURL()
+        do {
+            let data = try Data(contentsOf: fileURL)
+            texts = try JSONDecoder().decode([String].self, from: data)
+        } catch {
+            print("Failed to load texts: \(error.localizedDescription)")
+        }
+    }
+
+    private func printFileURL() {
+        let fileURL = getFileURL()
+        print("File saved at: \(fileURL.path)")
     }
 }
