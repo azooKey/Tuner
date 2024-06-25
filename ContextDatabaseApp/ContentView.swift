@@ -6,7 +6,10 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                // 何を表示しようかな
+                ForEach(textModel.texts, id: \.self) { text in
+                    Text(text)
+                        .padding()
+                }
             }
         }
         .padding()
@@ -16,15 +19,10 @@ struct ContentView: View {
 
 
 class TextModel: ObservableObject {
-    @Published var texts: [String] = [] {
-        didSet {
-            saveToFile()
-        }
-    }
+    @Published var texts: [String] = []
 
     init() {
         createAppDirectory()
-        loadFromFile()
         printFileURL() // ファイルパスを表示
     }
 
@@ -52,21 +50,27 @@ class TextModel: ObservableObject {
     }
 
     private func saveToFile() {
-        do {
-            let data = try JSONEncoder().encode(texts)
-            try data.write(to: getFileURL())
-        } catch {
-            print("Failed to save texts: \(error.localizedDescription)")
-        }
-    }
-
-    private func loadFromFile() {
         let fileURL = getFileURL()
         do {
-            let data = try Data(contentsOf: fileURL)
-            texts = try JSONDecoder().decode([String].self, from: data)
+            // Open file handle
+            let fileHandle = try FileHandle(forWritingTo: fileURL)
+            defer {
+                fileHandle.closeFile()
+            }
+
+            // Move to end of file
+            fileHandle.seekToEndOfFile()
+
+            for text in texts {
+                if let data = "\(text)\n".data(using: .utf8) {
+                    fileHandle.write(data)
+                }
+            }
+
+            // Clear texts array after saving
+            texts.removeAll()
         } catch {
-            print("Failed to load texts: \(error.localizedDescription)")
+            print("Failed to save texts: \(error.localizedDescription)")
         }
     }
 
@@ -79,6 +83,7 @@ class TextModel: ObservableObject {
     func addText(_ text: String) {
         if !text.isEmpty {
             texts.append(text)
+            saveToFile()
         }
     }
 }
