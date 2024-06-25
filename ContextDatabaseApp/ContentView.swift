@@ -6,10 +6,7 @@ struct ContentView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading) {
-                ForEach(textModel.texts, id: \.self) { text in
-                    Text(text)
-                        .padding()
-                }
+                // 何を表示しようかな
             }
         }
         .padding()
@@ -76,5 +73,12 @@ class TextModel: ObservableObject {
     private func printFileURL() {
         let fileURL = getFileURL()
         print("File saved at: \(fileURL.path)")
+    }
+
+    // 空文字列を除外してテキストを追加するメソッド
+    func addText(_ text: String) {
+        if !text.isEmpty {
+            texts.append(text)
+        }
     }
 }
