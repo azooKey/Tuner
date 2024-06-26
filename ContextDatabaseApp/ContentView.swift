@@ -4,13 +4,15 @@ struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading) {
-                ForEach(textModel.texts, id: \.self) { text in
-                    Text(text)
-                        .padding()
-                }
+        VStack {
+            Label("Saved Texts", systemImage: "doc.text")
+                .font(.title)
+                .padding(.bottom)
+            // 統計ボタン
+            Button("統計") {
+                print("統計")
             }
+
         }
         .padding()
         .frame(minWidth: 480, minHeight: 300)
@@ -52,13 +54,11 @@ class TextModel: ObservableObject {
     private func saveToFile() {
         let fileURL = getFileURL()
         do {
-            // Open file handle
             let fileHandle = try FileHandle(forWritingTo: fileURL)
             defer {
                 fileHandle.closeFile()
             }
 
-            // Move to end of file
             fileHandle.seekToEndOfFile()
 
             for text in texts {
@@ -67,7 +67,6 @@ class TextModel: ObservableObject {
                 }
             }
 
-            // Clear texts array after saving
             texts.removeAll()
         } catch {
             print("Failed to save texts: \(error.localizedDescription)")
@@ -79,10 +78,19 @@ class TextModel: ObservableObject {
         print("File saved at: \(fileURL.path)")
     }
 
-    // 空文字列を除外してテキストを追加するメソッド
+    private func removeExtraNewlines(from text: String) -> String {
+        // 2連続以上の改行を1つの改行に置き換える正規表現
+        let pattern = "\n{2,}"
+        let regex = try? NSRegularExpression(pattern: pattern, options: [])
+        let range = NSRange(location: 0, length: text.utf16.count)
+        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "\n")
+        return modifiedText ?? text
+    }
+
     func addText(_ text: String) {
         if !text.isEmpty {
-            texts.append(text)
+            let cleanedText = removeExtraNewlines(from: text)
+            texts.append(cleanedText)
             saveToFile()
         }
     }
