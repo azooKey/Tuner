@@ -8,19 +8,34 @@ struct ContentView: View {
             Label("Saved Texts", systemImage: "doc.text")
                 .font(.title)
                 .padding(.bottom)
+
             // 統計ボタン
             Button("統計") {
                 print("統計")
             }
 
+            // 最後に保存した時間を表示
+            if let lastSavedDate = textModel.lastSavedDate {
+                Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
+                    .padding(.top)
+            }
         }
         .padding()
         .frame(minWidth: 480, minHeight: 300)
+    }
+
+    // 日付フォーマットを定義
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .long
+        return formatter
     }
 }
 
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
+    @Published var lastSavedDate: Date? = nil
 
     init() {
         createAppDirectory()
@@ -68,6 +83,9 @@ class TextModel: ObservableObject {
             }
 
             texts.removeAll()
+            lastSavedDate = Date() // 保存日時を更新
+            // メモリの解放
+            clearMemory()
         } catch {
             do {
                 let header = "AppName,Timestamp,Text\n"
@@ -86,10 +104,10 @@ class TextModel: ObservableObject {
 
     private func removeExtraNewlines(from text: String) -> String {
         // 2連続以上の改行を1つの改行に置き換える正規表現
-        let pattern = "\n{2,}"
+        let pattern =  "\n+"
         let regex = try? NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(location: 0, length: text.utf16.count)
-        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "\n")
+        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
         return modifiedText ?? text
     }
 
@@ -101,6 +119,10 @@ class TextModel: ObservableObject {
             texts.append(newTextEntry)
             saveToFile()
         }
+    }
+
+    private func clearMemory() {
+        texts = []
     }
 }
 
