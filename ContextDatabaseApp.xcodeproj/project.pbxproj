@@ -22,6 +22,7 @@
 		E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ContextDatabaseApp.entitlements; sourceTree = "<group>"; };
 		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,6 +55,7 @@
 		E94A73822C2B4B9F0049C3C6 /* ContextDatabaseApp */ = {
 			isa = PBXGroup;
 			children = (
+				E94A73942C2BE6180049C3C6 /* Info.plist */,
 				E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */,
 				E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */,
 				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
@@ -283,6 +285,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ContextDatabaseApp/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -310,6 +313,7 @@
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = ContextDatabaseApp/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

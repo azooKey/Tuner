@@ -19,9 +19,8 @@ struct ContentView: View {
     }
 }
 
-
 class TextModel: ObservableObject {
-    @Published var texts: [String] = []
+    @Published var texts: [TextEntry] = []
 
     init() {
         createAppDirectory()
@@ -39,7 +38,7 @@ class TextModel: ObservableObject {
     }
 
     private func getFileURL() -> URL {
-        return getAppDirectory().appendingPathComponent("savedTexts.txt")
+        return getAppDirectory().appendingPathComponent("savedTexts.csv")
     }
 
     private func createAppDirectory() {
@@ -61,15 +60,22 @@ class TextModel: ObservableObject {
 
             fileHandle.seekToEndOfFile()
 
-            for text in texts {
-                if let data = "\(text)\n".data(using: .utf8) {
+            for textEntry in texts {
+                let csvLine = "\(textEntry.appName),\(textEntry.timestamp),\(textEntry.text)\n"
+                if let data = csvLine.data(using: .utf8) {
                     fileHandle.write(data)
                 }
             }
 
             texts.removeAll()
         } catch {
-            print("Failed to save texts: \(error.localizedDescription)")
+            do {
+                let header = "AppName,Timestamp,Text\n"
+                try header.write(to: fileURL, atomically: true, encoding: .utf8)
+                saveToFile()
+            } catch {
+                print("Failed to create file with header: \(error.localizedDescription)")
+            }
         }
     }
 
@@ -87,11 +93,19 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
 
-    func addText(_ text: String) {
+    func addText(_ text: String, appName: String) {
         if !text.isEmpty {
             let cleanedText = removeExtraNewlines(from: text)
-            texts.append(cleanedText)
+            let timestamp = Date()
+            let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
+            texts.append(newTextEntry)
             saveToFile()
         }
     }
+}
+
+struct TextEntry: Codable {
+    var appName: String
+    var text: String
+    var timestamp: Date
 }

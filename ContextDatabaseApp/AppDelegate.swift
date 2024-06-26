@@ -30,7 +30,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let activeApplicationName = activeApp.localizedName ?? "Unknown"
             print("Active app: \(activeApplicationName)")
             if let axApp = getActiveApplicationAXUIElement() {
-                fetchTextElements(from: axApp)
+                fetchTextElements(from: axApp, appName: activeApplicationName)
             }
         }
     }
@@ -44,24 +44,24 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // 指定されたAXUIElementからテキスト要素を取得するメソッド
-    private func fetchTextElements(from element: AXUIElement) {
+    private func fetchTextElements(from element: AXUIElement, appName: String) {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
         if result == .success, let children = value as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child)
+                extractTextFromElement(child, appName: appName)
             }
         }
     }
 
     // AXUIElementからテキストを抽出するメソッド
-    private func extractTextFromElement(_ element: AXUIElement) {
+    private func extractTextFromElement(_ element: AXUIElement, appName: String) {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
             print("Text: \(text)")
             DispatchQueue.main.async {
-                self.textModel.texts.append(text)
+                self.textModel.addText(text, appName: appName)  // 修正点: ここでaddTextメソッドを使用
             }
         }
 
@@ -69,7 +69,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
         if childResult == .success, let children = childValue as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child)
+                extractTextFromElement(child, appName: appName)
             }
         }
     }
