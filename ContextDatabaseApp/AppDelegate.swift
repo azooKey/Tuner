@@ -29,7 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
     @objc func activeAppDidChange(_ notification: Notification) {
         if let activeApp = NSWorkspace.shared.frontmostApplication {
-            let activeApplicationName = activeApp.localizedName ?? "Unknown"
+            let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
             print("Active app: \(activeApplicationName)")
             if let axApp = getActiveApplicationAXUIElement() {
                 fetchTextElements(from: axApp, appName: activeApplicationName)
@@ -62,7 +62,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
-
             DispatchQueue.main.async {
                 self.textModel.addText(text, appName: appName)
             }
@@ -118,6 +117,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    // アプリケーションの名前を取得するメソッド
+    private func getAppName(for application: NSRunningApplication) -> String? {
+        return application.localizedName
+    }
+
+    // AXUIElementからアプリケーションの名前を取得するメソッド
     private func getAppName(from element: AXUIElement) -> String? {
         var app: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXTopLevelUIElementAttribute as CFString, &app)
