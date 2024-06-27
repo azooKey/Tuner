@@ -80,36 +80,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // アプリケーションの監視を開始するメソッド
     private func startMonitoringApp(_ app: AXUIElement, appName: String) {
         print("Start monitoring app: \(appName)")
+        if let observer = observer {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+        }
+
         guard let activeApp = NSWorkspace.shared.frontmostApplication else {
             return
         }
 
-        var observer: AXObserver?
-        let error = AXObserverCreate(activeApp.processIdentifier, AppDelegate.axObserverCallback, &observer)
+        var newObserver: AXObserver?
+        let error = AXObserverCreate(activeApp.processIdentifier, AppDelegate.axObserverCallback, &newObserver)
 
         if error != .success {
             print("Failed to create observer: \(error)")
             return
         }
 
-        if let observer = observer {
-            AXObserverAddNotification(observer, app, kAXValueChangedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
-            self.observer = observer
+        if let newObserver = newObserver {
+            AXObserverAddNotification(newObserver, app, kAXValueChangedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            AXObserverAddNotification(newObserver, app, kAXUIElementDestroyedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(newObserver), .defaultMode)
+            self.observer = newObserver
         }
     }
 
-    // 静的なアクセシビリティコールバックメソッド
     static let axObserverCallback: AXObserverCallback = { observer, element, notificationName, userInfo in
         guard let userInfo = userInfo else { return }
         let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
-        delegate.handleAXEvent(element: element, notification: notificationName as String, appName: "Unknown")
+        delegate.handleAXEvent(element: element, notification: notificationName as String)
     }
 
-    // アクセシビリティイベントをハンドリングするメソッド
-    func handleAXEvent(element: AXUIElement, notification: String, appName: String) {
-        if notification == kAXValueChangedNotification as String {
-            fetchTextElements(from: element, appName: appName)
+    func handleAXEvent(element: AXUIElement, notification: String) {
+        if notification == kAXValueChangedNotification as String || notification == kAXUIElementDestroyedNotification as String {
+            if let appName = getAppName(from: element) {
+                fetchTextElements(from: element, appName: appName)
+            }
         }
+    }
+
+    private func getAppName(from element: AXUIElement) -> String? {
+        var app: AnyObject?
+        let result = AXUIElementCopyAttributeValue(element, kAXTopLevelUIElementAttribute as CFString, &app)
+        if result == .success, let appElement = app {
+            var appName: AnyObject?
+            let nameResult = AXUIElementCopyAttributeValue(appElement as! AXUIElement, kAXTitleAttribute as CFString, &appName)
+            if nameResult == .success, let appNameString = appName as? String {
+                return appNameString
+            }
+        }
+        return nil
     }
 }
