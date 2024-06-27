@@ -59,6 +59,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // AXUIElementからテキストを抽出するメソッド
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
+        // Error: Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f563f40)
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
