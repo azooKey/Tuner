@@ -9,6 +9,8 @@ import SwiftUI
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var textModel = TextModel()
+    var isDataSaveEnabled = true
+    var observer: AXObserver?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // アクセシビリティの権限を確認するためのオプションを設定
@@ -31,6 +33,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("Active app: \(activeApplicationName)")
             if let axApp = getActiveApplicationAXUIElement() {
                 fetchTextElements(from: axApp, appName: activeApplicationName)
+                startMonitoringApp(axApp, appName: activeApplicationName)
             }
         }
     }
@@ -59,9 +62,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
-            print("Text: \(text)")
+
             DispatchQueue.main.async {
-                self.textModel.addText(text, appName: appName)  // 修正点: ここでaddTextメソッドを使用
+                self.textModel.addText(text, appName: appName)
             }
         }
 
@@ -71,6 +74,42 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             for child in children {
                 extractTextFromElement(child, appName: appName)
             }
+        }
+    }
+
+    // アプリケーションの監視を開始するメソッド
+    private func startMonitoringApp(_ app: AXUIElement, appName: String) {
+        print("Start monitoring app: \(appName)")
+        guard let activeApp = NSWorkspace.shared.frontmostApplication else {
+            return
+        }
+
+        var observer: AXObserver?
+        let error = AXObserverCreate(activeApp.processIdentifier, AppDelegate.axObserverCallback, &observer)
+
+        if error != .success {
+            print("Failed to create observer: \(error)")
+            return
+        }
+
+        if let observer = observer {
+            AXObserverAddNotification(observer, app, kAXValueChangedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+            self.observer = observer
+        }
+    }
+
+    // 静的なアクセシビリティコールバックメソッド
+    static let axObserverCallback: AXObserverCallback = { observer, element, notificationName, userInfo in
+        guard let userInfo = userInfo else { return }
+        let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
+        delegate.handleAXEvent(element: element, notification: notificationName as String, appName: "Unknown")
+    }
+
+    // アクセシビリティイベントをハンドリングするメソッド
+    func handleAXEvent(element: AXUIElement, notification: String, appName: String) {
+        if notification == kAXValueChangedNotification as String {
+            fetchTextElements(from: element, appName: appName)
         }
     }
 }
