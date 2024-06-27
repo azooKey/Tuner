@@ -36,6 +36,7 @@ struct ContentView: View {
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
+    private var saveCounter = 0
 
     init() {
         createAppDirectory()
@@ -117,7 +118,13 @@ class TextModel: ObservableObject {
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
             texts.append(newTextEntry)
-            saveToFile()
+            saveCounter += 1
+
+            if saveCounter >= 50 {
+                print("Saving to file...")
+                saveToFile()
+                saveCounter = 0
+            }
         }
     }
 
