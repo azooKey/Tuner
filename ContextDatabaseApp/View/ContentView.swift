@@ -16,7 +16,7 @@ struct ContentView: View {
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                        .padding(.bottom)
 
-            Button("統計") {
+            Button("Update Statics") {
                 statistics = textModel.generateStatistics()
                 showStatistics = true
             }
