@@ -47,7 +47,7 @@ class TextModel: ObservableObject {
         let fileURL = getFileURL()
         DispatchQueue.global(qos: .background).async {
             do {
-                let fileHandle = try FileHandle(forWritingTo: fileURL)
+                let fileHandle = try FileHandle(forUpdating: fileURL)
                 defer {
                     fileHandle.closeFile()
                 }
