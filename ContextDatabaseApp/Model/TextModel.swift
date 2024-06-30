@@ -124,4 +124,58 @@ class TextModel: ObservableObject {
     private func clearMemory() {
         texts = []
     }
+
+    func loadFromFile() -> [TextEntry] {
+        let fileURL = getFileURL()
+        var loadedTexts: [TextEntry] = []
+
+        do {
+            let fileContents = try String(contentsOf: fileURL, encoding: .utf8)
+            let lines = fileContents.split(separator: "\n")
+            for line in lines {
+                if let jsonData = line.data(using: .utf8) {
+                    let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
+                    loadedTexts.append(textEntry)
+                }
+            }
+        } catch {
+            print("Failed to load from file: \(error.localizedDescription)")
+        }
+
+        return loadedTexts
+    }
+
+    func aggregateAppNames() -> [String: Int] {
+        let loadedTexts = loadFromFile()
+        var appNameCounts: [String: Int] = [:]
+
+        for entry in loadedTexts {
+            appNameCounts[entry.appName, default: 0] += 1
+        }
+
+        return appNameCounts
+    }
+
+    func generateStatistics() -> String {
+        let loadedTexts = loadFromFile()
+        var appNameCounts: [String: Int] = [:]
+        var totalTextLength = 0
+        var totalEntries = 0
+
+        for entry in loadedTexts {
+            appNameCounts[entry.appName, default: 0] += 1
+            totalTextLength += entry.text.count
+            totalEntries += 1
+        }
+
+        var stats = "App Name Counts:\n"
+        for (appName, count) in appNameCounts {
+            stats += "\(appName): \(count)\n"
+        }
+        stats += "\nTotal Text Entries: \(totalEntries)\n"
+        stats += "Total Text Length: \(totalTextLength) characters\n"
+        stats += "Average Text Length: \(totalEntries > 0 ? totalTextLength / totalEntries : 0) characters\n"
+
+        return stats
+    }
 }

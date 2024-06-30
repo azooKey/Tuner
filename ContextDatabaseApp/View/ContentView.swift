@@ -3,6 +3,8 @@ import Foundation
 
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
+    @State private var showStatistics = false
+    @State private var statistics: String = ""
 
     var body: some View {
         VStack {
@@ -10,12 +12,26 @@ struct ContentView: View {
                 .font(.title)
                 .padding(.bottom)
 
-            // 統計ボタン
             Button("統計") {
-                print("統計")
+                statistics = textModel.generateStatistics()
+                showStatistics = true
+            }
+            .sheet(isPresented: $showStatistics) {
+                VStack {
+                    Text("Statistics")
+                        .font(.headline)
+                        .padding()
+                    ScrollView {
+                        Text(statistics)
+                            .padding()
+                    }
+                    Button("Close") {
+                        showStatistics = false
+                    }
+                    .padding()
+                }
             }
 
-            // 最後に保存した時間を表示
             if let lastSavedDate = textModel.lastSavedDate {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
                     .padding(.top)
@@ -25,7 +41,6 @@ struct ContentView: View {
         .frame(minWidth: 480, minHeight: 300)
     }
 
-    // 日付フォーマットを定義
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
