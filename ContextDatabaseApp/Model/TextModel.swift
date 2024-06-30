@@ -60,13 +60,6 @@ class TextModel: ObservableObject {
 
                         let jsonLine = jsonString + "\n"
                         if let data = jsonLine.data(using: .ascii) {
-                            // フォーマットの検証
-                            do {
-                                _ = try JSONDecoder().decode(TextEntry.self, from: jsonString.data(using: .ascii)!)
-                            }catch{
-                                print("Cannot save : Failed to decode: \(error.localizedDescription)")
-                                print("jsonString: \(jsonString)")
-                            }
                             fileHandle.write(data)
                         }
                     }
