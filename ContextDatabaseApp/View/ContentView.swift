@@ -3,7 +3,6 @@ import Foundation
 
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
-    @State private var showStatistics = false
     @State private var statistics: String = ""
 
     var body: some View {
@@ -18,22 +17,15 @@ struct ContentView: View {
 
             Button("Update Statics") {
                 statistics = textModel.generateStatistics()
-                showStatistics = true
             }
 
-            if showStatistics {
-                VStack {
-                    Text("Statistics")
-                        .font(.headline)
-                        .padding()
-                    ScrollView {
-                        Text(statistics)
-                            .padding()
-                    }
-                    Button("Close") {
-                        showStatistics = false
-                    }
+            VStack {
+                Text("Statistics")
+                    .font(.headline)
                     .padding()
+                ScrollView {
+                    Text(statistics)
+                        .padding()
                 }
             }
 
@@ -42,7 +34,9 @@ struct ContentView: View {
                     .padding(.top)
             }
         }
-        .padding()
+        .onAppear() {
+            statistics = textModel.generateStatistics()
+        }
     }
 
     private var dateFormatter: DateFormatter {
