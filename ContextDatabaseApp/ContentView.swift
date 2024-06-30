@@ -123,7 +123,7 @@ class TextModel: ObservableObject {
         let pattern =  "\n+"
         let regex = try? NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(location: 0, length: text.utf16.count)
-        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
+        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "\n")
         return modifiedText ?? text
     }
 
