@@ -33,6 +33,12 @@ struct ContentView: View {
     }
 }
 
+struct TextEntry: Codable {
+    var appName: String
+    var text: String
+    var timestamp: Date
+}
+
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
@@ -54,7 +60,7 @@ class TextModel: ObservableObject {
     }
 
     private func getFileURL() -> URL {
-        return getAppDirectory().appendingPathComponent("savedTexts.csv")
+        return getAppDirectory().appendingPathComponent("savedTexts.jsonl")
     }
 
     private func createAppDirectory() {
@@ -68,32 +74,41 @@ class TextModel: ObservableObject {
 
     private func saveToFile() {
         let fileURL = getFileURL()
-        do {
-            let fileHandle = try FileHandle(forWritingTo: fileURL)
-            defer {
-                fileHandle.closeFile()
-            }
-
-            fileHandle.seekToEndOfFile()
-
-            for textEntry in texts {
-                let csvLine = "\(textEntry.appName),\(textEntry.timestamp),\(textEntry.text)\n"
-                if let data = csvLine.data(using: .utf8) {
-                    fileHandle.write(data)
-                }
-            }
-
-            texts.removeAll()
-            lastSavedDate = Date() // 保存日時を更新
-            // メモリの解放
-            clearMemory()
-        } catch {
+        DispatchQueue.global(qos: .background).async {
             do {
-                let header = "AppName,Timestamp,Text\n"
-                try header.write(to: fileURL, atomically: true, encoding: .utf8)
-                saveToFile()
+                let fileHandle = try FileHandle(forWritingTo: fileURL)
+                defer {
+                    fileHandle.closeFile()
+                }
+
+                fileHandle.seekToEndOfFile()
+
+                for textEntry in self.texts {
+                    let jsonData = try JSONEncoder().encode(textEntry)
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        let jsonLine = jsonString + "\n"
+                        if let data = jsonLine.data(using: .utf8) {
+                            fileHandle.write(data)
+                        }
+                    }
+                }
+
+                DispatchQueue.main.async {
+                    self.texts.removeAll()
+                    self.lastSavedDate = Date() // 保存日時を更新
+                    self.clearMemory()
+                }
             } catch {
-                print("Failed to create file with header: \(error.localizedDescription)")
+                DispatchQueue.main.async {
+                    do {
+                        // ファイルが存在しない場合、新しく作成
+                        let jsonData = try JSONEncoder().encode(TextEntry(appName: "App", text: "Sample", timestamp: Date()))
+                        try jsonData.write(to: fileURL, options: .atomic)
+                        self.saveToFile()
+                    } catch {
+                        print("Failed to create file: \(error.localizedDescription)")
+                    }
+                }
             }
         }
     }
@@ -121,7 +136,6 @@ class TextModel: ObservableObject {
             saveCounter += 1
 
             if saveCounter >= 50 {
-                print("Saving to file...")
                 saveToFile()
                 saveCounter = 0
             }
@@ -131,10 +145,4 @@ class TextModel: ObservableObject {
     private func clearMemory() {
         texts = []
     }
-}
-
-struct TextEntry: Codable {
-    var appName: String
-    var text: String
-    var timestamp: Date
 }
