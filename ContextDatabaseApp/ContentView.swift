@@ -1,4 +1,5 @@
 import SwiftUI
+import Foundation
 
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
@@ -33,16 +34,28 @@ struct ContentView: View {
     }
 }
 
-struct TextEntry: Codable {
+struct TextEntry: Codable, Hashable {
     var appName: String
     var text: String
     var timestamp: Date
+
+    // カスタムのハッシュ関数
+    func hash(into hasher: inout Hasher) {
+        hasher.combine(appName)
+        hasher.combine(text)
+    }
+
+    // イコール関数のオーバーライド
+    static func == (lhs: TextEntry, rhs: TextEntry) -> Bool {
+        return lhs.appName == rhs.appName && lhs.text == rhs.text
+    }
 }
 
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     private var saveCounter = 0
+    private var textHashes: Set<TextEntry> = []
 
     init() {
         createAppDirectory()
@@ -123,7 +136,7 @@ class TextModel: ObservableObject {
         let pattern =  "\n+"
         let regex = try? NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(location: 0, length: text.utf16.count)
-        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: "\n")
+        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
         return modifiedText ?? text
     }
 
@@ -132,10 +145,19 @@ class TextModel: ObservableObject {
             let cleanedText = removeExtraNewlines(from: text)
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
+
+            if textHashes.contains(newTextEntry) {
+                print("Duplicate text entry detected, not adding.")
+                return
+            } else {
+                textHashes.insert(newTextEntry)
+            }
+
             texts.append(newTextEntry)
             saveCounter += 1
 
             if saveCounter >= 50 {
+                print("Saving to file... \(Date()))")
                 saveToFile()
                 saveCounter = 0
             }
