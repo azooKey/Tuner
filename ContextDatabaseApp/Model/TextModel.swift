@@ -53,12 +53,20 @@ class TextModel: ObservableObject {
                 }
 
                 fileHandle.seekToEndOfFile()
-
+                fileHandle.write("\n".data(using: .ascii)!)
                 for textEntry in self.texts {
                     let jsonData = try JSONEncoder().encode(textEntry)
-                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                    if let jsonString = String(data: jsonData, encoding: .ascii) {
+
                         let jsonLine = jsonString + "\n"
-                        if let data = jsonLine.data(using: .utf8) {
+                        if let data = jsonLine.data(using: .ascii) {
+                            // フォーマットの検証
+                            do {
+                                _ = try JSONDecoder().decode(TextEntry.self, from: jsonString.data(using: .ascii)!)
+                            }catch{
+                                print("Cannot save : Failed to decode: \(error.localizedDescription)")
+                                print("jsonString: \(jsonString)")
+                            }
                             fileHandle.write(data)
                         }
                     }
@@ -134,19 +142,47 @@ class TextModel: ObservableObject {
         let fileURL = getFileURL()
         var loadedTexts: [TextEntry] = []
 
-        do {
-            let fileContents = try String(contentsOf: fileURL, encoding: .utf8)
-            let lines = fileContents.split(separator: "\n")
-            for line in lines {
-                if let jsonData = line.data(using: .utf8) {
-                    let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
-                    loadedTexts.append(textEntry)
-                }
-            }
-        } catch {
-            print("Failed to load from file: \(error.localizedDescription)")
+        // ファイルの有無を確認
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            print("File does not exist")
+            return loadedTexts
         }
 
+        // ファイルを読み込む
+        var fileContents = ""
+        do {
+            fileContents = try String(contentsOf: fileURL, encoding: .ascii)
+        }catch{
+            print("Failed to load from file: \(error.localizedDescription)")
+            return []
+        }
+
+        // ファイルを1行ずつ読み込む
+        var skipCount = 0
+        let lines = fileContents.split(separator: "\n")
+        print("total lines: \(lines.count)")
+        for line in lines {
+            if line.isEmpty {
+                continue
+            }
+            do {
+                if let jsonData = line.data(using: .ascii) {
+                    let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
+                    loadedTexts.append(textEntry)
+                }else{
+                    print("jsonData is nil")
+                }
+            } catch {
+                print("Failed to load from file: \(error.localizedDescription)")
+                if error.localizedDescription.contains("The data couldn’t be read because it isn’t in the correct format.") {
+                    print("line: \(line)")
+                }
+                // FIXME: 読めない行を一旦スキップ
+                skipCount += 1
+                continue
+            }
+        }
+        print("skipCount: \(skipCount)")
         return loadedTexts
     }
 
@@ -162,6 +198,12 @@ class TextModel: ObservableObject {
     }
 
     func generateStatistics() -> String {
+        // ファイルが存在するか確認し、ないならreturn
+        let fileURL = getFileURL()
+        if !FileManager.default.fileExists(atPath: fileURL.path) {
+            return "No data saved yet"
+        }
+
         let loadedTexts = loadFromFile()
         var appNameCounts: [String: Int] = [:]
         var totalTextLength = 0
