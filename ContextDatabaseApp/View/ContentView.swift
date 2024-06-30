@@ -43,7 +43,6 @@ struct ContentView: View {
             }
         }
         .padding()
-        .frame(minWidth: 480, minHeight: 300)
     }
 
     private var dateFormatter: DateFormatter {
