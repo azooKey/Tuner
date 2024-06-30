@@ -12,6 +12,8 @@
 		E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */; };
 		E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */; };
 		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
+		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
+		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -23,6 +25,8 @@
 		E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ContextDatabaseApp.entitlements; sourceTree = "<group>"; };
 		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
+		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -55,10 +59,11 @@
 		E94A73822C2B4B9F0049C3C6 /* ContextDatabaseApp */ = {
 			isa = PBXGroup;
 			children = (
-				E94A73942C2BE6180049C3C6 /* Info.plist */,
-				E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */,
 				E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */,
-				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
+				E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */,
+				E952E83F2C318D3200EBF642 /* View */,
+				E952E83E2C318D1700EBF642 /* Model */,
+				E94A73942C2BE6180049C3C6 /* Info.plist */,
 				E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */,
 				E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */,
 				E94A73892C2B4B9F0049C3C6 /* Preview Content */,
@@ -72,6 +77,23 @@
 				E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */,
 			);
 			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		E952E83E2C318D1700EBF642 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				E952E83C2C318D1000EBF642 /* TextEntry.swift */,
+				E952E8402C318D5C00EBF642 /* TextModel.swift */,
+			);
+			path = Model;
+			sourceTree = "<group>";
+		};
+		E952E83F2C318D3200EBF642 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
+			);
+			path = View;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -145,6 +167,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
+				E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */,
+				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
 				E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */,
 			);

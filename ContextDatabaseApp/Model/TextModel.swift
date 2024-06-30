@@ -1,55 +1,12 @@
-import SwiftUI
+//
+//  TextModel.swift
+//  ContextDatabaseApp
+//
+//  Created by 高橋直希 on 2024/06/30.
+//
+
 import Foundation
 
-struct ContentView: View {
-    @EnvironmentObject var textModel: TextModel
-
-    var body: some View {
-        VStack {
-            Label("Saved Texts", systemImage: "doc.text")
-                .font(.title)
-                .padding(.bottom)
-
-            // 統計ボタン
-            Button("統計") {
-                print("統計")
-            }
-
-            // 最後に保存した時間を表示
-            if let lastSavedDate = textModel.lastSavedDate {
-                Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
-                    .padding(.top)
-            }
-        }
-        .padding()
-        .frame(minWidth: 480, minHeight: 300)
-    }
-
-    // 日付フォーマットを定義
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .long
-        return formatter
-    }
-}
-
-struct TextEntry: Codable, Hashable {
-    var appName: String
-    var text: String
-    var timestamp: Date
-
-    // カスタムのハッシュ関数
-    func hash(into hasher: inout Hasher) {
-        hasher.combine(appName)
-        hasher.combine(text)
-    }
-
-    // イコール関数のオーバーライド
-    static func == (lhs: TextEntry, rhs: TextEntry) -> Bool {
-        return lhs.appName == rhs.appName && lhs.text == rhs.text
-    }
-}
 
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
@@ -145,7 +102,7 @@ class TextModel: ObservableObject {
             let cleanedText = removeExtraNewlines(from: text)
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
-            
+
             // 重複がある場合は保存をしない
             if textHashes.contains(newTextEntry) {
                 return
