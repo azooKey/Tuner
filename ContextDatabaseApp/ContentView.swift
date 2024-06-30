@@ -145,9 +145,9 @@ class TextModel: ObservableObject {
             let cleanedText = removeExtraNewlines(from: text)
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
-
+            
+            // 重複がある場合は保存をしない
             if textHashes.contains(newTextEntry) {
-                print("Duplicate text entry detected, not adding.")
                 return
             } else {
                 textHashes.insert(newTextEntry)
