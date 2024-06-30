@@ -11,6 +11,7 @@ import Foundation
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
+    @Published var isDataSaveEnabled: Bool = true
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
 
@@ -98,6 +99,10 @@ class TextModel: ObservableObject {
     }
 
     func addText(_ text: String, appName: String) {
+        // もしもテキスト保存がOFF
+        if !isDataSaveEnabled {
+            return
+        }
         if !text.isEmpty {
             let cleanedText = removeExtraNewlines(from: text)
             let timestamp = Date()

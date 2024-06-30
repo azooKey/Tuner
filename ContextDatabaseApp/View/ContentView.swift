@@ -13,6 +13,8 @@ struct ContentView: View {
                 .padding(.bottom)
             
             // 保存のON/OFFスイッチ
+            Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
+                       .padding(.bottom)
 
             Button("統計") {
                 statistics = textModel.generateStatistics()
