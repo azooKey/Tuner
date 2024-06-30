@@ -8,15 +8,18 @@ struct ContentView: View {
 
     var body: some View {
         VStack {
-            Label("Saved Texts", systemImage: "doc.text")
+            Label("ContextDatabaseApp", systemImage: "doc.text")
                 .font(.title)
                 .padding(.bottom)
+            
+            // 保存のON/OFFスイッチ
 
             Button("統計") {
                 statistics = textModel.generateStatistics()
                 showStatistics = true
             }
-            .sheet(isPresented: $showStatistics) {
+
+            if showStatistics {
                 VStack {
                     Text("Statistics")
                         .font(.headline)
