@@ -13,20 +13,18 @@ struct ContentView: View {
             
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
-                       .padding(.bottom)
+                .padding(.bottom)
 
             Button("Update Statics") {
                 statistics = textModel.generateStatistics()
             }
 
-            VStack {
-                Text("Statistics")
-                    .font(.headline)
+            Text("Statistics")
+                .font(.headline)
+                .padding()
+            ScrollView {
+                Text(statistics)
                     .padding()
-                ScrollView {
-                    Text(statistics)
-                        .padding()
-                }
             }
 
             if let lastSavedDate = textModel.lastSavedDate {
