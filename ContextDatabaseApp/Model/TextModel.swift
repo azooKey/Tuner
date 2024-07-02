@@ -128,6 +128,8 @@ class TextModel: ObservableObject {
                 updateFile()
                 saveCounter = 0
             }
+
+            // TODO: ある程度保存したら重複削除
         }
     }
 
