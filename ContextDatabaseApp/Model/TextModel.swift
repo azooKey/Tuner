@@ -213,11 +213,8 @@ class TextModel: ObservableObject {
             totalEntries += 1
         }
 
-        var stats = "App Name Counts:\n"
-        for (appName, count) in appNameCounts {
-            stats += "\(appName): \(count)\n"
-        }
-        stats += "\nTotal Text Entries: \(totalEntries)\n"
+        var stats = ""
+        stats += "Total Text Entries: \(totalEntries)\n"
         stats += "Total Text Length: \(totalTextLength) characters\n"
         stats += "Average Text Length: \(totalEntries > 0 ? totalTextLength / totalEntries : 0) characters\n"
 

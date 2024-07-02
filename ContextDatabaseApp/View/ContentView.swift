@@ -26,16 +26,9 @@ struct ContentView: View {
             Text("Statistics")
                 .font(.headline)
                 .padding()
-
-            BarChartView(data: appNameCounts)
-
-            ScrollView {
-                VStack(alignment: .leading) {
-                    Text("Total Text Entries: \(totalEntries)")
-                    Text("Total Text Length: \(totalTextLength) characters")
-                    Text("Average Text Length: \(averageTextLength) characters")
-                }
-                .padding()
+            HStack{
+                PieChartView(data: appNameCounts)
+                Text(stats)
             }
 
             if let lastSavedDate = textModel.lastSavedDate {
@@ -65,24 +58,45 @@ struct ContentView: View {
     }
 }
 
-struct BarChartView: View {
+struct PieChartView: View {
     var data: [String: Int]
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: 15) {
-            ForEach(data.sorted(by: >), id: \.key) { appName, count in
-                VStack {
-                    Text("\(count)")
-                        .font(.caption)
-                    Rectangle()
-                        .fill(Color.blue)
-                        .frame(width: 20, height: CGFloat(count * 10))
-                    Text(appName)
-                        .font(.caption)
-                        .rotationEffect(.degrees(-45))
-                        .frame(width: 40, height: 20)
+        GeometryReader { geometry in
+            ZStack {
+                ForEach(Array(data.keys.enumerated()), id: \.element) { index, key in
+                    PieSliceView(
+                        startAngle: angle(at: index, from: data),
+                        endAngle: angle(at: index + 1, from: data),
+                        color: colors[index % colors.count]
+                    )
                 }
             }
+            .frame(width: geometry.size.width, height: geometry.size.width)
         }
+        .padding()
+    }
+
+    private func angle(at index: Int, from data: [String: Int]) -> Angle {
+        let total = data.values.reduce(0, +)
+        let value = data.values.prefix(index).reduce(0, +)
+        return Angle(degrees: Double(value) / Double(total) * 360.0)
+    }
+
+    private let colors: [Color] = [.red, .green, .blue, .orange, .purple, .yellow, .pink, .gray]
+}
+
+struct PieSliceView: View {
+    var startAngle: Angle
+    var endAngle: Angle
+    var color: Color
+
+    var body: some View {
+        Path { path in
+            let center = CGPoint(x: 100, y: 100)
+            path.move(to: center)
+            path.addArc(center: center, radius: 100, startAngle: startAngle, endAngle: endAngle, clockwise: false)
+        }
+        .fill(color)
     }
 }
