@@ -110,7 +110,7 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
 
-    func addText(_ text: String, appName: String) async {
+    func addText(_ text: String, appName: String) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
             return
@@ -124,11 +124,6 @@ class TextModel: ObservableObject {
             saveCounter += 1
 
             if saveCounter >= 50 {
-                do {
-                    texts = try await purifyTextEntries(texts).0
-                }catch{
-                    print("Failed to purify file: \(error.localizedDescription)")
-                }
                 print("Saving to file... \(Date()))")
                 updateFile()
                 saveCounter = 0
