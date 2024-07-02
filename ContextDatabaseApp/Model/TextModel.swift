@@ -43,7 +43,7 @@ class TextModel: ObservableObject {
         }
     }
 
-    private func saveToFile() {
+    private func UpdateFile() {
         let fileURL = getFileURL()
         DispatchQueue.global(qos: .background).async {
             do {
@@ -76,7 +76,7 @@ class TextModel: ObservableObject {
                         // ファイルが存在しない場合、新しく作成
                         let jsonData = try JSONEncoder().encode(TextEntry(appName: "App", text: "Sample", timestamp: Date()))
                         try jsonData.write(to: fileURL, options: .atomic)
-                        self.saveToFile()
+                        self.UpdateFile()
                     } catch {
                         print("Failed to create file: \(error.localizedDescription)")
                     }
@@ -121,7 +121,7 @@ class TextModel: ObservableObject {
 
             if saveCounter >= 50 {
                 print("Saving to file... \(Date()))")
-                saveToFile()
+                UpdateFile()
                 saveCounter = 0
             }
         }
@@ -194,21 +194,37 @@ class TextModel: ObservableObject {
         let (appNameCounts, appNameTextCounts, totalEntries, totalTextLength, stats) = generateStatisticsParameter()
         return stats
     }
-    
+
     func generateStatisticsParameter() -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
+        // データのクリーンアップ
+        purifyFile()
+
         // ファイルが存在するか確認し、ないなら空のデータを返す
         let fileURL = getFileURL()
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             return ([], [], 0, 0, "")
         }
-
+        
+        var textEntries: [TextEntry] = []
         let loadedTexts = loadFromFile()
         var appNameCounts: [String: Int] = [:]
         var appNameTextCounts: [String: Int] = [:]
         var totalTextLength = 0
         var totalEntries = 0
+        var uniqueEntries: Set<String> = []
+
+        var duplicatedCount = 0
 
         for entry in loadedTexts {
+            let uniqueKey = "\(entry.appName)-\(entry.text)"
+            // 重複をスキップ
+            if uniqueEntries.contains(uniqueKey) {
+                duplicatedCount += 1
+                continue
+            }
+            uniqueEntries.insert(uniqueKey)
+            textEntries.append(entry)
+
             appNameCounts[entry.appName, default: 0] += 1
             appNameTextCounts[entry.appName, default: 0] += entry.text.count
             totalTextLength += entry.text.count
@@ -224,5 +240,75 @@ class TextModel: ObservableObject {
         let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
 
         return (sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats)
+    }
+
+    func purifyFile() {
+        let fileURL = getFileURL()
+        // 仮の保存先
+        let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
+
+        let loadedTexts: [TextEntry] = loadFromFile()
+
+        let (textEntries, duplicatedCount) = purifyTextEntries(loadedTexts)
+
+        if duplicatedCount == 0 {
+            return
+        }
+
+        // 新規ファイルとして一時ファイルに保存
+        do {
+            var tempFileHandle: FileHandle?
+
+            if !FileManager.default.fileExists(atPath: tempFileURL.path) {
+                FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
+            }
+
+            tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
+            tempFileHandle?.seekToEndOfFile()
+
+            for textEntry in textEntries {
+                let jsonData = try JSONEncoder().encode(textEntry)
+                if let jsonString = String(data: jsonData, encoding: .ascii) {
+                    let jsonLine = jsonString + "\n"
+                    if let data = jsonLine.data(using: .ascii) {
+                        tempFileHandle?.write(data)
+                    }
+                }
+            }
+
+            tempFileHandle?.closeFile()
+
+            // 正常に保存できたら既存ファイルを削除
+            try FileManager.default.removeItem(at: fileURL)
+            // 新規ファイルの名前を変更
+            try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
+            print("File purify completed. Removed \(duplicatedCount) duplicated entries.")
+        } catch {
+            print("Failed to clean and update file: \(error.localizedDescription)")
+        }
+    }
+
+    func purifyTextEntries(_ entries: [TextEntry]) ->( [TextEntry], Int) {
+        var textEntries: [TextEntry] = []
+        var uniqueEntries: Set<String> = []
+        var duplicatedCount = 0
+
+        for entry in entries {
+            let uniqueKey = "\(entry.appName)-\(entry.text)"
+            if uniqueEntries.contains(uniqueKey) {
+                duplicatedCount += 1
+                continue
+            }
+            uniqueEntries.insert(uniqueKey)
+            textEntries.append(entry)
+        }
+
+        if duplicatedCount == 0 {
+            print("No duplicated entries found.")
+        } else {
+            print("Removed \(duplicatedCount) duplicated entries.")
+        }
+
+        return (textEntries, duplicatedCount)
     }
 }
