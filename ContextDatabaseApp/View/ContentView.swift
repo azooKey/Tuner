@@ -4,6 +4,7 @@ import Foundation
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
     @State private var appNameCounts: [String: Int] = [:]
+    @State private var appTexts: [String: Int] = [:]
     @State private var totalEntries: Int = 0
     @State private var totalTextLength: Int = 0
     @State private var averageTextLength: Int = 0
@@ -42,8 +43,9 @@ struct ContentView: View {
     }
 
     private func updateStatistics() {
-        let (counts, entries, length, stats) = textModel.generateStatisticsParameter()
+        let (counts, appText, entries, length, stats) = textModel.generateStatisticsParameter()
         self.appNameCounts = counts
+        self.appTexts = appText
         self.totalEntries = entries
         self.totalTextLength = length
         self.stats = stats

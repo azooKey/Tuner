@@ -191,24 +191,26 @@ class TextModel: ObservableObject {
     }
 
     func generateStatisticsText() -> String {
-        let (appNameCounts, totalEntries, totalTextLength, stats) = generateStatisticsParameter()
+        let (appNameCounts, appNameTextCounts, totalEntries, totalTextLength, stats) = generateStatisticsParameter()
         return stats
     }
 
-    func generateStatisticsParameter() -> ([String: Int], Int, Int, String) {
+    func generateStatisticsParameter() -> ([String: Int], [String: Int], Int, Int, String) {
         // ファイルが存在するか確認し、ないなら空のデータを返す
         let fileURL = getFileURL()
         if !FileManager.default.fileExists(atPath: fileURL.path) {
-            return ([:], 0, 0, "")
+            return ([:], [:], 0, 0, "")
         }
 
         let loadedTexts = loadFromFile()
         var appNameCounts: [String: Int] = [:]
+        var appNameTextCounts: [String: Int] = [:]
         var totalTextLength = 0
         var totalEntries = 0
 
         for entry in loadedTexts {
             appNameCounts[entry.appName, default: 0] += 1
+            appNameCounts[entry.appName, default: 0] += entry.text.count
             totalTextLength += entry.text.count
             totalEntries += 1
         }
@@ -218,6 +220,6 @@ class TextModel: ObservableObject {
         stats += "Total Text Length: \(totalTextLength) characters\n"
         stats += "Average Text Length: \(totalEntries > 0 ? totalTextLength / totalEntries : 0) characters\n"
 
-        return (appNameCounts, totalEntries, totalTextLength, stats)
+        return (appNameCounts, appNameTextCounts, totalEntries, totalTextLength, stats)
     }
 }
