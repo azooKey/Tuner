@@ -190,18 +190,13 @@ class TextModel: ObservableObject {
 
     func generateStatisticsParameter(avoidApps: [String] = []) async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
         // データのクリーンアップ
-        do{
-            try await purifyFile()
-        }catch{
-            print("Failed to purify file: \(error.localizedDescription)")
-        }
-
+        await purifyFile()
         // ファイルが存在するか確認し、ないなら空のデータを返す
         let fileURL = getFileURL()
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             return ([], [], 0, 0, "")
         }
-        
+
         var textEntries: [TextEntry] = []
         let loadedTexts = loadFromFile()
         var appNameCounts: [String: Int] = [:]
@@ -246,14 +241,14 @@ class TextModel: ObservableObject {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
-        
+
         // 逆順にして重複があったときに最新のデータを残す
         let loadedTexts: [TextEntry] = loadFromFile().reversed()
         var textEntries: [TextEntry] = []
         var duplicatedCount = 0
 
         do{
-             (textEntries, duplicatedCount) = try await purifyTextEntries(loadedTexts)
+            (textEntries, duplicatedCount) = try await purifyTextEntries(loadedTexts)
         }catch{
             print("Failed to purify file: \(error.localizedDescription)")
         }
