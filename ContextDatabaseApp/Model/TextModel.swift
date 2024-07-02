@@ -188,7 +188,7 @@ class TextModel: ObservableObject {
         return appNameCounts
     }
 
-    func generateStatisticsParameter() async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
+    func generateStatisticsParameter(avoidApps: [String] = []) async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
         // データのクリーンアップ
         do{
             try await purifyFile()
@@ -222,6 +222,9 @@ class TextModel: ObservableObject {
             uniqueEntries.insert(uniqueKey)
             textEntries.append(entry)
 
+            if avoidApps.contains(entry.appName) {
+                continue
+            }
             appNameCounts[entry.appName, default: 0] += 1
             appNameTextCounts[entry.appName, default: 0] += entry.text.count
             totalTextLength += entry.text.count

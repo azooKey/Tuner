@@ -10,24 +10,25 @@ import Combine
 
 class ShareData: ObservableObject {
     @Published var avoidApps: [String] = ["ContextHarvester"] {
-            didSet {
-                saveAvoidApps()
-            }
+        didSet {
+            saveAvoidApps()
         }
+    }
 
-        private let userDefaultsKey = "avoidApps"
+    private let userDefaultsKey = "avoidApps"
 
-        init() {
-            loadAvoidApps()
+    init() {
+        loadAvoidApps()
+    }
+
+    private func saveAvoidApps() {
+        UserDefaults.standard.set(avoidApps, forKey: userDefaultsKey)
+    }
+
+    private func loadAvoidApps() {
+        if let savedAvoidApps = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] {
+            avoidApps = savedAvoidApps
         }
-
-        private func saveAvoidApps() {
-            UserDefaults.standard.set(avoidApps, forKey: userDefaultsKey)
-        }
-
-        private func loadAvoidApps() {
-            if let savedAvoidApps = UserDefaults.standard.array(forKey: userDefaultsKey) as? [String] {
-                avoidApps = savedAvoidApps
-            }
-        }
+    }
+    @Published var apps: [String] = []
 }

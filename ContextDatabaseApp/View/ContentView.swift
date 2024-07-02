@@ -18,7 +18,7 @@ struct ContentView: View {
     @State private var stats: String = ""
     @State private var selectedGraphStyle: GraphStyle = .pie
     @State private var isLoading: Bool = false
-    @State private var avoidApp: String = ""
+    @State private var selectedApp: String = ""
 
     var body: some View {
         ScrollView {
@@ -34,19 +34,30 @@ struct ContentView: View {
                 .font(.headline)
                 .padding(.bottom)
 
-            List {
-                HStack {
-                    TextField("Add App", text: $avoidApp)
-                    Button(action: {
-                        if !avoidApp.isEmpty {
-                            shareData.avoidApps.append(avoidApp)
-                            avoidApp = ""
-                        }
-                    }) {
-                        Image(systemName: "plus")
+            HStack {
+                Picker("Select App", selection: $selectedApp) {
+                    Text("Select an app").tag("")
+                    ForEach(shareData.apps, id: \.self) { app in
+                        Text(app).tag(app)
                     }
                 }
+                .pickerStyle(MenuPickerStyle())
 
+
+                Button(action: {
+                    if !selectedApp.isEmpty && !shareData.avoidApps.contains(selectedApp) {
+                        shareData.avoidApps.append(selectedApp)
+                        selectedApp = ""
+                    }
+                }) {
+                    Image(systemName: "plus")
+                }
+            }
+            .padding(.horizontal)
+
+
+
+            List {
                 ForEach(shareData.avoidApps.indices, id: \.self) { index in
                     HStack {
                         Text(shareData.avoidApps[index])
@@ -76,15 +87,16 @@ struct ContentView: View {
             Divider()
 
             HStack {
-                Text("Statistics")
+                Label("Statics", systemImage: "chart.bar.fill")
                     .font(.headline)
-                    .padding()
+                    .padding(.bottom)
                 Button(action: {
                     Task {
                         await loadStatistics()
                     }
                 }) {
                     Image(systemName: "arrow.clockwise")
+                        .font(.headline)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
@@ -128,6 +140,7 @@ struct ContentView: View {
         self.totalEntries = entries
         self.totalTextLength = length
         self.stats = stats
+        shareData.apps = appNameCounts.map { $0.key }
         self.averageTextLength = entries > 0 ? length / entries : 0
     }
 
