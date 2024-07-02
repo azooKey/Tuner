@@ -29,7 +29,7 @@ struct PieChartView: View {
                 )
                 .foregroundStyle(by: .value("Key", item.key))
                 .annotation(position: .overlay, alignment: .center, spacing: 0) {
-                    Text("\(item.key)\n\(item.value)")
+                    Text("\(item.key.prefix(10))\n\(item.value)")
                         .font(.caption)
                         .foregroundColor(.white)
                 }
@@ -48,7 +48,7 @@ struct PieChartView: View {
                 }
             }
         }
-        .chartLegend(position: .trailing, alignment: .center)
+        .chartLegend(.hidden)
     }
 }
 

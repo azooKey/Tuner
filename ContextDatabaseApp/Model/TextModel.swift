@@ -131,7 +131,6 @@ class TextModel: ObservableObject {
             saveCounter += 1
 
             if saveCounter >= 50 {
-                print("texts \(texts.map { $0.text })")
                 print("Saving to file... \(Date()))")
                 UpdateFile()
                 saveCounter = 0
@@ -151,6 +150,7 @@ class TextModel: ObservableObject {
         // ファイルの有無を確認
         if !FileManager.default.fileExists(atPath: fileURL.path) {
             print("File does not exist")
+            
             return loadedTexts
         }
 
@@ -315,9 +315,6 @@ class TextModel: ObservableObject {
     }
 
     func purifyTextEntries(_ entries: [TextEntry]) async throws ->( [TextEntry], Int) {
-        // TODO: BUG探し
-        return (entries, 100)
-
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
