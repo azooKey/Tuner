@@ -190,14 +190,13 @@ class TextModel: ObservableObject {
         return appNameCounts
     }
 
-    func generateStatisticsText() -> String {
-        let (appNameCounts, appNameTextCounts, totalEntries, totalTextLength, stats) = generateStatisticsParameter()
-        return stats
-    }
-
-    func generateStatisticsParameter() -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
+    func generateStatisticsParameter() async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
         // データのクリーンアップ
-        purifyFile()
+        do{
+            try await purifyFile()
+        }catch{
+            print("Failed to purify file: \(error.localizedDescription)")
+        }
 
         // ファイルが存在するか確認し、ないなら空のデータを返す
         let fileURL = getFileURL()
@@ -242,15 +241,21 @@ class TextModel: ObservableObject {
         return (sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats)
     }
 
-    func purifyFile() {
+    func purifyFile() async {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
         
         // 逆順にして重複があったときに最新のデータを残す
         let loadedTexts: [TextEntry] = loadFromFile().reversed()
+        var textEntries: [TextEntry] = []
+        var duplicatedCount = 0
 
-        let (textEntries, duplicatedCount) = purifyTextEntries(loadedTexts)
+        do{
+             (textEntries, duplicatedCount) = try await purifyTextEntries(loadedTexts)
+        }catch{
+            print("Failed to purify file: \(error.localizedDescription)")
+        }
 
         if duplicatedCount == 0 {
             return
@@ -289,7 +294,7 @@ class TextModel: ObservableObject {
         }
     }
 
-    func purifyTextEntries(_ entries: [TextEntry]) ->( [TextEntry], Int) {
+    func purifyTextEntries(_ entries: [TextEntry]) async throws ->( [TextEntry], Int) {
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
