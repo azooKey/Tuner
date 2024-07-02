@@ -14,6 +14,7 @@
 		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
 		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
 		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
+		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -27,6 +28,7 @@
 		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
 		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
+		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +94,7 @@
 			isa = PBXGroup;
 			children = (
 				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
+				E9B51DA92C33B39000523DB0 /* ChartView.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -171,6 +174,7 @@
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
 				E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */,
+				E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
