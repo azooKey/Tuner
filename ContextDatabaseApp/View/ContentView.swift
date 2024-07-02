@@ -26,6 +26,18 @@ struct ContentView: View {
                 .font(.title)
                 .padding(.bottom)
 
+            // 保存先pathの表示
+            HStack {
+                Text("Save Path:")
+                Spacer()
+                Text(textModel.getFileURL().path)
+                Button(action: {
+                    openFolderInFinder(url: textModel.getFileURL())
+                }) {
+                    Image(systemName: "folder")
+                }
+            }
+            .padding(.horizontal)
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
@@ -150,4 +162,10 @@ struct ContentView: View {
         formatter.timeStyle = .long
         return formatter
     }
+
+    private func openFolderInFinder(url: URL) {
+        let folderURL = url.deletingLastPathComponent()
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+    }
+
 }

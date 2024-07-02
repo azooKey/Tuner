@@ -30,7 +30,7 @@ class TextModel: ObservableObject {
         return appDirectory
     }
 
-    private func getFileURL() -> URL {
+    func getFileURL() -> URL {
         return getAppDirectory().appendingPathComponent("savedTexts.jsonl")
     }
 
