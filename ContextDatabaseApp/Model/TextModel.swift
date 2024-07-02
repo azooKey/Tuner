@@ -45,32 +45,10 @@ class TextModel: ObservableObject {
 
     private func UpdateFile() {
         let fileURL = getFileURL()
-        DispatchQueue.global(qos: .background).async {
-            do {
-                let fileHandle = try FileHandle(forUpdating: fileURL)
-                defer {
-                    fileHandle.closeFile()
-                }
-
-                fileHandle.seekToEndOfFile()
-                fileHandle.write("\n".data(using: .ascii)!)
-                for textEntry in self.texts {
-                    let jsonData = try JSONEncoder().encode(textEntry)
-                    if let jsonString = String(data: jsonData, encoding: .ascii) {
-
-                        let jsonLine = jsonString + "\n"
-                        if let data = jsonLine.data(using: .ascii) {
-                            fileHandle.write(data)
-                        }
-                    }
-                }
-
-                DispatchQueue.main.async {
-                    self.texts.removeAll()
-                    self.lastSavedDate = Date() // 保存日時を更新
-                    self.clearMemory()
-                }
-            } catch {
+        DispatchQueue.main.async {
+            // ファイルの有無を確認
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                print("File does not exist")
                 DispatchQueue.main.async {
                     do {
                         // ファイルが存在しない場合、新しく作成
@@ -81,6 +59,39 @@ class TextModel: ObservableObject {
                         print("Failed to create file: \(error.localizedDescription)")
                     }
                 }
+            }
+
+            do {
+                let fileHandle = try FileHandle(forUpdating: fileURL)
+                defer {
+                    fileHandle.closeFile()
+                }
+
+                fileHandle.seekToEndOfFile()
+                fileHandle.write("\n".data(using: .utf8)!)
+
+                // 1行ずつ書き出し
+                for textEntry in self.texts {
+                    // JSONエンコード
+                    let jsonData = try JSONEncoder().encode(textEntry)
+                    // JSON文字列に変換してファイルに書き込み
+                    if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        let jsonLine = jsonString + "\n"
+                        if let data = jsonLine.data(using: .utf8) {
+                            fileHandle.write(data)
+                        } else {
+                            print("Failed to encode data to write \(jsonLine)")
+                        }
+                    }
+                }
+
+                DispatchQueue.main.async {
+                    self.texts.removeAll()
+                    self.lastSavedDate = Date() // 保存日時を更新
+                    self.clearMemory()
+                }
+            } catch {
+                print("Failed to update file: \(error.localizedDescription)")
             }
         }
     }
@@ -120,6 +131,7 @@ class TextModel: ObservableObject {
             saveCounter += 1
 
             if saveCounter >= 50 {
+                print("texts \(texts.map { $0.text })")
                 print("Saving to file... \(Date()))")
                 UpdateFile()
                 saveCounter = 0
@@ -145,7 +157,7 @@ class TextModel: ObservableObject {
         // ファイルを読み込む
         var fileContents = ""
         do {
-            fileContents = try String(contentsOf: fileURL, encoding: .ascii)
+            fileContents = try String(contentsOf: fileURL, encoding: .utf8)
         }catch{
             print("Failed to load from file: \(error.localizedDescription)")
             return []
@@ -160,7 +172,7 @@ class TextModel: ObservableObject {
                 continue
             }
             do {
-                if let jsonData = line.data(using: .ascii) {
+                if let jsonData = line.data(using: .utf8) {
                     let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
                     loadedTexts.append(textEntry)
                 }
@@ -181,7 +193,7 @@ class TextModel: ObservableObject {
             let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
             let unreadableText = unreadableLines.joined(separator: "\n")
             do {
-                try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .ascii)
+                try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
             } catch {
                 print("Failed to save unreadable lines: \(error.localizedDescription)")
             }
@@ -282,9 +294,9 @@ class TextModel: ObservableObject {
 
             for textEntry in textEntries {
                 let jsonData = try JSONEncoder().encode(textEntry)
-                if let jsonString = String(data: jsonData, encoding: .ascii) {
+                if let jsonString = String(data: jsonData, encoding: .utf8) {
                     let jsonLine = jsonString + "\n"
-                    if let data = jsonLine.data(using: .ascii) {
+                    if let data = jsonLine.data(using: .utf8) {
                         tempFileHandle?.write(data)
                     }
                 }

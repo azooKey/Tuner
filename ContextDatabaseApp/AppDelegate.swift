@@ -56,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
         if result == .success, let children = value as? [AXUIElement] {
             for child in children {
+//                print("child: \(child)")
                 extractTextFromElement(child, appName: appName)
             }
         }
@@ -67,8 +68,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
-            DispatchQueue.main.async {
-                self.textModel.addText(text, appName: appName)
+            if text != "" {
+                DispatchQueue.main.async {
+                    self.textModel.addText(text, appName: appName)
+                }
             }
         }
 
