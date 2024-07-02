@@ -162,8 +162,6 @@ class TextModel: ObservableObject {
                 if let jsonData = line.data(using: .ascii) {
                     let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
                     loadedTexts.append(textEntry)
-                }else{
-                    print("jsonData is nil")
                 }
             } catch {
                 print("Failed to load from file: \(error.localizedDescription)")

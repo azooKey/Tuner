@@ -15,6 +15,7 @@
 		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
 		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
 		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
+		E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DAB2C33D13100523DB0 /* MenuView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -29,6 +30,7 @@
 		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
 		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
 		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
+		E9B51DAB2C33D13100523DB0 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -95,6 +97,7 @@
 			children = (
 				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
 				E9B51DA92C33B39000523DB0 /* ChartView.swift */,
+				E9B51DAB2C33D13100523DB0 /* MenuView.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -169,6 +172,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */,
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */,
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,

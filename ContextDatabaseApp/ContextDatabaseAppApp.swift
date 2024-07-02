@@ -13,9 +13,14 @@ struct ContextDatabaseAppApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
 
     var body: some Scene {
-        WindowGroup {
+        MenuBarExtra("ContextDatabaseApp", systemImage: "doc.text"){
+            MenuView()
+                .environmentObject(appDelegate.textModel)
+        }
+        Settings {
             ContentView()
                 .environmentObject(appDelegate.textModel)
+                .frame(width: 400, height: 600)
         }
     }
 }
