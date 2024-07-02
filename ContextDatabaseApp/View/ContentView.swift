@@ -1,6 +1,12 @@
 import SwiftUI
 import Charts
 
+enum GraphStyle {
+    case pie
+    case bar
+    case detail
+}
+
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
     @State private var appNameCounts: [(key: String, value: Int)] = []
@@ -9,6 +15,7 @@ struct ContentView: View {
     @State private var totalTextLength: Int = 0
     @State private var averageTextLength: Int = 0
     @State private var stats: String = ""
+    @State private var selectedGraphStyle: GraphStyle = .pie
 
     var body: some View {
         VStack {
@@ -24,7 +31,7 @@ struct ContentView: View {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
                     .padding(.top)
             }
-            
+
             Divider()
 
             HStack{
@@ -39,8 +46,23 @@ struct ContentView: View {
                 .buttonStyle(PlainButtonStyle())
             }
             Text(stats)
-            PieChartView(data: appNameCounts, total: totalTextLength)
-                .frame(maxWidth: 300, minHeight: 200)
+            if selectedGraphStyle == .bar {
+                BarChartView(data: appTexts, total: totalTextLength)
+                    .frame(maxWidth: 300, minHeight: 200)
+            } else if selectedGraphStyle == .pie {
+                PieChartView(data: appTexts, total: totalTextLength)
+                    .frame(maxWidth: 300, minHeight: 200)
+            } else if selectedGraphStyle == .detail {
+                DetailView(data: appTexts)
+                    .frame(maxWidth: 300, minHeight: 200)
+            }
+            Picker("", selection: $selectedGraphStyle) {
+                Text("Pie").tag(GraphStyle.pie)
+                Text("Bar").tag(GraphStyle.bar)
+                Text("Detail").tag(GraphStyle.detail)
+            }
+            .pickerStyle(SegmentedPickerStyle())
+            .padding()
         }
         .onAppear {
             updateStatistics()

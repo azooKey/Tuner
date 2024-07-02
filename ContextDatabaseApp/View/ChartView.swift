@@ -51,3 +51,52 @@ struct PieChartView: View {
         .chartLegend(position: .trailing, alignment: .center)
     }
 }
+
+
+struct BarChartView: View {
+    var data: [(key: String, value: Int)]
+    var total: Int
+    var topEntries: Int = 5
+
+    var body: some View {
+        Chart {
+            ForEach(data.prefix(topEntries), id: \.key) { item in
+                BarMark(
+                    x: .value("Key", item.key),
+                    y: .value("Value", item.value)
+                )
+                .foregroundStyle(by: .value("Key", item.key))
+            }
+            BarMark(
+                x: .value("Key", "Others"),
+                y: .value("Value", data.dropFirst(topEntries).reduce(0) { $0 + $1.value })
+            )
+        }
+        .chartLegend(.hidden)
+    }
+}
+
+struct DetailView: View {
+    var data: [(key: String, value: Int)]
+    var topEntries: Int = -1
+
+    var body: some View {
+        let displayData = topEntries < 0 ? data : Array(data.prefix(topEntries))
+
+        List {
+            Section(header: HStack {
+                Text("AppName")
+                Spacer()
+                Text("Characters")
+            }) {
+                ForEach(displayData, id: \.key) { item in
+                    HStack {
+                        Text(item.key)
+                        Spacer()
+                        Text("\(item.value)")
+                    }
+                }
+            }
+        }
+    }
+}
