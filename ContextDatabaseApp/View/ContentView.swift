@@ -9,6 +9,7 @@ enum GraphStyle {
 
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
+    @EnvironmentObject var shareData: ShareData
     @State private var appNameCounts: [(key: String, value: Int)] = []
     @State private var appTexts: [(key: String, value: Int)] = []
     @State private var totalEntries: Int = 0
@@ -17,16 +18,55 @@ struct ContentView: View {
     @State private var stats: String = ""
     @State private var selectedGraphStyle: GraphStyle = .pie
     @State private var isLoading: Bool = false
+    @State private var avoidApp: String = ""
 
     var body: some View {
-        VStack {
-            Label("ContextDatabaseApp", systemImage: "doc.text")
+        ScrollView {
+            Label("ContextHarvester", systemImage: "doc.text")
                 .font(.title)
                 .padding(.bottom)
 
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
+
+            Label("Log Avoid Apps", systemImage: "xmark.circle.fill")
+                .font(.headline)
+                .padding(.bottom)
+
+            List {
+                HStack {
+                    TextField("Add App", text: $avoidApp)
+                    Button(action: {
+                        if !avoidApp.isEmpty {
+                            shareData.avoidApps.append(avoidApp)
+                            avoidApp = ""
+                        }
+                    }) {
+                        Image(systemName: "plus")
+                    }
+                }
+
+                ForEach(shareData.avoidApps.indices, id: \.self) { index in
+                    HStack {
+                        Text(shareData.avoidApps[index])
+                        Spacer()
+                        if index == 0 {
+                            Text("Default")
+                                .foregroundColor(.gray)
+                        } else {
+                            Button(action: {
+                                shareData.avoidApps.remove(at: index)
+                            }) {
+                                Image(systemName: "minus.circle")
+                                    .foregroundColor(.red)
+                            }
+                        }
+                    }
+                }
+            }
+            .frame(height: 100)
+            .padding(.horizontal)
 
             if let lastSavedDate = textModel.lastSavedDate {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")

@@ -11,7 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var textModel = TextModel()
     var isDataSaveEnabled = true
     var observer: AXObserver?
-    let avoidApps = ["ContextDatabaseApp"]
+    var shareData = ShareData()
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // アクセシビリティの権限を確認するためのオプションを設定
@@ -32,7 +32,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let activeApp = NSWorkspace.shared.frontmostApplication {
             let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
             print("Active app: \(activeApplicationName)")
-            if avoidApps.contains(activeApplicationName) {
+            if shareData.avoidApps.contains(activeApplicationName) {
                 return
             }
             if let axApp = getActiveApplicationAXUIElement() {
