@@ -20,6 +20,11 @@ struct ContentView: View {
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
 
+            if let lastSavedDate = textModel.lastSavedDate {
+                Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
+                    .padding(.top)
+            }
+            
             Divider()
 
             HStack{
@@ -36,11 +41,6 @@ struct ContentView: View {
             Text(stats)
             PieChartView(data: appNameCounts, total: totalTextLength)
                 .frame(maxWidth: 300, minHeight: 200)
-
-            if let lastSavedDate = textModel.lastSavedDate {
-                Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
-                    .padding(.top)
-            }
         }
         .onAppear {
             updateStatistics()
