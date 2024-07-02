@@ -1,10 +1,10 @@
 import SwiftUI
-import Foundation
+import Charts
 
 struct ContentView: View {
     @EnvironmentObject var textModel: TextModel
-    @State private var appNameCounts: [String: Int] = [:]
-    @State private var appTexts: [String: Int] = [:]
+    @State private var appNameCounts: [(key: String, value: Int)] = []
+    @State private var appTexts:  [(key: String, value: Int)] = []
     @State private var totalEntries: Int = 0
     @State private var totalTextLength: Int = 0
     @State private var averageTextLength: Int = 0
@@ -27,8 +27,9 @@ struct ContentView: View {
             Text("Statistics")
                 .font(.headline)
                 .padding()
-            HStack{
-                PieChartView(data: appNameCounts)
+            HStack {
+                PieChartView(data: appNameCounts, total: totalTextLength)
+                    .frame(maxWidth: 300, minHeight: 200)
                 Text(stats)
             }
 
@@ -37,7 +38,7 @@ struct ContentView: View {
                     .padding(.top)
             }
         }
-        .onAppear() {
+        .onAppear {
             updateStatistics()
         }
     }
@@ -61,44 +62,24 @@ struct ContentView: View {
 }
 
 struct PieChartView: View {
-    var data: [String: Int]
+    var data: [(key: String, value: Int)]
+    var total: Int
 
     var body: some View {
-        GeometryReader { geometry in
-            ZStack {
-                ForEach(Array(data.keys.enumerated()), id: \.element) { index, key in
-                    PieSliceView(
-                        startAngle: angle(at: index, from: data),
-                        endAngle: angle(at: index + 1, from: data),
-                        color: colors[index % colors.count]
-                    )
+        Chart {
+            ForEach(data, id: \.key) { item in
+                SectorMark(
+                    angle: .value("Value", item.value),
+                    angularInset: 1
+                )
+                .foregroundStyle(by: .value("Key", item.key))
+                .annotation(position: .overlay, alignment: .center, spacing: 0) {
+                    Text("\(item.key)\n\(item.value)")
+                        .font(.caption)
+                        .foregroundColor(.white)
                 }
             }
-            .frame(width: geometry.size.width, height: geometry.size.width)
         }
-        .padding()
-    }
-
-    private func angle(at index: Int, from data: [String: Int]) -> Angle {
-        let total = data.values.reduce(0, +)
-        let value = data.values.prefix(index).reduce(0, +)
-        return Angle(degrees: Double(value) / Double(total) * 360.0)
-    }
-
-    private let colors: [Color] = [.red, .green, .blue, .orange, .purple, .yellow, .pink, .gray]
-}
-
-struct PieSliceView: View {
-    var startAngle: Angle
-    var endAngle: Angle
-    var color: Color
-
-    var body: some View {
-        Path { path in
-            let center = CGPoint(x: 100, y: 100)
-            path.move(to: center)
-            path.addArc(center: center, radius: 100, startAngle: startAngle, endAngle: endAngle, clockwise: false)
-        }
-        .fill(color)
+        .chartLegend(.hidden)
     }
 }
