@@ -246,8 +246,9 @@ class TextModel: ObservableObject {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
-
-        let loadedTexts: [TextEntry] = loadFromFile()
+        
+        // 逆順にして重複があったときに最新のデータを残す
+        let loadedTexts: [TextEntry] = loadFromFile().reversed()
 
         let (textEntries, duplicatedCount) = purifyTextEntries(loadedTexts)
 
