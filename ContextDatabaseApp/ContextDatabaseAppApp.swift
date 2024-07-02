@@ -21,7 +21,7 @@ struct ContextDatabaseAppApp: App {
             ContentView()
                 .environmentObject(appDelegate.textModel)
                 .environmentObject(appDelegate.shareData)
-                .frame(width: 400, height: 600)
+                .frame(width: 500, height: 400)
         }
     }
 }

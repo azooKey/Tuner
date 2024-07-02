@@ -134,6 +134,7 @@ class TextModel: ObservableObject {
     func loadFromFile() -> [TextEntry] {
         let fileURL = getFileURL()
         var loadedTexts: [TextEntry] = []
+        var unreadableLines: [String] = []
 
         // ファイルの有無を確認
         if !FileManager.default.fileExists(atPath: fileURL.path) {
@@ -170,10 +171,21 @@ class TextModel: ObservableObject {
                 }
                 // FIXME: 読めない行を一旦スキップ
                 skipCount += 1
+                unreadableLines.append(String(line))
                 continue
             }
         }
         print("skipCount: \(skipCount)")
+        // 読めなかった行を追加で保存
+        if unreadableLines.count > 0 {
+            let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
+            let unreadableText = unreadableLines.joined(separator: "\n")
+            do {
+                try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .ascii)
+            } catch {
+                print("Failed to save unreadable lines: \(error.localizedDescription)")
+            }
+        }
         return loadedTexts
     }
 
@@ -291,6 +303,9 @@ class TextModel: ObservableObject {
     }
 
     func purifyTextEntries(_ entries: [TextEntry]) async throws ->( [TextEntry], Int) {
+        // TODO: BUG探し
+        return (entries, 100)
+
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0

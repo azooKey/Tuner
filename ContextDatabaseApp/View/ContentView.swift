@@ -8,24 +8,27 @@ enum GraphStyle {
 }
 
 struct ContentView: View {
+    var body: some View {
+        TabView {
+            SettingsView()
+                .tabItem {
+                    Label("Settings", systemImage: "gearshape")
+                }
+            StaticsView()
+                .tabItem {
+                    Label("Statics", systemImage: "chart.bar")
+                }
+        }
+    }
+}
+
+struct SettingsView: View {
     @EnvironmentObject var textModel: TextModel
     @EnvironmentObject var shareData: ShareData
-    @State private var appNameCounts: [(key: String, value: Int)] = []
-    @State private var appTexts: [(key: String, value: Int)] = []
-    @State private var totalEntries: Int = 0
-    @State private var totalTextLength: Int = 0
-    @State private var averageTextLength: Int = 0
-    @State private var stats: String = ""
-    @State private var selectedGraphStyle: GraphStyle = .pie
-    @State private var isLoading: Bool = false
     @State private var selectedApp: String = ""
 
     var body: some View {
         ScrollView {
-            Label("ContextHarvester", systemImage: "doc.text")
-                .font(.title)
-                .padding(.bottom)
-
             // 保存先pathの表示
             HStack {
                 Text("Save Path:")
@@ -37,7 +40,8 @@ struct ContentView: View {
                     Image(systemName: "folder")
                 }
             }
-            .padding(.horizontal)
+            .padding()
+
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
@@ -55,7 +59,6 @@ struct ContentView: View {
                 }
                 .pickerStyle(MenuPickerStyle())
 
-
                 Button(action: {
                     if !selectedApp.isEmpty && !shareData.avoidApps.contains(selectedApp) {
                         shareData.avoidApps.append(selectedApp)
@@ -66,8 +69,6 @@ struct ContentView: View {
                 }
             }
             .padding(.horizontal)
-
-
 
             List {
                 ForEach(shareData.avoidApps.indices, id: \.self) { index in
@@ -88,30 +89,56 @@ struct ContentView: View {
                     }
                 }
             }
-            .frame(height: 100)
+            .frame(height: 200)
             .padding(.horizontal)
 
             if let lastSavedDate = textModel.lastSavedDate {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
                     .padding(.top)
             }
+        }
+    }
 
-            Divider()
+    private var dateFormatter: DateFormatter {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .long
+        return formatter
+    }
 
+    private func openFolderInFinder(url: URL) {
+        let folderURL = url.deletingLastPathComponent()
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+    }
+}
+
+struct StaticsView: View {
+    @EnvironmentObject var textModel: TextModel
+    @EnvironmentObject var shareData: ShareData
+    @State private var appNameCounts: [(key: String, value: Int)] = []
+    @State private var appTexts: [(key: String, value: Int)] = []
+    @State private var totalEntries: Int = 0
+    @State private var totalTextLength: Int = 0
+    @State private var averageTextLength: Int = 0
+    @State private var stats: String = ""
+    @State private var selectedGraphStyle: GraphStyle = .pie
+    @State private var isLoading: Bool = false
+
+    var body: some View {
+        ScrollView {
             HStack {
-                Label("Statics", systemImage: "chart.bar.fill")
-                    .font(.headline)
-                    .padding(.bottom)
                 Button(action: {
                     Task {
                         await loadStatistics()
                     }
                 }) {
-                    Image(systemName: "arrow.clockwise")
+                    Label("Update Statics", systemImage: "arrow.clockwise")
                         .font(.headline)
+                        .padding(.bottom)
                 }
                 .buttonStyle(PlainButtonStyle())
             }
+            .padding()
 
             if isLoading {
                 ProgressView("Loading...")
@@ -144,7 +171,7 @@ struct ContentView: View {
 
     private func loadStatistics() async {
         isLoading = true
-        defer { isLoading = false }  // This will ensure isLoading is set to false when the function exits
+        defer { isLoading = false }
 
         let (counts, appText, entries, length, stats) = await textModel.generateStatisticsParameter()
         self.appNameCounts = counts
@@ -155,17 +182,4 @@ struct ContentView: View {
         shareData.apps = appNameCounts.map { $0.key }
         self.averageTextLength = entries > 0 ? length / entries : 0
     }
-
-    private var dateFormatter: DateFormatter {
-        let formatter = DateFormatter()
-        formatter.dateStyle = .short
-        formatter.timeStyle = .long
-        return formatter
-    }
-
-    private func openFolderInFinder(url: URL) {
-        let folderURL = url.deletingLastPathComponent()
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
-    }
-
 }
