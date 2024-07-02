@@ -9,30 +9,34 @@ struct ContentView: View {
     @State private var totalTextLength: Int = 0
     @State private var averageTextLength: Int = 0
     @State private var stats: String = ""
-
+    
     var body: some View {
         VStack {
             Label("ContextDatabaseApp", systemImage: "doc.text")
                 .font(.title)
                 .padding(.bottom)
-
+            
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
-
-            Button("Update Statics") {
-                updateStatistics()
+            
+            Divider()
+            
+            HStack{
+                Text("Statistics")
+                    .font(.headline)
+                    .padding()
+                Button(action: {
+                    updateStatistics()
+                }) {
+                    Image(systemName: "arrow.clockwise")
+                }
+                .buttonStyle(PlainButtonStyle())
             }
-
-            Text("Statistics")
-                .font(.headline)
-                .padding()
-            HStack {
-                PieChartView(data: appNameCounts, total: totalTextLength)
-                    .frame(maxWidth: 300, minHeight: 200)
-                Text(stats)
-            }
-
+            Text(stats)
+            PieChartView(data: appNameCounts, total: totalTextLength)
+                .frame(maxWidth: 300, minHeight: 200)
+            
             if let lastSavedDate = textModel.lastSavedDate {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
                     .padding(.top)
@@ -42,7 +46,7 @@ struct ContentView: View {
             updateStatistics()
         }
     }
-
+    
     private func updateStatistics() {
         let (counts, appText, entries, length, stats) = textModel.generateStatisticsParameter()
         self.appNameCounts = counts
@@ -52,7 +56,7 @@ struct ContentView: View {
         self.stats = stats
         self.averageTextLength = entries > 0 ? length / entries : 0
     }
-
+    
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
@@ -65,14 +69,14 @@ struct PieChartView: View {
     var data: [(key: String, value: Int)]
     var total: Int
     var topEntries: Int = 5
-
+    
     var body: some View {
         Chart {
             let sortedData = data.sorted { $0.value > $1.value }
             let topData = sortedData.prefix(topEntries)
             let otherData = sortedData.dropFirst(topEntries)
             let otherValue = otherData.reduce(0) { $0 + $1.value }
-
+            
             ForEach(topData, id: \.key) { item in
                 SectorMark(
                     angle: .value("Value", item.value),
@@ -86,7 +90,7 @@ struct PieChartView: View {
                         .foregroundColor(.white)
                 }
             }
-
+            
             if otherValue > 0 {
                 SectorMark(
                     angle: .value("Value", otherValue),
@@ -100,6 +104,6 @@ struct PieChartView: View {
                 }
             }
         }
-        .chartLegend(.hidden)
+        .chartLegend(position: .trailing, alignment: .center)
     }
 }
