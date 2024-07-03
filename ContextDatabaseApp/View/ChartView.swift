@@ -9,6 +9,12 @@ import SwiftUI
 import Charts
 
 
+enum GraphStyle {
+    case pie
+    case bar
+    case detail
+}
+
 struct PieChartView: View {
     var data: [(key: String, value: Int)]
     var total: Int

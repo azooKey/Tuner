@@ -17,6 +17,8 @@
 		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
 		E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DAB2C33D13100523DB0 /* MenuView.swift */; };
 		E9EB3E9A2C34002C00EA6395 /* ShareData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EB3E992C34002C00EA6395 /* ShareData.swift */; };
+		E9EB3E9C2C3546A000EA6395 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */; };
+		E9EB3E9E2C3546DB00EA6395 /* StaticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9EB3E9D2C3546DB00EA6395 /* StaticsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -33,6 +35,8 @@
 		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		E9B51DAB2C33D13100523DB0 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 		E9EB3E992C34002C00EA6395 /* ShareData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareData.swift; sourceTree = "<group>"; };
+		E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		E9EB3E9D2C3546DB00EA6395 /* StaticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StaticsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,6 +105,8 @@
 				E94A73852C2B4B9F0049C3C6 /* ContentView.swift */,
 				E9B51DA92C33B39000523DB0 /* ChartView.swift */,
 				E9B51DAB2C33D13100523DB0 /* MenuView.swift */,
+				E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */,
+				E9EB3E9D2C3546DB00EA6395 /* StaticsView.swift */,
 			);
 			path = View;
 			sourceTree = "<group>";
@@ -178,6 +184,8 @@
 				E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */,
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */,
+				E9EB3E9C2C3546A000EA6395 /* SettingsView.swift in Sources */,
+				E9EB3E9E2C3546DB00EA6395 /* StaticsView.swift in Sources */,
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
 				E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */,
