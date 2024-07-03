@@ -45,7 +45,7 @@ class TextModel: ObservableObject {
 
     private func updateFile() {
         let fileURL = getFileURL()
-        fileAccessQueue.async {
+        fileAccessQueue.async { [self] in
             // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 print("File does not exist")
@@ -70,8 +70,10 @@ class TextModel: ObservableObject {
                 fileHandle.seekToEndOfFile()
                 fileHandle.write("\n".data(using: .utf8)!)
 
+                // 重複削除
+                let uniqueText = self.purifyTextEntries(texts).0
                 // 1行ずつ書き出し
-                for textEntry in self.texts {
+                for textEntry in uniqueText{
                     // JSONエンコード
                     let jsonData = try JSONEncoder().encode(textEntry)
                     // JSON文字列に変換してファイルに書き込み
@@ -110,7 +112,7 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
 
-    func addText(_ text: String, appName: String) {
+    func addText(_ text: String, appName: String, saveLineTh: Int = 50, saveIntervalSec: Int = 10) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
             return
@@ -123,8 +125,18 @@ class TextModel: ObservableObject {
             texts.append(newTextEntry)
             saveCounter += 1
 
-            if saveCounter >= 50 {
-                print("Saving to file... \(Date()))")
+            // 最後の保存から10秒経過していたら
+            let intervalFlag : Bool = {
+                if let lastSavedDate = lastSavedDate {
+                    let interval = Date().timeIntervalSince(lastSavedDate)
+                    return Int(interval) > saveIntervalSec
+                } else {
+                    return true
+                }
+            }()
+
+            if saveCounter % saveLineTh == 0 && intervalFlag{
+                print("\(texts.count) lines saved to file... \(Date()))")
                 updateFile()
                 saveCounter = 0
             }

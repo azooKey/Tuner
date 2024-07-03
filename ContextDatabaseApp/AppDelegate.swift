@@ -70,7 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if result == .success, let text = value as? String {
             if text != "" {
                 DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName)
+                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec)
                 }
             }
         }

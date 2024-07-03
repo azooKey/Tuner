@@ -46,6 +46,24 @@ struct SettingsView: View {
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
 
+
+            // saveLineTh and saveIntervalSec
+            HStack {
+                Text("Save Line Threshold:")
+                Stepper(value: $shareData.saveLineTh, in: 10...100, step: 10) {
+                    Text("\(shareData.saveLineTh)")
+                }
+            }
+            .padding(.top)
+
+            HStack {
+                Text("Save Interval Seconds:")
+                Stepper(value: $shareData.saveIntervalSec, in: 10...600, step: 10) {
+                    Text("\(shareData.saveIntervalSec)")
+                }
+            }
+            .padding(.top)
+
             Label("Log Avoid Apps", systemImage: "xmark.circle.fill")
                 .font(.headline)
                 .padding(.bottom)
