@@ -153,10 +153,16 @@ class TextModel: ObservableObject {
 
             if saveCounter % saveLineTh == 0 || intervalFlag{
                 updateFile()
-                saveCounter = 0
             }
 
             // TODO: ある程度保存したら重複削除
+            if saveCounter > saveLineTh * 10 {
+                // 重複削除のためファイルを浄化
+                purifyFile { [weak self] in
+                    self?.updateFile()
+                }
+                saveCounter = 0
+            }
         }
     }
 
