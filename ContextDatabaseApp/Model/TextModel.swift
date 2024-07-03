@@ -7,13 +7,13 @@
 
 import Foundation
 
-
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
+    private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
 
     init() {
         createAppDirectory()
@@ -45,11 +45,11 @@ class TextModel: ObservableObject {
 
     private func updateFile() {
         let fileURL = getFileURL()
-        DispatchQueue.main.async {
+        fileAccessQueue.async {
             // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 print("File does not exist")
-                DispatchQueue.main.async {
+                self.fileAccessQueue.async {
                     do {
                         // ファイルが存在しない場合、新しく作成
                         let jsonData = try JSONEncoder().encode(TextEntry(appName: "App", text: "Sample", timestamp: Date()))
@@ -137,179 +137,186 @@ class TextModel: ObservableObject {
         texts = []
     }
 
-    func loadFromFile() -> [TextEntry] {
+    func loadFromFile(completion: @escaping ([TextEntry]) -> Void) {
         let fileURL = getFileURL()
-        var loadedTexts: [TextEntry] = []
-        var unreadableLines: [String] = []
+        fileAccessQueue.async {
+            var loadedTexts: [TextEntry] = []
+            var unreadableLines: [String] = []
 
-        // ファイルの有無を確認
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            print("File does not exist")
-
-            return loadedTexts
-        }
-
-        // ファイルを読み込む
-        var fileContents = ""
-        do {
-            fileContents = try String(contentsOf: fileURL, encoding: .utf8)
-        }catch{
-            print("Failed to load from file: \(error.localizedDescription)")
-            return []
-        }
-
-        // ファイルを1行ずつ読み込む
-        var skipCount = 0
-        let lines = fileContents.split(separator: "\n")
-        print("total lines: \(lines.count)")
-        for line in lines {
-            if line.isEmpty {
-                continue
-            }
-            do {
-                if let jsonData = line.data(using: .utf8) {
-                    let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
-                    loadedTexts.append(textEntry)
+            // ファイルの有無を確認
+            if !FileManager.default.fileExists(atPath: fileURL.path) {
+                print("File does not exist")
+                DispatchQueue.main.async {
+                    completion(loadedTexts)
                 }
+                return
+            }
+
+            // ファイルを読み込む
+            var fileContents = ""
+            do {
+                fileContents = try String(contentsOf: fileURL, encoding: .utf8)
             } catch {
                 print("Failed to load from file: \(error.localizedDescription)")
-                if error.localizedDescription.contains("The data couldn’t be read because it isn’t in the correct format.") {
-                    print("line: \(line)")
+                DispatchQueue.main.async {
+                    completion([])
                 }
-                // FIXME: 読めない行を一旦スキップ
-                skipCount += 1
-                unreadableLines.append(String(line))
-                continue
+                return
+            }
+
+            // ファイルを1行ずつ読み込む
+            var skipCount = 0
+            let lines = fileContents.split(separator: "\n")
+            print("total lines: \(lines.count)")
+            for line in lines {
+                if line.isEmpty {
+                    continue
+                }
+                do {
+                    if let jsonData = line.data(using: .utf8) {
+                        let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
+                        loadedTexts.append(textEntry)
+                    }
+                } catch {
+                    print("Failed to load from file: \(error.localizedDescription)")
+                    if error.localizedDescription.contains("The data couldn’t be read because it isn’t in the correct format.") {
+                        print("line: \(line)")
+                    }
+                    // FIXME: 読めない行を一旦スキップ
+                    skipCount += 1
+                    unreadableLines.append(String(line))
+                    continue
+                }
+            }
+            print("skipCount: \(skipCount)")
+            // 読めなかった行を追加で保存
+            if unreadableLines.count > 0 {
+                let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
+                let unreadableText = unreadableLines.joined(separator: "\n")
+                do {
+                    try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
+                } catch {
+                    print("Failed to save unreadable lines: \(error.localizedDescription)")
+                }
+            }
+            DispatchQueue.main.async {
+                completion(loadedTexts)
             }
         }
-        print("skipCount: \(skipCount)")
-        // 読めなかった行を追加で保存
-        if unreadableLines.count > 0 {
-            let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
-            let unreadableText = unreadableLines.joined(separator: "\n")
-            do {
-                try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
-            } catch {
-                print("Failed to save unreadable lines: \(error.localizedDescription)")
+    }
+
+    func aggregateAppNames(completion: @escaping ([String: Int]) -> Void) {
+        loadFromFile { loadedTexts in
+            var appNameCounts: [String: Int] = [:]
+
+            for entry in loadedTexts {
+                appNameCounts[entry.appName, default: 0] += 1
             }
+
+            completion(appNameCounts)
         }
-        return loadedTexts
     }
 
-    func aggregateAppNames() -> [String: Int] {
-        let loadedTexts = loadFromFile()
-        var appNameCounts: [String: Int] = [:]
-
-        for entry in loadedTexts {
-            appNameCounts[entry.appName, default: 0] += 1
-        }
-
-        return appNameCounts
-    }
-
-    func generateStatisticsParameter(avoidApps: [String] = []) async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String) {
+    func generateStatisticsParameter(avoidApps: [String] = [], completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String)) -> Void) {
         // データのクリーンアップ
-        await purifyFile()
-        // ファイルが存在するか確認し、ないなら空のデータを返す
-        let fileURL = getFileURL()
-        if !FileManager.default.fileExists(atPath: fileURL.path) {
-            return ([], [], 0, 0, "")
-        }
+        purifyFile {
+            self.loadFromFile { loadedTexts in
+                var textEntries: [TextEntry] = []
+                var appNameCounts: [String: Int] = [:]
+                var appNameTextCounts: [String: Int] = [:]
+                var totalTextLength = 0
+                var totalEntries = 0
+                var uniqueEntries: Set<String> = []
 
-        var textEntries: [TextEntry] = []
-        let loadedTexts = loadFromFile()
-        var appNameCounts: [String: Int] = [:]
-        var appNameTextCounts: [String: Int] = [:]
-        var totalTextLength = 0
-        var totalEntries = 0
-        var uniqueEntries: Set<String> = []
+                var duplicatedCount = 0
 
-        var duplicatedCount = 0
+                for entry in loadedTexts {
+                    let uniqueKey = "\(entry.appName)-\(entry.text)"
+                    // 重複をスキップ
+                    if uniqueEntries.contains(uniqueKey) {
+                        duplicatedCount += 1
+                        continue
+                    }
+                    uniqueEntries.insert(uniqueKey)
+                    textEntries.append(entry)
 
-        for entry in loadedTexts {
-            let uniqueKey = "\(entry.appName)-\(entry.text)"
-            // 重複をスキップ
-            if uniqueEntries.contains(uniqueKey) {
-                duplicatedCount += 1
-                continue
+                    if avoidApps.contains(entry.appName) {
+                        continue
+                    }
+                    appNameCounts[entry.appName, default: 0] += 1
+                    appNameTextCounts[entry.appName, default: 0] += entry.text.count
+                    totalTextLength += entry.text.count
+                    totalEntries += 1
+                }
+
+                var stats = ""
+                stats += "Total Text Entries: \(totalEntries)\n"
+                stats += "Total Text Length: \(totalTextLength) characters\n"
+                let sortedAppNameCounts = appNameCounts.sorted { $0.value > $1.value }
+                let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
+
+                completion((sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats))
             }
-            uniqueEntries.insert(uniqueKey)
-            textEntries.append(entry)
-
-            if avoidApps.contains(entry.appName) {
-                continue
-            }
-            appNameCounts[entry.appName, default: 0] += 1
-            appNameTextCounts[entry.appName, default: 0] += entry.text.count
-            totalTextLength += entry.text.count
-            totalEntries += 1
         }
-
-        var stats = ""
-        stats += "Total Text Entries: \(totalEntries)\n"
-        stats += "Total Text Length: \(totalTextLength) characters\n"
-        stats += "Average Text Length: \(totalEntries > 0 ? totalTextLength / totalEntries : 0) characters\n"
-
-        let sortedAppNameCounts = appNameCounts.sorted { $0.value > $1.value }
-        let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
-
-        return (sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats)
     }
 
-    func purifyFile() async {
+    func purifyFile(completion: @escaping () -> Void) {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
 
-        // 逆順にして重複があったときに最新のデータを残す
-        let loadedTexts: [TextEntry] = loadFromFile().reversed()
-        var textEntries: [TextEntry] = []
-        var duplicatedCount = 0
+        loadFromFile { loadedTexts in
+            let reversedTexts = loadedTexts.reversed()
+            let purifiedResults = self.purifyTextEntries(Array(reversedTexts))
+            let textEntries = purifiedResults.0
+            let duplicatedCount = purifiedResults.1
 
-        do{
-            (textEntries, duplicatedCount) = try await purifyTextEntries(loadedTexts)
-        }catch{
-            print("Failed to purify file: \(error.localizedDescription)")
-        }
-
-        if duplicatedCount == 0 {
-            return
-        }
-
-        // 新規ファイルとして一時ファイルに保存
-        do {
-            var tempFileHandle: FileHandle?
-
-            if !FileManager.default.fileExists(atPath: tempFileURL.path) {
-                FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
+            if duplicatedCount == 0 {
+                completion()
+                return
             }
 
-            tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
-            tempFileHandle?.seekToEndOfFile()
+            self.fileAccessQueue.async {
+                // 新規ファイルとして一時ファイルに保存
+                do {
+                    var tempFileHandle: FileHandle?
 
-            for textEntry in textEntries {
-                let jsonData = try JSONEncoder().encode(textEntry)
-                if let jsonString = String(data: jsonData, encoding: .utf8) {
-                    let jsonLine = jsonString + "\n"
-                    if let data = jsonLine.data(using: .utf8) {
-                        tempFileHandle?.write(data)
+                    if !FileManager.default.fileExists(atPath: tempFileURL.path) {
+                        FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
                     }
+
+                    tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
+                    tempFileHandle?.seekToEndOfFile()
+
+                    for textEntry in textEntries {
+                        let jsonData = try JSONEncoder().encode(textEntry)
+                        if let jsonString = String(data: jsonData, encoding: .utf8) {
+                            let jsonLine = jsonString + "\n"
+                            if let data = jsonLine.data(using: .utf8) {
+                                tempFileHandle?.write(data)
+                            }
+                        }
+                    }
+
+                    tempFileHandle?.closeFile()
+
+                    // 正常に保存できたら既存ファイルを削除
+                    try FileManager.default.removeItem(at: fileURL)
+                    // 新規ファイルの名前を変更
+                    try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
+                    print("File purify completed. Removed \(duplicatedCount) duplicated entries.")
+                } catch {
+                    print("Failed to clean and update file: \(error.localizedDescription)")
+                }
+
+                DispatchQueue.main.async {
+                    completion()
                 }
             }
-
-            tempFileHandle?.closeFile()
-
-            // 正常に保存できたら既存ファイルを削除
-            try FileManager.default.removeItem(at: fileURL)
-            // 新規ファイルの名前を変更
-            try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
-            print("File purify completed. Removed \(duplicatedCount) duplicated entries.")
-        } catch {
-            print("Failed to clean and update file: \(error.localizedDescription)")
         }
     }
 
-    func purifyTextEntries(_ entries: [TextEntry]) async throws ->( [TextEntry], Int) {
+    func purifyTextEntries(_ entries: [TextEntry]) -> ([TextEntry], Int) {
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
@@ -322,12 +329,6 @@ class TextModel: ObservableObject {
             }
             uniqueEntries.insert(uniqueKey)
             textEntries.append(entry)
-        }
-
-        if duplicatedCount == 0 {
-            print("No duplicated entries found.")
-        } else {
-            print("Removed \(duplicatedCount) duplicated entries.")
         }
 
         return (textEntries, duplicatedCount)

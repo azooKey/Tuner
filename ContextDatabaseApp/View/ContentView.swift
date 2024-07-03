@@ -173,13 +173,13 @@ struct StaticsView: View {
         isLoading = true
         defer { isLoading = false }
 
-        let (counts, appText, entries, length, stats) = await textModel.generateStatisticsParameter()
-        self.appNameCounts = counts
-        self.appTexts = appText
-        self.totalEntries = entries
-        self.totalTextLength = length
-        self.stats = stats
-        shareData.apps = appNameCounts.map { $0.key }
-        self.averageTextLength = entries > 0 ? length / entries : 0
+        textModel.generateStatisticsParameter(completion: { (counts, appText, entries, length, stats) in
+            self.appNameCounts = counts
+            self.appTexts = appText
+            self.totalEntries = entries
+            self.totalTextLength = length
+            self.stats = stats
+            shareData.apps = appNameCounts.map { $0.key }
+        })
     }
 }
