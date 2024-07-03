@@ -155,7 +155,7 @@ class TextModel: ObservableObject {
                 updateFile()
             }
 
-            // TODO: ある程度保存したら重複削除
+            // 10回の保存ごとにファイルを浄化
             if saveCounter > saveLineTh * 10 {
                 // 重複削除のためファイルを浄化
                 purifyFile { [weak self] in
