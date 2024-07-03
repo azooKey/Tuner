@@ -135,7 +135,7 @@ class TextModel: ObservableObject {
                 }
             }()
 
-            if saveCounter % saveLineTh == 0 && intervalFlag{
+            if saveCounter % saveLineTh == 0 || intervalFlag{
                 print("\(texts.count) lines saved to file... \(Date()))")
                 updateFile()
                 saveCounter = 0

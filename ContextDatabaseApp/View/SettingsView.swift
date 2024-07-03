@@ -27,27 +27,35 @@ struct SettingsView: View {
             }
             .padding()
 
+            Divider()
+
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
 
-
-            // saveLineTh and saveIntervalSec
             HStack {
-                Text("Save Line Threshold:")
+                Text("Line Threshold:")
+                    .frame(width: 120, alignment: .trailing)
                 Stepper(value: $shareData.saveLineTh, in: 10...100, step: 10) {
-                    Text("\(shareData.saveLineTh)")
+                    Text("\(shareData.saveLineTh) lines")
+                        .frame(width: 80, alignment: .leading)
                 }
             }
-            .padding(.top)
 
             HStack {
-                Text("Save Interval Seconds:")
+                Text("Save Interval:")
+                    .frame(width: 120, alignment: .trailing)
                 Stepper(value: $shareData.saveIntervalSec, in: 10...600, step: 10) {
-                    Text("\(shareData.saveIntervalSec)")
+                    Text("\(shareData.saveIntervalSec) seconds")
+                        .frame(width: 80, alignment: .leading)
                 }
             }
-            .padding(.top)
+
+            Text("Data will be saved when either condition is met.")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Divider()
 
             Label("Log Avoid Apps", systemImage: "xmark.circle.fill")
                 .font(.headline)
