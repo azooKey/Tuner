@@ -14,6 +14,7 @@ class TextModel: ObservableObject {
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
+    private var isUpdatingFile = false
 
     init() {
         createAppDirectory()
@@ -44,8 +45,22 @@ class TextModel: ObservableObject {
     }
 
     private func updateFile() {
+        // ファイル更新中なら早期リターン
+        guard !isUpdatingFile else {
+            return
+        }
+
+        isUpdatingFile = true
+
         let fileURL = getFileURL()
-        fileAccessQueue.async { [self] in
+        fileAccessQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            defer {
+                DispatchQueue.main.async {
+                    self.isUpdatingFile = false
+                }
+            }
             // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 print("File does not exist")
@@ -72,6 +87,7 @@ class TextModel: ObservableObject {
 
                 // 重複削除
                 let uniqueText = self.purifyTextEntries(texts).0
+                print("\(uniqueText.count) lines saved to file... \(Date()))")
                 // 1行ずつ書き出し
                 for textEntry in uniqueText{
                     // JSONエンコード
@@ -136,7 +152,6 @@ class TextModel: ObservableObject {
             }()
 
             if saveCounter % saveLineTh == 0 || intervalFlag{
-                print("\(texts.count) lines saved to file... \(Date()))")
                 updateFile()
                 saveCounter = 0
             }
