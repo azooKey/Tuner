@@ -16,6 +16,8 @@ struct StatisticsView: View {
     @State private var totalEntries: Int = 0
     @State private var totalTextLength: Int = 0
     @State private var averageTextLength: Int = 0
+    @State private var japaneseTextLength: Int = 0
+    @State private var englishTextLength: Int = 0
     @State private var stats: String = ""
     @State private var selectedGraphStyle: GraphStyle = .pie
     @State private var isLoading: Bool = false
@@ -69,12 +71,14 @@ struct StatisticsView: View {
         isLoading = true
         defer { isLoading = false }
 
-        textModel.generateStatisticsParameter(avoidApps: shareData.avoidApps,minTextLength: shareData.minTextLength, completion: { (counts, appText, entries, length, stats) in
+        textModel.generateStatisticsParameter(avoidApps: shareData.avoidApps,minTextLength: shareData.minTextLength, completion: { (counts, appText, entries, length, stats, japanese, english) in
             self.appNameCounts = counts
             self.appTexts = appText
             self.totalEntries = entries
             self.totalTextLength = length
             self.stats = stats
+            self.japaneseTextLength = japanese
+            self.englishTextLength = english
             shareData.apps = appNameCounts.map { $0.key }
         })
     }
