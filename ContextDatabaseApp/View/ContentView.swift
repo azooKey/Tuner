@@ -7,9 +7,9 @@ struct ContentView: View {
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-            StaticsView()
+            StatisticsView()
                 .tabItem {
-                    Label("Statics", systemImage: "chart.bar")
+                    Label("Statistics", systemImage: "chart.bar")
                 }
         }
     }

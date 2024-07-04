@@ -1,5 +1,5 @@
 //
-//  StaticsView.swift
+//  StatisticsView.swift
 //  ContextDatabaseApp
 //
 //  Created by 高橋直希 on 2024/07/03.
@@ -8,7 +8,7 @@
 import SwiftUI
 import Charts
 
-struct StaticsView: View {
+struct StatisticsView: View {
     @EnvironmentObject var textModel: TextModel
     @EnvironmentObject var shareData: ShareData
     @State private var appNameCounts: [(key: String, value: Int)] = []
@@ -28,7 +28,7 @@ struct StaticsView: View {
                         await loadStatistics()
                     }
                 }) {
-                    Label("Update Statics", systemImage: "arrow.clockwise")
+                    Label("Update Statistics", systemImage: "arrow.clockwise")
                         .font(.headline)
                         .padding(.bottom)
                 }
