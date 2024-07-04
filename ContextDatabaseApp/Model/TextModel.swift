@@ -349,12 +349,16 @@ class TextModel: ObservableObject {
         }
     }
 
-    func purifyTextEntries(_ entries: [TextEntry]) -> ([TextEntry], Int) {
+    func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String] = []) -> ([TextEntry], Int) {
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
 
         for entry in entries {
+            // 除外アプリの場合はスキップ
+            if avoidApps.contains(entry.appName){
+                continue
+            }
             let uniqueKey = "\(entry.appName)-\(entry.text)"
             if uniqueEntries.contains(uniqueKey) {
                 duplicatedCount += 1
@@ -364,6 +368,27 @@ class TextModel: ObservableObject {
             textEntries.append(entry)
         }
 
+        // 前後の要素のテキストが前方一致している場合、短い方を削除
+        var index = 0
+        while index < textEntries.count - 1 {
+            // アプリ名が異なる場合はスキップ
+            if textEntries[index].appName == textEntries[index + 1].appName  {
+                textEntries.remove(at: index)
+                continue
+            }
+            let currentText = textEntries[index].text
+            let nextText = textEntries[index + 1].text
+            if currentText.hasPrefix(nextText) {
+                textEntries.remove(at: index + 1)
+                duplicatedCount += 1
+            } else if nextText.hasPrefix(currentText) {
+                textEntries.remove(at: index)
+                duplicatedCount += 1
+            } else {
+                index += 1
+            }
+        }
+
+        //
         return (textEntries, duplicatedCount)
-    }
-}
+    }}
