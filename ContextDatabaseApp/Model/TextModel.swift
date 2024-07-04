@@ -282,8 +282,8 @@ class TextModel: ObservableObject {
                 var duplicatedCount = 0
 
                 // 言語のカウント
-                var japaneseTextLength = 0
-                var englishTextLength = 0
+                var langText: [String: Int] = ["JA": 0, "EN": 0, "Num": 0]
+                var langOther: Int = 0
 
                 for entry in loadedTexts {
                     let uniqueKey = "\(entry.appName)-\(entry.text)"
@@ -306,27 +306,25 @@ class TextModel: ObservableObject {
                     // 言語ごとのテキスト長を計算
                     for char in entry.text {
                         if char.isJapanese {
-                            japaneseTextLength += 1
+                            langText["JA"]! += 1
                         } else if char.isEnglish {
-                            englishTextLength += 1
+                            langText["EN"]! += 1
+                        } else if char.isNumber {
+                            langText["Num"]! += 1
+                        } else{
+                            langOther += 1
                         }
                     }
                 }
 
                 // 日本語・英語の割合計算
-                let japaneseRatio = totalTextLength > 0 ? Double(japaneseTextLength) / Double(totalTextLength) : 0
-                let englishRatio = totalTextLength > 0 ? Double(englishTextLength) / Double(totalTextLength) : 0
-
                 var stats = ""
                 stats += "Total Text Entries: \(totalEntries)\n"
                 stats += "Total Text Length: \(totalTextLength) characters\n"
-                stats += "Japanese Text Length: \(japaneseTextLength) characters\n"
-                stats += "English Text Length: \(englishTextLength) characters\n"
-                stats += String(format: "Japanese Text Ratio: %.2f%%\n", japaneseRatio * 100)
-                stats += String(format: "English Text Ratio: %.2f%%\n", englishRatio * 100)
+
                 let sortedAppNameCounts = appNameCounts.sorted { $0.value > $1.value }
                 let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
-                let sortedLangTextCounts = ["JA": japaneseTextLength, "EN": englishTextLength, "OTHER": totalTextLength - japaneseTextLength - englishTextLength].sorted { $0.value > $1.value }
+                let sortedLangTextCounts = langText.sorted { $0.value > $1.value } + [("Other", langOther)]
 
                 completion((sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats, sortedLangTextCounts))
             }
@@ -443,5 +441,9 @@ extension Character {
 
     var isEnglish: Bool {
         return ("a"..."z").contains(self) || ("A"..."Z").contains(self)
+    }
+
+    var isNumber: Bool {
+        return ("0"..."9").contains(self)
     }
 }

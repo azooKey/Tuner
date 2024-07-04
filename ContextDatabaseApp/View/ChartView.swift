@@ -22,7 +22,7 @@ struct PieChartView: View {
 
     var body: some View {
         Chart {
-            let sortedData = data.sorted { $0.value > $1.value }
+            let sortedData = data
             let topData = sortedData.prefix(topEntries)
             let otherData = sortedData.dropFirst(topEntries)
             let otherValue = otherData.reduce(0) { $0 + $1.value }
