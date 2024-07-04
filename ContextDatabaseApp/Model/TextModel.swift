@@ -11,7 +11,7 @@ class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
-    
+
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
@@ -139,6 +139,20 @@ class TextModel: ObservableObject {
                 return
             }
             let cleanedText = removeExtraNewlines(from: text)
+
+            // 完全一致であればskip
+            if texts.last?.text == cleanedText {
+                return
+            }
+
+            // 最後のテキストの前方一致文字列であればやめる
+            let lastText = texts.last?.text.utf16 ?? "".utf16
+            if cleanedText.utf16.starts(with: lastText) && texts.count > 0 {
+                texts.removeLast()
+            } else if lastText.starts(with: cleanedText.utf16) {
+                return
+            }
+
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
 
@@ -361,38 +375,41 @@ class TextModel: ObservableObject {
 
         for entry in entries {
             // 除外アプリの場合はスキップ
-            if avoidApps.contains(entry.appName) || minTextLength > entry.text.count{
+            if avoidApps.contains(entry.appName) || minTextLength > entry.text.utf8.count {
                 continue
             }
+
+            // 重複チェックのためのキー生成
             let uniqueKey = "\(entry.appName)-\(entry.text)"
             if uniqueEntries.contains(uniqueKey) {
                 duplicatedCount += 1
                 continue
             }
+
             uniqueEntries.insert(uniqueKey)
             textEntries.append(entry)
         }
 
         // 前後の要素のテキストが前方一致している場合、短い方を削除
-//        var index = 0
-//        while index < textEntries.count - 1 {
-//            // アプリ名が異なる場合はスキップ
-//            if textEntries[index].appName == textEntries[index + 1].appName  {
-//                continue
-//            }
-//            let currentText = textEntries[index].text
-//            let nextText = textEntries[index + 1].text
-//            if currentText.hasPrefix(nextText) || nextText.hasPrefix(currentText)  {
-//                print("""
-//                    Found similar texts:
-//                    \(currentText)
-//                    \(nextText)
-//                    """)
-//                textEntries.remove(at: index + 1)
-//            }else {
-//                index += 1
-//            }
-//        }
+        var index = 0
+        while index < textEntries.count - 1 {
+            // アプリ名が異なる場合はスキップ
+            if textEntries[index].appName != textEntries[index + 1].appName {
+                index += 1
+                continue
+            }
+
+            let currentText = textEntries[index].text.utf16
+            let nextText = textEntries[index + 1].text.utf16
+
+            if currentText.starts(with: nextText) || nextText.starts(with: currentText) {
+                textEntries.remove(at: index + 1)
+            } else {
+                index += 1
+            }
+        }
+
         print("purity end... \(textEntries.count)")
         return (textEntries, duplicatedCount)
-    }}
+    }
+}
