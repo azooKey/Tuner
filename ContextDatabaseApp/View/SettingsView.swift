@@ -51,6 +51,15 @@ struct SettingsView: View {
                 }
             }
 
+            HStack {
+                Text("Min Text Length:")
+                    .frame(width: 120, alignment: .trailing)
+                Stepper(value: $shareData.minTextLength, in: 0...100, step: 10) {
+                    Text("\(shareData.minTextLength) characters")
+                        .frame(width: 80, alignment: .leading)
+                }
+            }
+
             Text("Data will be saved when either condition is met.")
                 .font(.caption)
                 .foregroundColor(.secondary)
@@ -75,6 +84,7 @@ struct SettingsView: View {
                         shareData.avoidApps.append(selectedApp)
                         selectedApp = ""
                     }
+                    print(shareData.avoidApps)
                 }) {
                     Image(systemName: "plus")
                 }

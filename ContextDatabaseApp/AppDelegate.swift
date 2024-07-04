@@ -49,14 +49,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         return AXUIElementCreateApplication(app.processIdentifier)
     }
-
+    
     // 指定されたAXUIElementからテキスト要素を取得するメソッド
     private func fetchTextElements(from element: AXUIElement, appName: String) {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
         if result == .success, let children = value as? [AXUIElement] {
             for child in children {
-//                print("child: \(child)")
+                //                print("child: \(child)")
                 extractTextFromElement(child, appName: appName)
             }
         }
@@ -70,7 +70,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if result == .success, let text = value as? String {
             if text != "" {
                 DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec)
+                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec, avoidApps: self.shareData.avoidApps, minTextLength: self.shareData.minTextLength)
                 }
             }
         }

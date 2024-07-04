@@ -25,15 +25,22 @@ class ShareData: ObservableObject {
             saveSaveIntervalSec()
         }
     }
+    @Published var minTextLength: Int = 0 {
+        didSet {
+            saveMinTextLength()
+        }
+    }
 
     private let avoidAppsKey = "avoidApps"
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
+    private let minTextLengthKey = "minTextLength"
 
     init() {
         loadAvoidApps()
         loadSaveLineTh()
         loadSaveIntervalSec()
+        loadMinTextLength()
     }
 
     private func saveAvoidApps() {
@@ -63,6 +70,16 @@ class ShareData: ObservableObject {
     private func loadSaveIntervalSec() {
         if let savedSaveIntervalSec = UserDefaults.standard.value(forKey: saveIntervalSecKey) as? Int {
             saveIntervalSec = savedSaveIntervalSec
+        }
+    }
+
+    private func saveMinTextLength() {
+        UserDefaults.standard.set(minTextLength, forKey: minTextLengthKey)
+    }
+
+    private func loadMinTextLength() {
+        if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
+            minTextLength = savedMinTextLength
         }
     }
 }

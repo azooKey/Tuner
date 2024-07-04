@@ -69,7 +69,7 @@ struct StaticsView: View {
         isLoading = true
         defer { isLoading = false }
 
-        textModel.generateStatisticsParameter(completion: { (counts, appText, entries, length, stats) in
+        textModel.generateStatisticsParameter(avoidApps: shareData.avoidApps,minTextLength: shareData.minTextLength, completion: { (counts, appText, entries, length, stats) in
             self.appNameCounts = counts
             self.appTexts = appText
             self.totalEntries = entries

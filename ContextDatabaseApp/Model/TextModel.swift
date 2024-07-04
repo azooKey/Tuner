@@ -11,6 +11,7 @@ class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
+    
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
@@ -44,7 +45,7 @@ class TextModel: ObservableObject {
         }
     }
 
-    private func updateFile() {
+    private func updateFile(avoidApps: [String] , minTextLength: Int) {
         // ファイル更新中なら早期リターン
         guard !isUpdatingFile else {
             return
@@ -69,7 +70,7 @@ class TextModel: ObservableObject {
                         // ファイルが存在しない場合、新しく作成
                         let jsonData = try JSONEncoder().encode(TextEntry(appName: "App", text: "Sample", timestamp: Date()))
                         try jsonData.write(to: fileURL, options: .atomic)
-                        self.updateFile()
+                        self.updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
                     } catch {
                         print("Failed to create file: \(error.localizedDescription)")
                     }
@@ -86,7 +87,7 @@ class TextModel: ObservableObject {
                 fileHandle.write("\n".data(using: .utf8)!)
 
                 // 重複削除
-                let uniqueText = self.purifyTextEntries(texts).0
+                let uniqueText = self.purifyTextEntries(texts, avoidApps: avoidApps, minTextLength: minTextLength).0
                 print("\(uniqueText.count) lines saved to file... \(Date()))")
                 // 1行ずつ書き出し
                 for textEntry in uniqueText{
@@ -128,12 +129,15 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
 
-    func addText(_ text: String, appName: String, saveLineTh: Int = 50, saveIntervalSec: Int = 10) {
+    func addText(_ text: String, appName: String, saveLineTh: Int = 50, saveIntervalSec: Int = 10, avoidApps: [String] , minTextLength: Int) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
             return
         }
         if !text.isEmpty {
+            if text.count < minTextLength {
+                return
+            }
             let cleanedText = removeExtraNewlines(from: text)
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
@@ -152,14 +156,14 @@ class TextModel: ObservableObject {
             }()
 
             if saveCounter % saveLineTh == 0 || intervalFlag{
-                updateFile()
+                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
 
             // 10回の保存ごとにファイルを浄化
             if saveCounter > saveLineTh * 10 {
                 // 重複削除のためファイルを浄化
-                purifyFile { [weak self] in
-                    self?.updateFile()
+                purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) { [weak self] in
+                    self?.updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
                 }
                 saveCounter = 0
             }
@@ -250,9 +254,9 @@ class TextModel: ObservableObject {
         }
     }
 
-    func generateStatisticsParameter(avoidApps: [String] = [], completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String)) -> Void) {
+    func generateStatisticsParameter(avoidApps: [String] ,minTextLength: Int ,completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String)) -> Void) {
         // データのクリーンアップ
-        purifyFile {
+        purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
             self.loadFromFile { loadedTexts in
                 var textEntries: [TextEntry] = []
                 var appNameCounts: [String: Int] = [:]
@@ -293,14 +297,14 @@ class TextModel: ObservableObject {
         }
     }
 
-    func purifyFile(completion: @escaping () -> Void) {
+    func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
 
         loadFromFile { loadedTexts in
             let reversedTexts = loadedTexts.reversed()
-            let purifiedResults = self.purifyTextEntries(Array(reversedTexts))
+            let purifiedResults = self.purifyTextEntries(Array(reversedTexts), avoidApps: avoidApps, minTextLength: minTextLength)
             let textEntries = purifiedResults.0
             let duplicatedCount = purifiedResults.1
 
@@ -349,14 +353,15 @@ class TextModel: ObservableObject {
         }
     }
 
-    func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String] = []) -> ([TextEntry], Int) {
+    func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
+        print("avoidApps: \(avoidApps)")
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
 
         for entry in entries {
             // 除外アプリの場合はスキップ
-            if avoidApps.contains(entry.appName){
+            if avoidApps.contains(entry.appName) || minTextLength > entry.text.count{
                 continue
             }
             let uniqueKey = "\(entry.appName)-\(entry.text)"
