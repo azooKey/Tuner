@@ -354,7 +354,7 @@ class TextModel: ObservableObject {
     }
 
     func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
-        print("avoidApps: \(avoidApps)")
+        print("purity start... \(entries.count)")
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
@@ -374,26 +374,25 @@ class TextModel: ObservableObject {
         }
 
         // 前後の要素のテキストが前方一致している場合、短い方を削除
-        var index = 0
-        while index < textEntries.count - 1 {
-            // アプリ名が異なる場合はスキップ
-            if textEntries[index].appName == textEntries[index + 1].appName  {
-                textEntries.remove(at: index)
-                continue
-            }
-            let currentText = textEntries[index].text
-            let nextText = textEntries[index + 1].text
-            if currentText.hasPrefix(nextText) {
-                textEntries.remove(at: index + 1)
-                duplicatedCount += 1
-            } else if nextText.hasPrefix(currentText) {
-                textEntries.remove(at: index)
-                duplicatedCount += 1
-            } else {
-                index += 1
-            }
-        }
-
-        //
+//        var index = 0
+//        while index < textEntries.count - 1 {
+//            // アプリ名が異なる場合はスキップ
+//            if textEntries[index].appName == textEntries[index + 1].appName  {
+//                continue
+//            }
+//            let currentText = textEntries[index].text
+//            let nextText = textEntries[index + 1].text
+//            if currentText.hasPrefix(nextText) || nextText.hasPrefix(currentText)  {
+//                print("""
+//                    Found similar texts:
+//                    \(currentText)
+//                    \(nextText)
+//                    """)
+//                textEntries.remove(at: index + 1)
+//            }else {
+//                index += 1
+//            }
+//        }
+        print("purity end... \(textEntries.count)")
         return (textEntries, duplicatedCount)
     }}
