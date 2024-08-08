@@ -51,9 +51,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 指定されたAXUIElementからテキスト要素を取得するメソッド
     private func fetchTextElements(from element: AXUIElement, appName: String) {
-        if appName != "Xcode" {
-            print("fetchTextElements in \(appName): \(element)")
-        }
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
         if result == .success, let children = value as? [AXUIElement] {
@@ -65,11 +62,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // AXUIElementからテキストを抽出するメソッド
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
+        let role = self.getRole(of: element)
         switch self.getRole(of: element) {
         case nil:
             // Roleは常に存在する（kAXRoleAttributeのドキュメントを参照）
             return
-        case "AXButton", "AXPopUpButton", "AXRadioButton":
+        case "AXButton", "AXPopUpButton", "AXRadioButton", "AXCheckBox":
             // ボタンのようなUI情報は不要
             return
         case "AXTextField", "AXTextArea":
@@ -84,6 +82,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         case "AXValueIndicator":
             // よくわからないが多分不要
             return
+        case "AXText", "AXStaticText", "AXLink":
+            // 明らかに進めるべき
+            break
         default:
             // それ以外の場合はこのまま進める
             break
