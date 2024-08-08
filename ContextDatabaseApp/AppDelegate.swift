@@ -51,26 +51,51 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // 指定されたAXUIElementからテキスト要素を取得するメソッド
     private func fetchTextElements(from element: AXUIElement, appName: String) {
+        if appName != "Xcode" {
+            print("fetchTextElements in \(appName): \(element)")
+        }
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
         if result == .success, let children = value as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child)
+                extractTextFromElement(child, appName: appName)
             }
         }
     }
 
     // AXUIElementからテキストを抽出するメソッド
-    private func extractTextFromElement(_ element: AXUIElement) {
+    private func extractTextFromElement(_ element: AXUIElement, appName: String) {
+        switch self.getRole(of: element) {
+        case nil:
+            // Roleは常に存在する（kAXRoleAttributeのドキュメントを参照）
+            return
+        case "AXButton", "AXPopUpButton", "AXRadioButton":
+            // ボタンのようなUI情報は不要
+            return
+        case "AXTextField", "AXTextArea":
+            // 編集中のテキストを取ってしまうと無意味にテキストが増える
+            return
+        case "AXToolbar":
+            // ツールバーにアクセスする必要はない
+            return
+        case "AXMenu", "AXMenuItem", "AXMenuBarItem", "AXMenuBar":
+            // メニューバーにアクセスする必要はない
+            return
+        case "AXValueIndicator":
+            // よくわからないが多分不要
+            return
+        default:
+            // それ以外の場合はこのまま進める
+            break
+        }
+
         var value: AnyObject?
         // FIXME: Error: Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f563f40)
         let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
         if result == .success, let text = value as? String {
             if text != "" {
                 DispatchQueue.main.async {
-                    if let appName = self.getAppNameFromAXUIElement(element){
-                        self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec, avoidApps: self.shareData.avoidApps, minTextLength: self.shareData.minTextLength)
-                    }
+                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec, avoidApps: self.shareData.avoidApps, minTextLength: self.shareData.minTextLength)
                 }
             }
         }
@@ -79,8 +104,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
         if childResult == .success, let children = childValue as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child)
+                extractTextFromElement(child, appName: appName)
             }
+        }
+    }
+
+    /// AXUIElementのroleを取得するメソッド
+    private func getRole(of element: AXUIElement) -> String? {
+        var roleValue: AnyObject?
+        let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        if roleResult == .success, let role = roleValue as? String {
+            return role
+        } else {
+            return nil
         }
     }
 
