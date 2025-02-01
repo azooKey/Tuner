@@ -14,6 +14,7 @@
 		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
 		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
 		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
+		E957C8C42D4E721C0032C7B7 /* SwiftNGram in Frameworks */ = {isa = PBXBuildFile; productRef = E957C8C32D4E721C0032C7B7 /* SwiftNGram */; };
 		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
 		E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DAB2C33D13100523DB0 /* MenuView.swift */; };
 		E9CE3D892C37CC7100AF12CE /* TextExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9CE3D882C37CC7100AF12CE /* TextExtension.swift */; };
@@ -46,6 +47,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E957C8C42D4E721C0032C7B7 /* SwiftNGram in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +168,9 @@
 				Base,
 			);
 			mainGroup = E94A73772C2B4B9F0049C3C6;
+			packageReferences = (
+				E957C8C22D4E721C0032C7B7 /* XCRemoteSwiftPackageReference "SwiftNGramWiithMarisaTrie" */,
+			);
 			productRefGroup = E94A73812C2B4B9F0049C3C6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -267,7 +272,8 @@
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
 				SDKROOT = macosx;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
 			name = Debug;
@@ -323,7 +329,9 @@
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "";
 				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 			};
 			name = Release;
 		};
@@ -407,6 +415,25 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E957C8C22D4E721C0032C7B7 /* XCRemoteSwiftPackageReference "SwiftNGramWiithMarisaTrie" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/nyanko3141592/SwiftNGramWiithMarisaTrie";
+			requirement = {
+				branch = feat/use_raw_api;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E957C8C32D4E721C0032C7B7 /* SwiftNGram */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E957C8C22D4E721C0032C7B7 /* XCRemoteSwiftPackageReference "SwiftNGramWiithMarisaTrie" */;
+			productName = SwiftNGram;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E94A73782C2B4B9F0049C3C6 /* Project object */;
 }
