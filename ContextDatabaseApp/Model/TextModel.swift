@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import SwiftNGram
 
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
@@ -13,6 +14,7 @@ class TextModel: ObservableObject {
     @Published var isDataSaveEnabled: Bool = true
 
     private var saveCounter = 0
+    private let saveThreshold = 100  // 100エントリごとに学習
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
     private var isUpdatingFile = false
@@ -28,7 +30,8 @@ class TextModel: ObservableObject {
     }
 
     private func getAppDirectory() -> URL {
-        let appDirectory = getDocumentsDirectory().appendingPathComponent("ContextDatabaseApp")
+        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let appDirectory = documentsDir.appendingPathComponent("ContextDatabaseApp")
         return appDirectory
     }
 
@@ -102,6 +105,11 @@ class TextModel: ObservableObject {
                             print("Failed to encode data to write \(jsonLine)")
                         }
                     }
+                }
+
+                Task {
+                    print("=== Training Model from Text Entries ===")
+                    await self.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
                 }
 
                 DispatchQueue.main.async {
@@ -442,4 +450,23 @@ class TextModel: ObservableObject {
         print("purity end... \(textEntries.count)")
         return (textEntries, duplicatedCount)
     }
+
+    func trainNGramFromTextEntries(n: Int, baseFilename: String) async {
+        let lines = texts.map { $0.text }
+
+        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
+        let outputDir = documentsDir.appendingPathComponent("ContextDatabaseApp/SwiftNGram").path
+
+        await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
+
+        print("Training completed and model saved as \(baseFilename)")
+    }
+
+     func checkAndRunTraining() async {
+         if texts.count >= saveThreshold {
+             print("=== Training Model from Text Entries ===")
+             await self.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
+             self.lastSavedDate = Date()
+         }
+     }
 }
