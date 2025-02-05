@@ -454,13 +454,29 @@ class TextModel: ObservableObject {
     func trainNGramFromTextEntries(n: Int, baseFilename: String) async {
         let lines = texts.map { $0.text }
 
-        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let outputDir = documentsDir.appendingPathComponent("ContextDatabaseApp/SwiftNGram").path
+        let fileManager = FileManager.default
+
+        // `Containers` 内の `Application Support` に保存先を変更
+        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
+            print("❌ Failed to get container URL.")
+            return
+        }
+
+        let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
+
+        // ディレクトリを作成
+        do {
+            try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+        } catch {
+            print("❌ Failed to create directory: \(error)")
+            return
+        }
 
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
 
-        print("Training completed and model saved as \(baseFilename)")
+        print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
     }
+
 
      func checkAndRunTraining() async {
          if texts.count >= saveThreshold {

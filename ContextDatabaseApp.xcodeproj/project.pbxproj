@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E91CED4B2D52117500C9C00F /* SwiftNGram in Frameworks */ = {isa = PBXBuildFile; productRef = E91CED4A2D52117500C9C00F /* SwiftNGram */; };
 		E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */; };
 		E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73852C2B4B9F0049C3C6 /* ContentView.swift */; };
 		E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */; };
@@ -47,6 +48,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E91CED4B2D52117500C9C00F /* SwiftNGram in Frameworks */,
 				E957C8C42D4E721C0032C7B7 /* SwiftNGram in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -428,6 +430,11 @@
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		E91CED4A2D52117500C9C00F /* SwiftNGram */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E957C8C22D4E721C0032C7B7 /* XCRemoteSwiftPackageReference "SwiftNGramWiithMarisaTrie" */;
+			productName = SwiftNGram;
+		};
 		E957C8C32D4E721C0032C7B7 /* SwiftNGram */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = E957C8C22D4E721C0032C7B7 /* XCRemoteSwiftPackageReference "SwiftNGramWiithMarisaTrie" */;
