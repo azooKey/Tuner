@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */; };
+		E94A73842C2B4B9F0049C3C6 /* TunerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73832C2B4B9F0049C3C6 /* TunerApp.swift */; };
 		E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73852C2B4B9F0049C3C6 /* ContentView.swift */; };
 		E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */; };
 		E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */; };
@@ -23,12 +23,12 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		E94A73802C2B4B9F0049C3C6 /* ContextDatabaseApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = ContextDatabaseApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContextDatabaseAppApp.swift; sourceTree = "<group>"; };
+		E94A73802C2B4B9F0049C3C6 /* Tuner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tuner.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E94A73832C2B4B9F0049C3C6 /* TunerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerApp.swift; sourceTree = "<group>"; };
 		E94A73852C2B4B9F0049C3C6 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ContextDatabaseApp.entitlements; sourceTree = "<group>"; };
+		E94A738C2C2B4B9F0049C3C6 /* Tuner.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Tuner.entitlements; sourceTree = "<group>"; };
 		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
@@ -55,7 +55,7 @@
 		E94A73772C2B4B9F0049C3C6 = {
 			isa = PBXGroup;
 			children = (
-				E94A73822C2B4B9F0049C3C6 /* ContextDatabaseApp */,
+				E94A73822C2B4B9F0049C3C6 /* Tuner */,
 				E94A73812C2B4B9F0049C3C6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -63,25 +63,25 @@
 		E94A73812C2B4B9F0049C3C6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				E94A73802C2B4B9F0049C3C6 /* ContextDatabaseApp.app */,
+				E94A73802C2B4B9F0049C3C6 /* Tuner.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		E94A73822C2B4B9F0049C3C6 /* ContextDatabaseApp */ = {
+		E94A73822C2B4B9F0049C3C6 /* Tuner */ = {
 			isa = PBXGroup;
 			children = (
 				E9CE3D872C37CC6300AF12CE /* Utils */,
-				E94A73832C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift */,
+				E94A73832C2B4B9F0049C3C6 /* TunerApp.swift */,
 				E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */,
 				E952E83F2C318D3200EBF642 /* View */,
 				E952E83E2C318D1700EBF642 /* Model */,
 				E94A73942C2BE6180049C3C6 /* Info.plist */,
 				E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */,
-				E94A738C2C2B4B9F0049C3C6 /* ContextDatabaseApp.entitlements */,
+				E94A738C2C2B4B9F0049C3C6 /* Tuner.entitlements */,
 				E94A73892C2B4B9F0049C3C6 /* Preview Content */,
 			);
-			path = ContextDatabaseApp;
+			path = Tuner;
 			sourceTree = "<group>";
 		};
 		E94A73892C2B4B9F0049C3C6 /* Preview Content */ = {
@@ -125,9 +125,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		E94A737F2C2B4B9F0049C3C6 /* ContextDatabaseApp */ = {
+		E94A737F2C2B4B9F0049C3C6 /* Tuner */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = E94A738F2C2B4B9F0049C3C6 /* Build configuration list for PBXNativeTarget "ContextDatabaseApp" */;
+			buildConfigurationList = E94A738F2C2B4B9F0049C3C6 /* Build configuration list for PBXNativeTarget "Tuner" */;
 			buildPhases = (
 				E94A737C2C2B4B9F0049C3C6 /* Sources */,
 				E94A737D2C2B4B9F0049C3C6 /* Frameworks */,
@@ -137,9 +137,9 @@
 			);
 			dependencies = (
 			);
-			name = ContextDatabaseApp;
-			productName = ContextDatabaseApp;
-			productReference = E94A73802C2B4B9F0049C3C6 /* ContextDatabaseApp.app */;
+			name = Tuner;
+			productName = Tuner;
+			productReference = E94A73802C2B4B9F0049C3C6 /* Tuner.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -157,7 +157,7 @@
 					};
 				};
 			};
-			buildConfigurationList = E94A737B2C2B4B9F0049C3C6 /* Build configuration list for PBXProject "ContextDatabaseApp" */;
+			buildConfigurationList = E94A737B2C2B4B9F0049C3C6 /* Build configuration list for PBXProject "Tuner" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -170,7 +170,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				E94A737F2C2B4B9F0049C3C6 /* ContextDatabaseApp */,
+				E94A737F2C2B4B9F0049C3C6 /* Tuner */,
 			);
 		};
 /* End PBXProject section */
@@ -200,7 +200,7 @@
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
 				E9CE3D892C37CC7100AF12CE /* TextExtension.swift in Sources */,
-				E94A73842C2B4B9F0049C3C6 /* ContextDatabaseAppApp.swift in Sources */,
+				E94A73842C2B4B9F0049C3C6 /* TunerApp.swift in Sources */,
 				E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */,
 				E9EB3E9A2C34002C00EA6395 /* ShareData.swift in Sources */,
 			);
@@ -332,24 +332,26 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ContextDatabaseApp/ContextDatabaseApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Tuner/Tuner.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ContextDatabaseApp/Preview Content\"";
-				DEVELOPMENT_TEAM = CW97U5J24N;
+				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
+				DEVELOPMENT_TEAM = 9S3UXHYP65;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ContextDatabaseApp/Info.plist;
+				INFOPLIST_FILE = Tuner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ContextHarvester;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.ContextDatabaseApp;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -361,24 +363,26 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = ContextDatabaseApp/ContextDatabaseApp.entitlements;
+				CODE_SIGN_ENTITLEMENTS = Tuner/Tuner.entitlements;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"ContextDatabaseApp/Preview Content\"";
-				DEVELOPMENT_TEAM = CW97U5J24N;
+				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
+				DEVELOPMENT_TEAM = 9S3UXHYP65;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = ContextDatabaseApp/Info.plist;
+				INFOPLIST_FILE = Tuner/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = ContextHarvester;
+				INFOPLIST_KEY_LSUIElement = YES;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.ContextDatabaseApp;
+				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
@@ -388,7 +392,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		E94A737B2C2B4B9F0049C3C6 /* Build configuration list for PBXProject "ContextDatabaseApp" */ = {
+		E94A737B2C2B4B9F0049C3C6 /* Build configuration list for PBXProject "Tuner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E94A738D2C2B4B9F0049C3C6 /* Debug */,
@@ -397,7 +401,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		E94A738F2C2B4B9F0049C3C6 /* Build configuration list for PBXNativeTarget "ContextDatabaseApp" */ = {
+		E94A738F2C2B4B9F0049C3C6 /* Build configuration list for PBXNativeTarget "Tuner" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				E94A73902C2B4B9F0049C3C6 /* Debug */,

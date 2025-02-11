@@ -1,6 +1,6 @@
 //
 //  TextModel.swift
-//  ContextDatabaseApp
+//  Tuner
 //
 //  Created by 高橋直希 on 2024/06/30.
 //
@@ -14,7 +14,7 @@ class TextModel: ObservableObject {
 
     private var saveCounter = 0
     private var textHashes: Set<TextEntry> = []
-    private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
+    private let fileAccessQueue = DispatchQueue(label: "com.Tuner.fileAccessQueue")
     private var isUpdatingFile = false
 
     init() {
@@ -28,7 +28,7 @@ class TextModel: ObservableObject {
     }
 
     private func getAppDirectory() -> URL {
-        let appDirectory = getDocumentsDirectory().appendingPathComponent("ContextDatabaseApp")
+        let appDirectory = getDocumentsDirectory().appendingPathComponent("Tuner")
         return appDirectory
     }
 

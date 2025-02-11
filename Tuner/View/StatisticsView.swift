@@ -1,6 +1,6 @@
 //
 //  StatisticsView.swift
-//  ContextDatabaseApp
+//  Tuner
 //
 //  Created by 高橋直希 on 2024/07/03.
 //
