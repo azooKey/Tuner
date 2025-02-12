@@ -12,33 +12,46 @@ class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
-    
+
     private var saveCounter = 0
     private let saveThreshold = 100  // 100エントリごとに学習
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
     private var isUpdatingFile = false
-    
+
     init() {
         createAppDirectory()
         printFileURL() // ファイルパスを表示
     }
-    
+
     private func getDocumentsDirectory() -> URL {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
         return paths[0]
     }
-    
+
     private func getAppDirectory() -> URL {
-        let documentsDir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first!
-        let appDirectory = documentsDir.appendingPathComponent("ContextDatabaseApp")
+        let fileManager = FileManager.default
+
+        // `Containers` 内の `Application Support` に保存
+        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
+            fatalError("❌ Failed to get container URL.")
+        }
+
+        let appDirectory = containerURL.appendingPathComponent("Library/Application Support/ContextDatabaseApp")
+
+        do {
+            try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("❌ Failed to create app directory: \(error.localizedDescription)")
+        }
+
         return appDirectory
     }
-    
+
     func getFileURL() -> URL {
         return getAppDirectory().appendingPathComponent("savedTexts.jsonl")
     }
-    
+
     private func createAppDirectory() {
         let appDirectory = getAppDirectory()
         do {
@@ -47,19 +60,19 @@ class TextModel: ObservableObject {
             print("Failed to create app directory: \(error.localizedDescription)")
         }
     }
-    
+
     private func updateFile(avoidApps: [String], minTextLength: Int) {
         // ファイル更新中なら早期リターン
         guard !isUpdatingFile else {
             return
         }
-        
+
         isUpdatingFile = true
-        
+
         let fileURL = getFileURL()
         fileAccessQueue.async { [weak self] in
             guard let self = self else { return }
-            
+
             defer {
                 DispatchQueue.main.async {
                     self.isUpdatingFile = false
@@ -79,16 +92,16 @@ class TextModel: ObservableObject {
                     }
                 }
             }
-            
+
             do {
                 let fileHandle = try FileHandle(forUpdating: fileURL)
                 defer {
                     fileHandle.closeFile()
                 }
-                
+
                 fileHandle.seekToEndOfFile()
                 fileHandle.write("\n".data(using: .utf8)!)
-                
+
                 // 重複削除
                 let uniqueText = self.purifyTextEntries(texts, avoidApps: avoidApps, minTextLength: minTextLength).0
                 print("\(uniqueText.count) lines saved to file... \(Date()))")
@@ -106,13 +119,13 @@ class TextModel: ObservableObject {
                         }
                     }
                 }
-                
+
                 // 保存後、jsonlファイルから最後の1000行（または全行）だけを抽出して学習
                 Task {
                     print("=== Training Model from Text Entries ===")
                     await self.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
                 }
-                
+
                 DispatchQueue.main.async {
                     self.texts.removeAll()
                     self.lastSavedDate = Date() // 保存日時を更新
@@ -123,12 +136,12 @@ class TextModel: ObservableObject {
             }
         }
     }
-    
+
     private func printFileURL() {
         let fileURL = getFileURL()
         print("File saved at: \(fileURL.path)")
     }
-    
+
     private func removeExtraNewlines(from text: String) -> String {
         // 2連続以上の改行を1つの改行に置き換える正規表現
         let pattern =  "\n+"
@@ -137,7 +150,7 @@ class TextModel: ObservableObject {
         let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
         return modifiedText ?? text
     }
-    
+
     func addText(_ text: String, appName: String, saveLineTh: Int = 50, saveIntervalSec: Int = 10, avoidApps: [String], minTextLength: Int) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
@@ -148,17 +161,17 @@ class TextModel: ObservableObject {
                 return
             }
             let cleanedText = removeExtraNewlines(from: text)
-            
+
             // 完全一致であればskip
             if texts.last?.text == cleanedText {
                 return
             }
-            
+
             // 記号か数字のみのテキストはスキップ
             if cleanedText.utf16.isSymbolOrNumber{
                 return
             }
-            
+
             // 最後のテキストの前方一致文字列であればやめる
             let lastText = texts.last?.text.utf16 ?? "".utf16
             if cleanedText.utf16.starts(with: lastText) && texts.count > 0 {
@@ -166,13 +179,13 @@ class TextModel: ObservableObject {
             } else if lastText.starts(with: cleanedText.utf16) {
                 return
             }
-            
+
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
-            
+
             texts.append(newTextEntry)
             saveCounter += 1
-            
+
             // 最後の保存から10秒経過していたら
             let intervalFlag : Bool = {
                 if let lastSavedDate = lastSavedDate {
@@ -182,11 +195,11 @@ class TextModel: ObservableObject {
                     return true
                 }
             }()
-            
+
             if saveCounter % saveLineTh == 0 || intervalFlag{
                 updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
-            
+
             // 10回の保存ごとにファイルを浄化
             if saveCounter > saveLineTh * 10 {
                 // 重複削除のためファイルを浄化
@@ -197,17 +210,17 @@ class TextModel: ObservableObject {
             }
         }
     }
-    
+
     private func clearMemory() {
         texts = []
     }
-    
+
     func loadFromFile(completion: @escaping ([TextEntry]) -> Void) {
         let fileURL = getFileURL()
         fileAccessQueue.async {
             var loadedTexts: [TextEntry] = []
             var unreadableLines: [String] = []
-            
+
             // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 print("File does not exist")
@@ -216,7 +229,7 @@ class TextModel: ObservableObject {
                 }
                 return
             }
-            
+
             // ファイルを読み込む
             var fileContents = ""
             do {
@@ -228,7 +241,7 @@ class TextModel: ObservableObject {
                 }
                 return
             }
-            
+
             // ファイルを1行ずつ読み込む
             var skipCount = 0
             let lines = fileContents.split(separator: "\n")
@@ -269,7 +282,7 @@ class TextModel: ObservableObject {
             }
         }
     }
-    
+
     // loadFromFile を async/await でラップした関数
     func loadFromFileAsync() async -> [TextEntry] {
         await withCheckedContinuation { continuation in
@@ -278,19 +291,19 @@ class TextModel: ObservableObject {
             }
         }
     }
-    
+
     func aggregateAppNames(completion: @escaping ([String: Int]) -> Void) {
         loadFromFile { loadedTexts in
             var appNameCounts: [String: Int] = [:]
-            
+
             for entry in loadedTexts {
                 appNameCounts[entry.appName, default: 0] += 1
             }
-            
+
             completion(appNameCounts)
         }
     }
-    
+
     func generateStatisticsParameter(avoidApps: [String], minTextLength: Int, completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)])) -> Void) {
         // データのクリーンアップ
         purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
@@ -301,13 +314,13 @@ class TextModel: ObservableObject {
                 var totalTextLength = 0
                 var totalEntries = 0
                 var uniqueEntries: Set<String> = []
-                
+
                 var duplicatedCount = 0
-                
+
                 // 言語のカウント
                 var langText: [String: Int] = ["JA": 0, "EN": 0, "Num": 0]
                 var langOther: Int = 0
-                
+
                 for entry in loadedTexts {
                     let uniqueKey = "\(entry.appName)-\(entry.text)"
                     // 重複をスキップ
@@ -317,7 +330,7 @@ class TextModel: ObservableObject {
                     }
                     uniqueEntries.insert(uniqueKey)
                     textEntries.append(entry)
-                    
+
                     if avoidApps.contains(entry.appName) {
                         continue
                     }
@@ -325,7 +338,7 @@ class TextModel: ObservableObject {
                     appNameTextCounts[entry.appName, default: 0] += entry.text.count
                     totalTextLength += entry.text.count
                     totalEntries += 1
-                    
+
                     // 言語ごとのテキスト長を計算
                     for char in entry.text {
                         if char.isJapanese {
@@ -339,49 +352,49 @@ class TextModel: ObservableObject {
                         }
                     }
                 }
-                
+
                 // 日本語・英語の割合計算
                 var stats = ""
                 stats += "Total Text Entries: \(totalEntries)\n"
                 stats += "Total Text Length: \(totalTextLength) characters\n"
-                
+
                 let sortedAppNameCounts = appNameCounts.sorted { $0.value > $1.value }
                 let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
                 let sortedLangTextCounts = langText.sorted { $0.value > $1.value } + [("Other", langOther)]
-                
+
                 completion((sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats, sortedLangTextCounts))
             }
         }
     }
-    
+
     func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
-        
+
         loadFromFile { loadedTexts in
             let reversedTexts = loadedTexts.reversed()
             let purifiedResults = self.purifyTextEntries(Array(reversedTexts), avoidApps: avoidApps, minTextLength: minTextLength)
             let textEntries = purifiedResults.0
             let duplicatedCount = purifiedResults.1
-            
+
             if duplicatedCount == 0 {
                 completion()
                 return
             }
-            
+
             self.fileAccessQueue.async {
                 // 新規ファイルとして一時ファイルに保存
                 do {
                     var tempFileHandle: FileHandle?
-                    
+
                     if !FileManager.default.fileExists(atPath: tempFileURL.path) {
                         FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
                     }
-                    
+
                     tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
                     tempFileHandle?.seekToEndOfFile()
-                    
+
                     for textEntry in textEntries {
                         let jsonData = try JSONEncoder().encode(textEntry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -391,9 +404,9 @@ class TextModel: ObservableObject {
                             }
                         }
                     }
-                    
+
                     tempFileHandle?.closeFile()
-                    
+
                     // 正常に保存できたら既存ファイルを削除
                     try FileManager.default.removeItem(at: fileURL)
                     // 新規ファイルの名前を変更
@@ -402,42 +415,42 @@ class TextModel: ObservableObject {
                 } catch {
                     print("Failed to clean and update file: \(error.localizedDescription)")
                 }
-                
+
                 DispatchQueue.main.async {
                     completion()
                 }
             }
         }
     }
-    
+
     func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
         print("purity start... \(entries.count)")
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []
         var duplicatedCount = 0
-        
+
         for entry in entries {
             // 記号のみのエントリは削除
             if entry.text.utf16.isSymbolOrNumber {
                 continue
             }
-            
+
             // 除外アプリの場合はスキップ
             if avoidApps.contains(entry.appName) || minTextLength > entry.text.utf8.count {
                 continue
             }
-            
+
             // 重複チェックのためのキー生成
             let uniqueKey = "\(entry.appName)-\(entry.text)"
             if uniqueEntries.contains(uniqueKey) {
                 duplicatedCount += 1
                 continue
             }
-            
+
             uniqueEntries.insert(uniqueKey)
             textEntries.append(entry)
         }
-        
+
         // 前後の要素のテキストが前方一致している場合、短い方を削除
         var index = 0
         while index < textEntries.count - 1 {
@@ -446,21 +459,21 @@ class TextModel: ObservableObject {
                 index += 1
                 continue
             }
-            
+
             let currentText = textEntries[index].text.utf16
             let nextText = textEntries[index + 1].text.utf16
-            
+
             if currentText.starts(with: nextText) || nextText.starts(with: currentText) {
                 textEntries.remove(at: index + 1)
             } else {
                 index += 1
             }
         }
-        
+
         print("purity end... \(textEntries.count)")
         return (textEntries, duplicatedCount)
     }
-    
+
     /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、
     /// 最後の1000行（もしくは全行）が対象となるように NGram モデルの学習を行います。
     func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount:Int = 1000) async {
@@ -468,19 +481,19 @@ class TextModel: ObservableObject {
         let loadedTexts = await loadFromFileAsync()
         let trainingEntries = loadedTexts.suffix(maxEntryCount)
         let lines = trainingEntries.map { $0.text }
-        
+
         print(lines[0...20])
-        
+
         let fileManager = FileManager.default
-        
+
         // `Containers` 内の `Application Support` に保存先を変更
         guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
             print("❌ Failed to get container URL.")
             return
         }
-        
+
         let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
-        
+
         // ディレクトリを作成
         do {
             try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
@@ -488,12 +501,12 @@ class TextModel: ObservableObject {
             print("❌ Failed to create directory: \(error)")
             return
         }
-        
+
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
-        
+
         print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
     }
-    
+
     func checkAndRunTraining() async {
         if texts.count >= saveThreshold {
             print("=== Training Model from Text Entries ===")
