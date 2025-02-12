@@ -99,15 +99,16 @@ class TextModel: ObservableObject {
                     fileHandle.closeFile()
                 }
 
+                // 末尾に移動して改行を追加
                 fileHandle.seekToEndOfFile()
                 fileHandle.write("\n".data(using: .utf8)!)
 
-                // 重複削除
-                let uniqueText = self.purifyTextEntries(texts, avoidApps: avoidApps, minTextLength: minTextLength).0
-                print("\(uniqueText.count) lines saved to file... \(Date()))")
-                // 1行ずつ書き出し
-                for textEntry in uniqueText {
-                    // JSONエンコード
+                // texts 配列内のエントリを前処理（重複排除等）して新規エントリ群を取得
+                let newEntries = self.purifyTextEntries(self.texts, avoidApps: avoidApps, minTextLength: minTextLength).0
+                print("\(newEntries.count) new entries saved to file... \(Date())")
+
+                // 各エントリを jsonl 形式で追記
+                for textEntry in newEntries {
                     let jsonData = try JSONEncoder().encode(textEntry)
                     // JSON文字列に変換してファイルに書き込み
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
@@ -120,10 +121,10 @@ class TextModel: ObservableObject {
                     }
                 }
 
-                // 保存後、jsonlファイルから最後の1000行（または全行）だけを抽出して学習
+                // newEntries を使い、追加学習を実施
                 Task {
-                    print("=== Training Model from Text Entries ===")
-                    await self.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
+                    print("=== Incremental Training from New Text Entries ===")
+                    await self.trainNGramOnNewEntries(newEntries: newEntries, n: 5, baseFilename: "lm")
                 }
 
                 DispatchQueue.main.async {
@@ -473,6 +474,32 @@ class TextModel: ObservableObject {
         print("purity end... \(textEntries.count)")
         return (textEntries, duplicatedCount)
     }
+
+    /// 今回 updateFile で書き出した新規エントリ newEntries を使い、n-gram モデルを追加学習します
+    func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
+        let lines = newEntries.map { $0.text }
+        print("追加学習 \(lines)")
+        if lines.isEmpty{
+            print("追加学習なし")
+            return
+        }
+        let fileManager = FileManager.default
+        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
+            print("❌ Failed to get container URL.")
+            return
+        }
+        let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
+        do {
+            try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true, attributes: nil)
+        } catch {
+            print("❌ Failed to create directory: \(error)")
+            return
+        }
+        // EfficientNGram パッケージ側の学習関数を呼び出す（async/await 版）
+        await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
+        print("✅ Training completed for new entries. Model saved as \(baseFilename) in \(outputDir)")
+    }
+
 
     /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、
     /// 最後の1000行（もしくは全行）が対象となるように NGram モデルの学習を行います。
