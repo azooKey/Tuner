@@ -542,3 +542,114 @@ class TextModel: ObservableObject {
         }
     }
 }
+
+// MARK: - テキストファイルからのインポート処理
+extension TextModel {
+    /// Documents/ImportTexts フォルダ内の .txt ファイルを読み込み、
+    /// ファイル内の各行を個別のエントリーとして追加します。
+    /// 読み込んだ（または条件に合わなかった）ファイルは、ファイル名の先頭に "IMPORTED_" を付けてリネームします。
+    func importTextFiles(avoidApps: [String], minTextLength: Int) async {
+        print("import files")
+        let fileManager = FileManager.default
+        // Documentsディレクトリ内の "ImportTexts" フォルダのURLを取得
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        let importFolder = documentsDirectory.appendingPathComponent("ImportTexts")
+
+        // "ImportTexts" フォルダが存在しなければ作成
+        if !fileManager.fileExists(atPath: importFolder.path) {
+            print("ImportTexts Folder doesn't exist")
+            do {
+                try fileManager.createDirectory(at: importFolder, withIntermediateDirectories: true, attributes: nil)
+            } catch {
+                print("❌ Failed to create import folder: \(error.localizedDescription)")
+                return
+            }
+        }
+
+        // "ImportTexts" フォルダ内のファイル一覧を取得
+        do {
+            let fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
+            if fileURLs.isEmpty {
+                print("No files to import in \(importFolder.path)")
+            }
+
+            // すでに保存済みのエントリを取得してキー集合を作成（キー＝ "appName-テキスト"）
+            let existingEntries = await loadFromFileAsync()
+            var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
+
+            var newEntries: [TextEntry] = []
+
+            for fileURL in fileURLs {
+                let fileName = fileURL.lastPathComponent
+                // 既に "IMPORTED" で始まるファイルはスキップ
+                if fileName.hasPrefix("IMPORTED") {
+                    continue
+                }
+
+                // 拡張子が txt のファイルのみ対象
+                if fileURL.pathExtension.lowercased() != "txt" {
+                    continue
+                }
+
+                do {
+                    let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+                    // ファイル内の各行ごとに分割
+                    let lines = fileContent.components(separatedBy: .newlines)
+                    // ファイル名（拡張子除く）を appName として利用
+                    let fileAppName = fileURL.deletingPathExtension().lastPathComponent
+
+                    // 同じファイル内での重複も防ぐため、ローカルなキー集合を用意
+                    var localKeys = existingKeys
+
+                    for line in lines {
+                        // 改行等を除去して整形
+                        let cleanedLine = removeExtraNewlines(from: line)
+
+                        // 空行や最小文字数未満の場合はスキップ
+                        if cleanedLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cleanedLine.count < minTextLength {
+                            continue
+                        }
+
+                        let key = "\(fileAppName)-\(cleanedLine)"
+                        // すでに同じ内容が取り込まれていればスキップ
+                        if localKeys.contains(key) {
+                            continue
+                        }
+
+                        localKeys.insert(key)
+                        existingKeys.insert(key)
+
+                        let newEntry = TextEntry(appName: fileAppName, text: cleanedLine, timestamp: Date())
+                        newEntries.append(newEntry)
+                    }
+
+                    // 処理が完了したら、ファイル名の先頭に "IMPORTED_" を付けてリネーム
+                    try markFileAsImported(fileURL: fileURL)
+
+                } catch {
+                    print("❌ Error processing file \(fileName): \(error.localizedDescription)")
+                }
+            }
+
+            // 新規エントリがあれば texts に追加し、jsonl ファイルを更新
+            if !newEntries.isEmpty {
+                DispatchQueue.main.async {
+                    self.texts.append(contentsOf: newEntries)
+                }
+                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
+            }
+
+        } catch {
+            print("❌ Failed to list import folder: \(error.localizedDescription)")
+        }
+    }
+
+    /// 指定したファイルを、同じフォルダー内でファイル名の先頭に "IMPORTED_" を付けてリネームする
+    private func markFileAsImported(fileURL: URL) throws {
+        let fileManager = FileManager.default
+        let fileName = fileURL.lastPathComponent
+        let importedFileName = "IMPORTED_" + fileName
+        let newURL = fileURL.deletingLastPathComponent().appendingPathComponent(importedFileName)
+        try fileManager.moveItem(at: fileURL, to: newURL)
+    }
+}

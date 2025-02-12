@@ -11,7 +11,14 @@ struct SettingsView: View {
     @EnvironmentObject var textModel: TextModel
     @EnvironmentObject var shareData: ShareData
     @State private var selectedApp: String = ""
-
+    
+    // Documents/importText フォルダーのURLを computed property として用意
+    private var importFolderURL: URL {
+        let fileManager = FileManager.default
+        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return documentsDirectory.appendingPathComponent("importText")
+    }
+    
     var body: some View {
         ScrollView {
             // 保存先pathの表示
@@ -26,13 +33,43 @@ struct SettingsView: View {
                 }
             }
             .padding()
-
+            
+            Button(action: {
+                Task {
+                    await textModel.importTextFiles(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
+                }
+            }) {
+                HStack {
+                    Image(systemName: "tray.and.arrow.down")
+                    Text("Import Text Files")
+                }
+                .padding()
+            }
+            .padding(.horizontal)
+            
+            HStack {
+                Text("Save Path:")
+                Spacer()
+                // importTextフォルダーのフルパスを表示
+                Text(importFolderURL.path)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                Button(action: {
+                    // ダミーファイルのURLを作成して openFolderInFinder を呼ぶ
+                    let dummyFileURL = importFolderURL.appendingPathComponent("dummy.txt")
+                    self.openFolderInFinder(url: dummyFileURL)
+                }) {
+                    Image(systemName: "folder")
+                }
+            }
+            .padding()
+            
             Divider()
-
+            
             // 保存のON/OFFスイッチ
             Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
                 .padding(.bottom)
-
+            
             HStack {
                 Text("Line Threshold:")
                     .frame(width: 120, alignment: .trailing)
@@ -41,7 +78,7 @@ struct SettingsView: View {
                         .frame(width: 80, alignment: .leading)
                 }
             }
-
+            
             HStack {
                 Text("Save Interval:")
                     .frame(width: 120, alignment: .trailing)
@@ -50,7 +87,7 @@ struct SettingsView: View {
                         .frame(width: 80, alignment: .leading)
                 }
             }
-
+            
             HStack {
                 Text("Min Text Length:")
                     .frame(width: 120, alignment: .trailing)
@@ -59,17 +96,17 @@ struct SettingsView: View {
                         .frame(width: 80, alignment: .leading)
                 }
             }
-
+            
             Text("Data will be saved when either condition is met.")
                 .font(.caption)
                 .foregroundColor(.secondary)
-
+            
             Divider()
-
+            
             Label("Log Avoid Apps", systemImage: "xmark.circle.fill")
                 .font(.headline)
                 .padding(.bottom)
-
+            
             HStack {
                 Picker("Select App", selection: $selectedApp) {
                     Text("Select an app").tag("")
@@ -78,7 +115,7 @@ struct SettingsView: View {
                     }
                 }
                 .pickerStyle(MenuPickerStyle())
-
+                
                 Button(action: {
                     if !selectedApp.isEmpty && !shareData.avoidApps.contains(selectedApp) {
                         shareData.avoidApps.append(selectedApp)
@@ -90,7 +127,7 @@ struct SettingsView: View {
                 }
             }
             .padding(.horizontal)
-
+            
             List {
                 ForEach(shareData.avoidApps.indices, id: \.self) { index in
                     HStack {
@@ -112,21 +149,21 @@ struct SettingsView: View {
             }
             .frame(height: 200)
             .padding(.horizontal)
-
+            
             if let lastSavedDate = textModel.lastSavedDate {
                 Text("Last Saved: \(lastSavedDate, formatter: dateFormatter)")
                     .padding(.top)
             }
         }
     }
-
+    
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
         formatter.timeStyle = .long
         return formatter
     }
-
+    
     private func openFolderInFinder(url: URL) {
         let folderURL = url.deletingLastPathComponent()
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
