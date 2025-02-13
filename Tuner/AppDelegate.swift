@@ -113,10 +113,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// AXUIElementのroleを取得するメソッド
     private func getRole(of element: AXUIElement) -> String? {
         var roleValue: AnyObject?
-        let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
-        if roleResult == .success, let role = roleValue as? String {
-            return role
-        } else {
+        do {
+            let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+            if roleResult == .success, let role = roleValue as? String {
+                return role
+            } else {
+                return nil
+            }
+        }catch{
             return nil
         }
     }
