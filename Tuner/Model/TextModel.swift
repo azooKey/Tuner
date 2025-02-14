@@ -558,7 +558,7 @@ class TextModel: ObservableObject {
 // MARK: - テキストファイルからのインポート処理
 extension TextModel {
     /// Documents/ImportTexts フォルダ内の .txt ファイルを読み込み、
-    /// ファイル内の各行を個別のエントリーとして追加します。
+    /// 各行を個別のエントリーとしてimport.jsonlへ出力します。
     /// 読み込んだ（または条件に合わなかった）ファイルは、ファイル名の先頭に "IMPORTED_" を付けてリネームします。
     func importTextFiles(avoidApps: [String], minTextLength: Int) async {
         print("import files")
@@ -643,12 +643,24 @@ extension TextModel {
                 }
             }
 
-            // 新規エントリがあれば texts に追加し、jsonl ファイルを更新
+            // 新規エントリがあればimport.jsonlに書き出し（既存のものは上書き）
             if !newEntries.isEmpty {
-                DispatchQueue.main.async {
-                    self.texts.append(contentsOf: newEntries)
+                let appDirectory = getAppDirectory()
+                let importFileURL = appDirectory.appendingPathComponent("import.jsonl")
+
+                do {
+                    var fileContent = ""
+                    for entry in newEntries {
+                        let jsonData = try JSONEncoder().encode(entry)
+                        if let jsonString = String(data: jsonData, encoding: .utf8) {
+                            fileContent.append(jsonString + "\n")
+                        }
+                    }
+                    try fileContent.write(to: importFileURL, atomically: true, encoding: .utf8)
+                    print("import.jsonl updated with \(newEntries.count) entries at \(importFileURL.path)")
+                } catch {
+                    print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
                 }
-                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
 
         } catch {
