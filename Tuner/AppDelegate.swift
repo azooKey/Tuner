@@ -19,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let options = [trustedCheckOptionPrompt: true] as CFDictionary
 
         // アクセシビリティの権限が許可されているか確認
-        if AXIsProcessTrustedWithOptions(options) {
+        if shareData.activateAccessibility && AXIsProcessTrustedWithOptions(options) {
             // アクティブなアプリケーションが変更されたときの通知を登録
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeAppDidChange(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         } else {
@@ -29,6 +29,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
     @objc func activeAppDidChange(_ notification: Notification) {
+        guard shareData.activateAccessibility else { return }
+
         if let activeApp = NSWorkspace.shared.frontmostApplication {
             let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
             if shareData.avoidApps.contains(activeApplicationName) {

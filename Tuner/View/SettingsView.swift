@@ -21,6 +21,16 @@ struct SettingsView: View {
     
     var body: some View {
         ScrollView {
+            Toggle("Enable Accessibility", isOn: $shareData.activateAccessibility)
+                .padding()
+                .onChange(of: shareData.activateAccessibility) { newValue in
+                    shareData.activateAccessibility = newValue
+                    if newValue {
+                        print("Enable Accessibility")
+                        requestAccessibilityPermission()
+                    }
+                }
+
             // 保存先pathの表示
             HStack {
                 Text("Save Path:")
@@ -167,5 +177,12 @@ struct SettingsView: View {
     private func openFolderInFinder(url: URL) {
         let folderURL = url.deletingLastPathComponent()
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+    }
+
+    private func requestAccessibilityPermission() {
+        print("requestAccessibilityPermission")
+        let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
+        let options = [trustedCheckOptionPrompt: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 }
