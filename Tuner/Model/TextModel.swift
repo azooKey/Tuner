@@ -521,9 +521,9 @@ class TextModel: ObservableObject {
     }
 
 
-    /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、
-    /// 最後の1000行（もしくは全行）が対象となるように NGram モデルの学習を行います。
-    func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount:Int = 1000) async {
+    /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、学習を行う
+    func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount:Int = 100_000) async {
+        print("train ngram from jsonl")
         // jsonl ファイルから全 TextEntry を読み込み、最新の 1000 エントリ（存在する場合）を抽出
         let loadedTexts = await loadFromFileAsync()
         let trainingEntries = loadedTexts.suffix(maxEntryCount)
@@ -552,14 +552,6 @@ class TextModel: ObservableObject {
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
 
         print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
-    }
-
-    func checkAndRunTraining() async {
-        if texts.count >= saveThreshold {
-            print("=== Training Model from Text Entries ===")
-            await self.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
-            self.lastSavedDate = Date()
-        }
     }
 }
 
