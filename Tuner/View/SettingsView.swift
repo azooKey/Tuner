@@ -50,7 +50,7 @@ struct SettingsView: View {
                 }
             }) {
                 HStack {
-                    Text("Import Text Files")
+                    Text("Import Files to JSONL")
                 }
                 .padding()
             }

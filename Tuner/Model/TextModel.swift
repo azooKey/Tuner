@@ -522,18 +522,40 @@ class TextModel: ObservableObject {
 
 
     /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、学習を行う
-    func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount:Int = 100_000) async {
+    func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount: Int = 100_000) async {
         print("train ngram from jsonl")
-        // jsonl ファイルから全 TextEntry を読み込み、最新の 1000 エントリ（存在する場合）を抽出
-        let loadedTexts = await loadFromFileAsync()
-        let trainingEntries = loadedTexts.suffix(maxEntryCount)
-        let lines = trainingEntries.map { $0.text }
-
-        print(lines[0...20])
-
         let fileManager = FileManager.default
 
-        // `Containers` 内の `Application Support` に保存先を変更
+        // savedTexts.jsonlからエントリを読み込み
+        let savedTexts = await loadFromFileAsync()
+        print("savedTexts.jsonl: \(savedTexts.count)")
+
+        // import.jsonlのパスを取得
+        let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
+        var importEntries: [TextEntry] = []
+        if fileManager.fileExists(atPath: importFileURL.path) {
+            // ファイルの内容を読み込み、各行ごとにJSONデコード
+            if let fileContents = try? String(contentsOf: importFileURL, encoding: .utf8) {
+                let lines = fileContents.split(separator: "\n")
+                for line in lines {
+                    guard !line.isEmpty else { continue }
+                    if let jsonData = line.data(using: .utf8),
+                       let entry = try? JSONDecoder().decode(TextEntry.self, from: jsonData) {
+                        importEntries.append(entry)
+                    }
+                }
+            }
+        }
+        print("importText: \(importEntries.count)")
+
+        // 両方のエントリを結合し、最新のmaxEntryCount件を使用する
+        let combinedEntries = savedTexts + importEntries
+        let trainingEntries = combinedEntries.suffix(maxEntryCount)
+        let lines = trainingEntries.map { $0.text }
+
+        print("Training with \(lines.count) lines")
+
+        // containerディレクトリの取得と出力先ディレクトリの作成
         guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
             print("❌ Failed to get container URL.")
             return
@@ -549,6 +571,7 @@ class TextModel: ObservableObject {
             return
         }
 
+        // n-gram学習の実行
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
 
         print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
