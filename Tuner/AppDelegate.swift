@@ -19,7 +19,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let options = [trustedCheckOptionPrompt: true] as CFDictionary
 
         // アクセシビリティの権限が許可されているか確認
-        if AXIsProcessTrustedWithOptions(options) {
+        if shareData.activateAccessibility && AXIsProcessTrustedWithOptions(options) {
             // アクティブなアプリケーションが変更されたときの通知を登録
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeAppDidChange(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
         } else {
@@ -29,6 +29,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
     @objc func activeAppDidChange(_ notification: Notification) {
+        guard shareData.activateAccessibility else {
+            return
+        }
+
         if let activeApp = NSWorkspace.shared.frontmostApplication {
             let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
             if shareData.avoidApps.contains(activeApplicationName) {
@@ -113,10 +117,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// AXUIElementのroleを取得するメソッド
     private func getRole(of element: AXUIElement) -> String? {
         var roleValue: AnyObject?
-        let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
-        if roleResult == .success, let role = roleValue as? String {
-            return role
-        } else {
+        do {
+            let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+            if roleResult == .success, let role = roleValue as? String {
+                return role
+            } else {
+                return nil
+            }
+        }catch{
             return nil
         }
     }

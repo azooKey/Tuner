@@ -30,17 +30,36 @@ class ShareData: ObservableObject {
             saveMinTextLength()
         }
     }
+    // アクセシビリティAPIの利用
+    @Published var activateAccessibility: Bool = false {
+        didSet {
+            saveActivateAccessibility()
+        }
+    }
 
     private let avoidAppsKey = "avoidApps"
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
     private let minTextLengthKey = "minTextLength"
+    private let activateAccessibilityKey = "activateAccessibility"
+
 
     init() {
+        loadActivateAccessibility()
         loadAvoidApps()
         loadSaveLineTh()
         loadSaveIntervalSec()
         loadMinTextLength()
+    }
+
+    private func saveActivateAccessibility() {
+        UserDefaults.standard.set(activateAccessibility, forKey: activateAccessibilityKey)
+    }
+
+    private func loadActivateAccessibility() {
+        if let savedValue = UserDefaults.standard.value(forKey: activateAccessibilityKey) as? Bool {
+            activateAccessibility = savedValue
+        }
     }
 
     private func saveAvoidApps() {
@@ -81,5 +100,12 @@ class ShareData: ObservableObject {
         if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
             minTextLength = savedMinTextLength
         }
+    }
+
+    func requestAccessibilityPermission() {
+        print("requestAccessibilityPermission")
+        let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
+        let options = [trustedCheckOptionPrompt: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 }

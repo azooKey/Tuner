@@ -7,6 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		E920ABAC2D5C547500AF8587 /* KanaKanjiConverterModule in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABAB2D5C547500AF8587 /* KanaKanjiConverterModule */; };
+		E920ABAE2D5C547500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABAD2D5C547500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */; };
+		E920ABB02D5C547500AF8587 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABAF2D5C547500AF8587 /* SwiftUtils */; };
+		E920ABE92D5C592B00AF8587 /* KanaKanjiConverterModule in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABE82D5C592B00AF8587 /* KanaKanjiConverterModule */; };
+		E920ABEB2D5C592B00AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABEA2D5C592B00AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */; };
+		E920ABED2D5C592B00AF8587 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABEC2D5C592B00AF8587 /* SwiftUtils */; };
+		E920ABEF2D5C71B500AF8587 /* KanaKanjiConverterModule in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABEE2D5C71B500AF8587 /* KanaKanjiConverterModule */; };
+		E920ABF12D5C71B500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABF02D5C71B500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */; };
+		E920ABF32D5C71B500AF8587 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E920ABF22D5C71B500AF8587 /* SwiftUtils */; };
 		E94A73842C2B4B9F0049C3C6 /* TunerApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73832C2B4B9F0049C3C6 /* TunerApp.swift */; };
 		E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73852C2B4B9F0049C3C6 /* ContentView.swift */; };
 		E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A73872C2B4B9F0049C3C6 /* Assets.xcassets */; };
@@ -46,6 +55,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				E920ABED2D5C592B00AF8587 /* SwiftUtils in Frameworks */,
+				E920ABB02D5C547500AF8587 /* SwiftUtils in Frameworks */,
+				E920ABF12D5C71B500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */,
+				E920ABF32D5C71B500AF8587 /* SwiftUtils in Frameworks */,
+				E920ABAE2D5C547500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */,
+				E920ABE92D5C592B00AF8587 /* KanaKanjiConverterModule in Frameworks */,
+				E920ABEF2D5C71B500AF8587 /* KanaKanjiConverterModule in Frameworks */,
+				E920ABAC2D5C547500AF8587 /* KanaKanjiConverterModule in Frameworks */,
+				E920ABEB2D5C592B00AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -166,6 +184,9 @@
 				Base,
 			);
 			mainGroup = E94A73772C2B4B9F0049C3C6;
+			packageReferences = (
+				E920ABAA2D5C547500AF8587 /* XCRemoteSwiftPackageReference "AzooKeyKanaKanjiConverter" */,
+			);
 			productRefGroup = E94A73812C2B4B9F0049C3C6 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -338,7 +359,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
-				DEVELOPMENT_TEAM = 9S3UXHYP65;
+				DEVELOPMENT_TEAM = CW97U5J24N;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -354,6 +375,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -369,7 +391,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
-				DEVELOPMENT_TEAM = 9S3UXHYP65;
+				DEVELOPMENT_TEAM = CW97U5J24N;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -385,6 +407,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -411,6 +434,59 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		E920ABAA2D5C547500AF8587 /* XCRemoteSwiftPackageReference "AzooKeyKanaKanjiConverter" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/ensan-hcl/AzooKeyKanaKanjiConverter";
+			requirement = {
+				branch = develop;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		E920ABAB2D5C547500AF8587 /* KanaKanjiConverterModule */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E920ABAA2D5C547500AF8587 /* XCRemoteSwiftPackageReference "AzooKeyKanaKanjiConverter" */;
+			productName = KanaKanjiConverterModule;
+		};
+		E920ABAD2D5C547500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E920ABAA2D5C547500AF8587 /* XCRemoteSwiftPackageReference "AzooKeyKanaKanjiConverter" */;
+			productName = KanaKanjiConverterModuleWithDefaultDictionary;
+		};
+		E920ABAF2D5C547500AF8587 /* SwiftUtils */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = E920ABAA2D5C547500AF8587 /* XCRemoteSwiftPackageReference "AzooKeyKanaKanjiConverter" */;
+			productName = SwiftUtils;
+		};
+		E920ABE82D5C592B00AF8587 /* KanaKanjiConverterModule */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KanaKanjiConverterModule;
+		};
+		E920ABEA2D5C592B00AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KanaKanjiConverterModuleWithDefaultDictionary;
+		};
+		E920ABEC2D5C592B00AF8587 /* SwiftUtils */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftUtils;
+		};
+		E920ABEE2D5C71B500AF8587 /* KanaKanjiConverterModule */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KanaKanjiConverterModule;
+		};
+		E920ABF02D5C71B500AF8587 /* KanaKanjiConverterModuleWithDefaultDictionary */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = KanaKanjiConverterModuleWithDefaultDictionary;
+		};
+		E920ABF22D5C71B500AF8587 /* SwiftUtils */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = SwiftUtils;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E94A73782C2B4B9F0049C3C6 /* Project object */;
 }
