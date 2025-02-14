@@ -30,6 +30,7 @@ class ShareData: ObservableObject {
             saveMinTextLength()
         }
     }
+    // アクセシビリティAPIの利用
     @Published var activateAccessibility: Bool = false {
         didSet {
             saveActivateAccessibility()
@@ -99,5 +100,12 @@ class ShareData: ObservableObject {
         if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
             minTextLength = savedMinTextLength
         }
+    }
+
+    func requestAccessibilityPermission() {
+        print("requestAccessibilityPermission")
+        let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
+        let options = [trustedCheckOptionPrompt: true] as CFDictionary
+        _ = AXIsProcessTrustedWithOptions(options)
     }
 }

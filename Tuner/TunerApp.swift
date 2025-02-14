@@ -9,6 +9,7 @@ struct TunerApp: App {
         MenuBarExtra("Tuner", systemImage: "doc.text"){
             MenuView()
                 .environmentObject(appDelegate.textModel)
+                .environmentObject(appDelegate.shareData)
         }
         Settings {
             ContentView()

@@ -27,7 +27,7 @@ struct SettingsView: View {
                     shareData.activateAccessibility = newValue
                     if newValue {
                         print("Enable Accessibility")
-                        requestAccessibilityPermission()
+                        shareData.requestAccessibilityPermission()
                     }
                 }
 
@@ -177,12 +177,5 @@ struct SettingsView: View {
     private func openFolderInFinder(url: URL) {
         let folderURL = url.deletingLastPathComponent()
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
-    }
-
-    private func requestAccessibilityPermission() {
-        print("requestAccessibilityPermission")
-        let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
-        let options = [trustedCheckOptionPrompt: true] as CFDictionary
-        _ = AXIsProcessTrustedWithOptions(options)
     }
 }

@@ -29,7 +29,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
     @objc func activeAppDidChange(_ notification: Notification) {
-        guard shareData.activateAccessibility else { return }
+        guard shareData.activateAccessibility else {
+            return
+        }
 
         if let activeApp = NSWorkspace.shared.frontmostApplication {
             let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
