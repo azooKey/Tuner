@@ -479,7 +479,7 @@ class TextModel: ObservableObject {
     func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
         let lines = newEntries.map { $0.text }
         print("追加学習 \(lines)")
-        if lines.isEmpty{
+        if lines.isEmpty {
             print("追加学習なし")
             return
         }
@@ -488,15 +488,35 @@ class TextModel: ObservableObject {
             print("❌ Failed to get container URL.")
             return
         }
+
         let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
+
         do {
             try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true, attributes: nil)
         } catch {
             print("❌ Failed to create directory: \(error)")
             return
         }
+
+        // WIP ファイルの作成
+        let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilename).wip")
+        do {
+            try "Training in progress".write(to: wipFileURL, atomically: true, encoding: .utf8)
+        } catch {
+            print("❌ Failed to create WIP file: \(error)")
+        }
+
         // EfficientNGram パッケージ側の学習関数を呼び出す（async/await 版）
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
+
+        // WIP ファイルの削除
+        do {
+            try fileManager.removeItem(at: wipFileURL)
+            print("✅ Training completed. WIP file removed.")
+        } catch {
+            print("❌ Failed to remove WIP file: \(error)")
+        }
+
         print("✅ Training completed for new entries. Model saved as \(baseFilename) in \(outputDir)")
     }
 
