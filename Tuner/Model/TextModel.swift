@@ -13,6 +13,7 @@ class TextModel: ObservableObject {
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
 
+    private let ngramSize: Int = 5
     private var saveCounter = 0
     private let saveThreshold = 100  // 100エントリごとに学習
     private var textHashes: Set<TextEntry> = []
@@ -124,7 +125,7 @@ class TextModel: ObservableObject {
                 // newEntries を使い、追加学習を実施
                 Task {
                     print("=== Incremental Training from New Text Entries ===")
-                    await self.trainNGramOnNewEntries(newEntries: newEntries, n: 5, baseFilename: "lm")
+                    await self.trainNGramOnNewEntries(newEntries: newEntries, n: self.ngramSize, baseFilename: "lm")
                 }
 
                 DispatchQueue.main.async {
@@ -476,6 +477,7 @@ class TextModel: ObservableObject {
     }
 
     /// 今回 updateFile で書き出した新規エントリ newEntries を使い、n-gram モデルを追加学習します
+    /// 追加学習用のベースは、初回は「original」を複製した「lm」として用意し、以降はlmに学習を追加していきます。
     func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
         let lines = newEntries.map { $0.text }
         print("追加学習 \(lines)")
@@ -498,6 +500,38 @@ class TextModel: ObservableObject {
             return
         }
 
+        // lmモードの場合、lm用ファイルが存在しなければ original から複製して lm を作成
+        if baseFilename == "lm" {
+            let lmCheckURL = URL(fileURLWithPath: outputDir).appendingPathComponent("lm_c_abc.marisa")
+            if !fileManager.fileExists(atPath: lmCheckURL.path) {
+                print("lmモデルが存在しないため、originalから複製を実施します。")
+                let originalFiles = [
+                    "original_c_abc.marisa",
+                    "original_u_abx.marisa",
+                    "original_u_xbc.marisa",
+                    "original_r_xbx.marisa",
+                ]
+                let lmFiles = [
+                    "lm_c_abc.marisa",
+                    "lm_u_abx.marisa",
+                    "lm_u_xbc.marisa",
+                    "lm_r_xbx.marisa",
+                ]
+                for (origFile, lmFile) in zip(originalFiles, lmFiles) {
+                    let origPath = URL(fileURLWithPath: outputDir).appendingPathComponent(origFile).path
+                    let lmPath = URL(fileURLWithPath: outputDir).appendingPathComponent(lmFile).path
+                    if fileManager.fileExists(atPath: origPath) {
+                        do {
+                            try fileManager.copyItem(atPath: origPath, toPath: lmPath)
+                            print("Duplicated \(origFile) to \(lmFile)")
+                        } catch {
+                            print("Error duplicating \(origFile) to \(lmFile): \(error)")
+                        }
+                    }
+                }
+            }
+        }
+
         // WIP ファイルの作成
         let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilename).wip")
         do {
@@ -507,7 +541,7 @@ class TextModel: ObservableObject {
         }
 
         // EfficientNGram パッケージ側の学習関数を呼び出す（async/await 版）
-        await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
+        await trainNGram(lines: lines, n: ngramSize, baseFilename: baseFilename, outputDir: outputDir)
 
         // WIP ファイルの削除
         do {
@@ -522,7 +556,7 @@ class TextModel: ObservableObject {
 
 
     /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、学習を行う
-    func trainNGramFromTextEntries(n: Int, baseFilename: String, maxEntryCount: Int = 100_000) async {
+    func trainNGramFromTextEntries(n: Int = 5, baseFilename: String = "original", maxEntryCount: Int = 100_000) async {
         print("train ngram from jsonl")
         let fileManager = FileManager.default
 
@@ -569,6 +603,27 @@ class TextModel: ObservableObject {
         } catch {
             print("❌ Failed to create directory: \(error)")
             return
+        }
+
+        // baseFilenameが"original"の場合、既存のlmファイルを削除する
+        if baseFilename == "original" {
+            let lmFiles = [
+                "lm_c_abc.marisa",
+                "lm_u_abx.marisa",
+                "lm_u_xbc.marisa",
+                "lm_r_xbx.marisa",
+            ]
+            for lmFile in lmFiles {
+                let lmFilePath = URL(fileURLWithPath: outputDir).appendingPathComponent(lmFile).path
+                if fileManager.fileExists(atPath: lmFilePath) {
+                    do {
+                        try fileManager.removeItem(atPath: lmFilePath)
+                        print("Removed existing lm file: \(lmFile)")
+                    } catch {
+                        print("Failed to remove lm file \(lmFile): \(error)")
+                    }
+                }
+            }
         }
 
         // n-gram学習の実行
