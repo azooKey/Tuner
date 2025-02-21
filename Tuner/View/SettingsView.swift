@@ -59,7 +59,7 @@ struct SettingsView: View {
 
             Button(action: {
                 Task {
-                    await textModel.trainNGramFromTextEntries(n: 5, baseFilename: "lm")
+                    await textModel.trainNGramFromTextEntries()
                 }
             }) {
                 HStack {
