@@ -8,112 +8,6 @@
 import Foundation
 import EfficientNGram
 
-enum SimpleHasher {
-    static func customHash(_ input: some Collection<Unicode.Scalar>, seed: Int) -> Int {
-        var hash = seed
-        for char in input {
-            hash = (hash &* 31) &+ Int(char.value)
-        }
-        return hash
-    }
-}
-
-struct MinHashOptimized {
-    private let numHashFunctions: Int
-    private let seeds: [Int]
-    
-    init(numHashFunctions: Int = 20) {
-        self.numHashFunctions = numHashFunctions
-        self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
-    }
-    
-    func computeMinHashSignature(for text: String) -> [Int] {
-        let words = text.unicodeScalars.split(separator: " ")
-        return self.seeds.map { seed in
-            var minHash = Int.max
-            for word in words {
-                let hash = SimpleHasher.customHash(word, seed: seed)
-                if hash < minHash {
-                    minHash = hash
-                }
-            }
-            return minHash
-        }
-    }
-    
-    func computeJaccardSimilarity(signature1: [Int], signature2: [Int]) -> Double {
-        assert(signature1.count == signature2.count, "signature1 and signature2 must have the same length")
-        let equalCount = zip(signature1, signature2).reduce(into: 0) {
-            if $1.0 == $1.1 {
-                $0 += 1
-            }
-        }
-        return Double(equalCount) / Double(signature1.count)
-    }
-}
-
-struct TextModelOptimizedWithLRU {
-    private let minHash = MinHashOptimized()
-    private var signatureCache: [String: [Int]]
-    private var seenEntries: Set<String> = []
-    
-    init() {
-        self.signatureCache = .init(minimumCapacity: 100)
-    }
-    
-    mutating func purifyTextEntriesWithMinHash(
-        _ entries: [TextEntry], avoidApps: Set<String>, minTextLength: Int,
-        similarityThreshold: Double = 0.8
-    ) -> ([TextEntry], Int) {
-        var uniqueEntries: [TextEntry] = []
-        var duplicateCount = 0
-        
-        for (index, entry) in entries.enumerated() {
-            guard !avoidApps.contains(entry.appName), entry.text.utf8.count >= minTextLength else { continue }
-            
-            if signatureCache.keys.contains(entry.text) || seenEntries.contains(entry.text) {
-                duplicateCount += 1
-                continue
-            }
-            
-            let newEntrySignature: [Int]
-            if let cachedSignature = self.signatureCache[entry.text] {
-                newEntrySignature = cachedSignature
-            } else {
-                newEntrySignature = minHash.computeMinHashSignature(for: entry.text)
-                signatureCache[entry.text] = newEntrySignature
-            }
-            
-            var isDuplicate = false
-            for uniqueEntry in uniqueEntries {
-                let existingSignature: [Int]
-                if let cachedSignature = signatureCache[uniqueEntry.text] {
-                    existingSignature = cachedSignature
-                } else {
-                    existingSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
-                    signatureCache[uniqueEntry.text] = existingSignature
-                }
-                
-                if minHash.computeJaccardSimilarity(signature1: newEntrySignature, signature2: existingSignature) >= similarityThreshold {
-                    isDuplicate = true
-                    duplicateCount += 1
-                    break
-                }
-            }
-            
-            if !isDuplicate {
-                uniqueEntries.append(entry)
-            }
-            
-            if index % 100 == 0 {
-                self.seenEntries.formUnion(self.signatureCache.keys)
-                self.signatureCache.removeAll(keepingCapacity: true)
-            }
-        }
-        
-        return (uniqueEntries, duplicateCount)
-    }
-}
 
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
@@ -488,15 +382,22 @@ class TextModel: ObservableObject {
             }
         }
     }
-    
+
     func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
         // 仮の保存先
         let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
-        
+
         loadFromFile { loadedTexts in
+            // 空のファイルを防止: ロードしたテキストが空の場合は何もせずに終了
+            if loadedTexts.isEmpty {
+                print("No texts loaded from file - skipping purify to avoid empty file")
+                completion()
+                return
+            }
+
             let reversedTexts = loadedTexts.reversed()
-            
+
             // MinHashを使用した重複検出と削除
             let avoidAppsSet = Set(avoidApps)
             let purifiedResults = self.minHashOptimizer.purifyTextEntriesWithMinHash(
@@ -505,55 +406,82 @@ class TextModel: ObservableObject {
                 minTextLength: minTextLength,
                 similarityThreshold: self.similarityThreshold
             )
-            
+
             let textEntries = purifiedResults.0
             let duplicatedCount = purifiedResults.1
-            
-            if duplicatedCount == 0 {
+
+            // 重複がない、または浄化後のテキストが空になる場合は処理を行わない
+            if duplicatedCount == 0 || textEntries.isEmpty {
+                print("No duplicates found or purified entries would be empty - skipping file update")
                 completion()
                 return
             }
-            
+
             self.fileAccessQueue.async {
+                // バックアップファイルの作成 (問題特定用)
+                let backupFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("backup_savedTexts_\(Int(Date().timeIntervalSince1970)).jsonl")
+                do {
+                    try FileManager.default.copyItem(at: fileURL, to: backupFileURL)
+                    print("Backup file created at: \(backupFileURL.path)")
+                } catch {
+                    print("Failed to create backup file: \(error.localizedDescription)")
+                    // バックアップ失敗でもプロセスは継続
+                }
+
                 // 新規ファイルとして一時ファイルに保存
                 do {
                     var tempFileHandle: FileHandle?
-                    
+
                     if !FileManager.default.fileExists(atPath: tempFileURL.path) {
                         FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
                     }
-                    
+
                     tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
                     tempFileHandle?.seekToEndOfFile()
-                    
+
+                    // 重要: 一度書き込みを確認してからファイルを置き換える
+                    var writeSuccess = false
+                    var entriesWritten = 0
+
                     for textEntry in textEntries {
                         let jsonData = try JSONEncoder().encode(textEntry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
                             let jsonLine = jsonString + "\n"
                             if let data = jsonLine.data(using: .utf8) {
                                 tempFileHandle?.write(data)
+                                entriesWritten += 1
+                                writeSuccess = true
                             }
                         }
                     }
-                    
+
                     tempFileHandle?.closeFile()
-                    
-                    // 正常に保存できたら既存ファイルを削除
-                    try FileManager.default.removeItem(at: fileURL)
-                    // 新規ファイルの名前を変更
-                    try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
-                    print("File purify completed. Removed \(duplicatedCount) duplicated entries.")
+
+                    // 書き込みが成功してエントリが少なくとも1つ以上の場合のみファイルを置換
+                    if writeSuccess && entriesWritten > 0 {
+                        // 正常に保存できたら既存ファイルを削除
+                        try FileManager.default.removeItem(at: fileURL)
+                        // 新規ファイルの名前を変更
+                        try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
+                        print("File purify completed. Removed \(duplicatedCount) duplicated entries. Wrote \(entriesWritten) entries.")
+                    } else {
+                        print("⚠️ Write was not successful or no entries were written - keeping original file")
+                        // 一時ファイルを削除
+                        try? FileManager.default.removeItem(at: tempFileURL)
+                    }
                 } catch {
                     print("Failed to clean and update file: \(error.localizedDescription)")
+                    // エラーが発生した場合、一時ファイルを削除する
+                    try? FileManager.default.removeItem(at: tempFileURL)
                 }
-                
+
                 DispatchQueue.main.async {
                     completion()
                 }
             }
         }
     }
-    
+
     // 古いpurifyTextEntries関数 (MinHashを使わない方式) - 念のために残しておく
     func purifyTextEntriesSimple(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
         print("purity start... \(entries.count)")
