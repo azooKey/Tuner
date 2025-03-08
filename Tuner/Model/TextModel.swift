@@ -8,6 +8,113 @@
 import Foundation
 import EfficientNGram
 
+enum SimpleHasher {
+    static func customHash(_ input: some Collection<Unicode.Scalar>, seed: Int) -> Int {
+        var hash = seed
+        for char in input {
+            hash = (hash &* 31) &+ Int(char.value)
+        }
+        return hash
+    }
+}
+
+struct MinHashOptimized {
+    private let numHashFunctions: Int
+    private let seeds: [Int]
+
+    init(numHashFunctions: Int = 20) {
+        self.numHashFunctions = numHashFunctions
+        self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
+    }
+
+    func computeMinHashSignature(for text: String) -> [Int] {
+        let words = text.unicodeScalars.split(separator: " ")
+        return self.seeds.map { seed in
+            var minHash = Int.max
+            for word in words {
+                let hash = SimpleHasher.customHash(word, seed: seed)
+                if hash < minHash {
+                    minHash = hash
+                }
+            }
+            return minHash
+        }
+    }
+
+    func computeJaccardSimilarity(signature1: [Int], signature2: [Int]) -> Double {
+        assert(signature1.count == signature2.count, "signature1 and signature2 must have the same length")
+        let equalCount = zip(signature1, signature2).reduce(into: 0) {
+            if $1.0 == $1.1 {
+                $0 += 1
+            }
+        }
+        return Double(equalCount) / Double(signature1.count)
+    }
+}
+
+struct TextModelOptimizedWithLRU {
+    private let minHash = MinHashOptimized()
+    private var signatureCache: [String: [Int]]
+    private var seenEntries: Set<String> = []
+
+    init() {
+        self.signatureCache = .init(minimumCapacity: 100)
+    }
+
+    mutating func purifyTextEntriesWithMinHash(
+        _ entries: [TextEntry], avoidApps: Set<String>, minTextLength: Int,
+        similarityThreshold: Double = 0.8
+    ) -> ([TextEntry], Int) {
+        var uniqueEntries: [TextEntry] = []
+        var duplicateCount = 0
+
+        for (index, entry) in entries.enumerated() {
+            guard !avoidApps.contains(entry.appName), entry.text.utf8.count >= minTextLength else { continue }
+
+            if signatureCache.keys.contains(entry.text) || seenEntries.contains(entry.text) {
+                duplicateCount += 1
+                continue
+            }
+
+            let newEntrySignature: [Int]
+            if let cachedSignature = self.signatureCache[entry.text] {
+                newEntrySignature = cachedSignature
+            } else {
+                newEntrySignature = minHash.computeMinHashSignature(for: entry.text)
+                signatureCache[entry.text] = newEntrySignature
+            }
+
+            var isDuplicate = false
+            for uniqueEntry in uniqueEntries {
+                let existingSignature: [Int]
+                if let cachedSignature = signatureCache[uniqueEntry.text] {
+                    existingSignature = cachedSignature
+                } else {
+                    existingSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
+                    signatureCache[uniqueEntry.text] = existingSignature
+                }
+
+                if minHash.computeJaccardSimilarity(signature1: newEntrySignature, signature2: existingSignature) >= similarityThreshold {
+                    isDuplicate = true
+                    duplicateCount += 1
+                    break
+                }
+            }
+
+            if !isDuplicate {
+                uniqueEntries.append(entry)
+            }
+
+            if index % 100 == 0 {
+                self.seenEntries.formUnion(self.signatureCache.keys)
+                self.signatureCache.removeAll(keepingCapacity: true)
+            }
+        }
+
+        return (uniqueEntries, duplicateCount)
+    }
+}
+
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
@@ -19,6 +126,10 @@ class TextModel: ObservableObject {
     private var textHashes: Set<TextEntry> = []
     private let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
     private var isUpdatingFile = false
+
+    // MinHash関連のプロパティ
+    private var minHashOptimizer = TextModelOptimizedWithLRU()
+    private let similarityThreshold: Double = 0.8
 
     init() {
         createAppDirectory()
@@ -105,8 +216,17 @@ class TextModel: ObservableObject {
                 fileHandle.write("\n".data(using: .utf8)!)
 
                 // texts 配列内のエントリを前処理（重複排除等）して新規エントリ群を取得
-                let newEntries = self.purifyTextEntries(self.texts, avoidApps: avoidApps, minTextLength: minTextLength).0
+                // MinHashを使用した重複除去
+                let avoidAppsSet = Set(avoidApps)
+                let (newEntries, duplicateCount) = self.minHashOptimizer.purifyTextEntriesWithMinHash(
+                    self.texts,
+                    avoidApps: avoidAppsSet,
+                    minTextLength: minTextLength,
+                    similarityThreshold: self.similarityThreshold
+                )
+
                 print("\(newEntries.count) new entries saved to file... \(Date())")
+                print("Duplicates removed: \(duplicateCount)")
 
                 // 各エントリを jsonl 形式で追記
                 for textEntry in newEntries {
@@ -170,7 +290,7 @@ class TextModel: ObservableObject {
             }
 
             // 記号か数字のみのテキストはスキップ
-            if cleanedText.utf16.isSymbolOrNumber{
+            if cleanedText.utf16.isSymbolOrNumber {
                 return
             }
 
@@ -198,7 +318,7 @@ class TextModel: ObservableObject {
                 }
             }()
 
-            if saveCounter % saveLineTh == 0 || intervalFlag{
+            if saveCounter % saveLineTh == 0 || intervalFlag {
                 updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
 
@@ -259,7 +379,7 @@ class TextModel: ObservableObject {
                     }
                 } catch {
                     print("Failed to load from file: \(error.localizedDescription)")
-                    if error.localizedDescription.contains("The data couldn’t be read because it isn’t in the correct format.") {
+                    if error.localizedDescription.contains("The data couldn't be read because it isn't in the correct format.") {
                         print("line: \(line)")
                     }
                     // FIXME: 読めない行を一旦スキップ
@@ -376,7 +496,16 @@ class TextModel: ObservableObject {
 
         loadFromFile { loadedTexts in
             let reversedTexts = loadedTexts.reversed()
-            let purifiedResults = self.purifyTextEntries(Array(reversedTexts), avoidApps: avoidApps, minTextLength: minTextLength)
+
+            // MinHashを使用した重複検出と削除
+            let avoidAppsSet = Set(avoidApps)
+            let purifiedResults = self.minHashOptimizer.purifyTextEntriesWithMinHash(
+                Array(reversedTexts),
+                avoidApps: avoidAppsSet,
+                minTextLength: minTextLength,
+                similarityThreshold: self.similarityThreshold
+            )
+
             let textEntries = purifiedResults.0
             let duplicatedCount = purifiedResults.1
 
@@ -425,7 +554,8 @@ class TextModel: ObservableObject {
         }
     }
 
-    func purifyTextEntries(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
+    // 古いpurifyTextEntries関数 (MinHashを使わない方式) - 念のために残しておく
+    func purifyTextEntriesSimple(_ entries: [TextEntry], avoidApps: [String], minTextLength: Int) -> ([TextEntry], Int) {
         print("purity start... \(entries.count)")
         var textEntries: [TextEntry] = []
         var uniqueEntries: Set<String> = []

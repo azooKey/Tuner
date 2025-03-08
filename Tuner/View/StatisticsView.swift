@@ -67,9 +67,6 @@ struct StatisticsView: View {
                 .padding()
             }
         }
-        .task {
-            await loadStatistics()
-        }
     }
 
     private func loadStatistics() async {
