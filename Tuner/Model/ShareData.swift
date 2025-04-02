@@ -30,6 +30,12 @@ class ShareData: ObservableObject {
             saveMinTextLength()
         }
     }
+    // ポーリング間隔の設定（秒）
+    @Published var pollingInterval: Int = 10 {
+        didSet {
+            savePollingInterval()
+        }
+    }
     // アクセシビリティAPIの利用
     @Published var activateAccessibility: Bool = false {
         didSet {
@@ -41,6 +47,7 @@ class ShareData: ObservableObject {
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
     private let minTextLengthKey = "minTextLength"
+    private let pollingIntervalKey = "pollingInterval"
     private let activateAccessibilityKey = "activateAccessibility"
 
 
@@ -50,6 +57,7 @@ class ShareData: ObservableObject {
         loadSaveLineTh()
         loadSaveIntervalSec()
         loadMinTextLength()
+        loadPollingInterval()
     }
 
     private func saveActivateAccessibility() {
@@ -99,6 +107,16 @@ class ShareData: ObservableObject {
     private func loadMinTextLength() {
         if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
             minTextLength = savedMinTextLength
+        }
+    }
+
+    private func savePollingInterval() {
+        UserDefaults.standard.set(pollingInterval, forKey: pollingIntervalKey)
+    }
+
+    private func loadPollingInterval() {
+        if let savedPollingInterval = UserDefaults.standard.value(forKey: pollingIntervalKey) as? Int {
+            pollingInterval = savedPollingInterval
         }
     }
 

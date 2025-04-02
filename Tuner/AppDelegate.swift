@@ -6,30 +6,120 @@
 //
 import Cocoa
 import SwiftUI
+import os.log
 
 class AppDelegate: NSObject, NSApplicationDelegate {
     var textModel = TextModel()
     var isDataSaveEnabled = true
     var observer: AXObserver?
     var shareData = ShareData()
+    var pollingTimer: Timer?
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // アクセシビリティの権限を確認するためのオプションを設定
-        let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
-        let options = [trustedCheckOptionPrompt: true] as CFDictionary
-
-        // アクセシビリティの権限が許可されているか確認
-        if shareData.activateAccessibility && AXIsProcessTrustedWithOptions(options) {
-            // アクティブなアプリケーションが変更されたときの通知を登録
+        // アクセシビリティ権限を確認（初回起動時のみ）
+        checkAndRequestAccessibilityPermission()
+        
+        // アプリケーション切り替えの監視を設定
+        if shareData.activateAccessibility {
             NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeAppDidChange(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
-        } else {
-            print("Accessibility permissions are not granted.")
+            
+            // 最初のアプリ情報を取得
+            if let frontApp = NSWorkspace.shared.frontmostApplication {
+                let frontAppName = getAppName(for: frontApp) ?? "Unknown"
+                os_log("初期アプリケーション: %@", log: OSLog.default, type: .debug, frontAppName)
+                
+                if !shareData.avoidApps.contains(frontAppName), hasAccessibilityPermission() {
+                    if let axApp = getActiveApplicationAXUIElement() {
+                        fetchTextElements(from: axApp, appName: frontAppName)
+                        startMonitoringApp(axApp, appName: frontAppName)
+                    }
+                }
+            }
+            
+            // テキスト取得用のポーリングタイマーを開始
+            startTextPollingTimer()
         }
+    }
+
+    // アプリケーション終了時の処理
+    func applicationWillTerminate(_ aNotification: Notification) {
+        // ポーリングタイマーを停止
+        stopTextPollingTimer()
+    }
+
+    // テキスト取得用のポーリングタイマーを開始
+    private func startTextPollingTimer() {
+        // 既存のタイマーがあれば停止
+        stopTextPollingTimer()
+        
+        // ポーリング間隔が0の場合はポーリングを開始しない
+        guard shareData.pollingInterval > 0 else {
+            return
+        }
+        
+        // 設定された間隔でポーリングタイマーを開始
+        pollingTimer = Timer.scheduledTimer(timeInterval: TimeInterval(shareData.pollingInterval), target: self, selector: #selector(pollActiveAppForText), userInfo: nil, repeats: true)
+    }
+    
+    // テキスト取得用のポーリングタイマーを停止
+    private func stopTextPollingTimer() {
+        pollingTimer?.invalidate()
+        pollingTimer = nil
+    }
+    
+    // 定期的にアクティブアプリからテキストをポーリング
+    @objc private func pollActiveAppForText() {
+        guard shareData.activateAccessibility, hasAccessibilityPermission() else {
+            return
+        }
+        
+        if let activeApp = NSWorkspace.shared.frontmostApplication {
+            let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
+            if shareData.avoidApps.contains(activeApplicationName) {
+                return
+            }
+            
+            if let axApp = getActiveApplicationAXUIElement() {
+                os_log("ポーリング実行: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                fetchTextElements(from: axApp, appName: activeApplicationName)
+            }
+        }
+    }
+
+    // アクセシビリティ権限をチェックし、必要に応じて要求するメソッド
+    private func checkAndRequestAccessibilityPermission() {
+        if !hasAccessibilityPermission() {
+            // 権限がない場合は説明付きのアラートを表示
+            let alert = NSAlert()
+            alert.messageText = "アクセシビリティ権限が必要です"
+            alert.informativeText = "このアプリケーションは画面上のテキストを取得するためにアクセシビリティ権限が必要です。続行するには「OK」を押して、次の画面で「アクセシビリティ」のチェックボックスをオンにしてください。\n\n一度許可すると、アプリを再起動しても再度許可する必要はありません。"
+            alert.addButton(withTitle: "OK")
+            alert.addButton(withTitle: "キャンセル")
+            
+            let response = alert.runModal()
+            if response == .alertFirstButtonReturn {
+                // OKが押された場合、システムの権限ダイアログを表示
+                let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: true]
+                AXIsProcessTrustedWithOptions(options as CFDictionary)
+            }
+        }
+    }
+    
+    // アクセシビリティ権限の有無をチェックするメソッド（プロンプトなし）
+    private func hasAccessibilityPermission() -> Bool {
+        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: false]
+        return AXIsProcessTrustedWithOptions(options as CFDictionary)
     }
 
     // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
     @objc func activeAppDidChange(_ notification: Notification) {
         guard shareData.activateAccessibility else {
+            return
+        }
+        
+        // 権限チェック（プロンプトは表示しない）
+        if !hasAccessibilityPermission() {
+            os_log("アクセシビリティ権限がありません", log: OSLog.default, type: .error)
             return
         }
 
@@ -67,44 +157,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // AXUIElementからテキストを抽出するメソッド
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
         let role = self.getRole(of: element)
-        switch self.getRole(of: element) {
+        
+        // 不要な要素は最小限だけ除外する
+        switch role {
         case nil:
             // Roleは常に存在する（kAXRoleAttributeのドキュメントを参照）
             return
-        case "AXButton", "AXPopUpButton", "AXRadioButton", "AXCheckBox":
-            // ボタンのようなUI情報は不要
+        case "AXMenu", "AXMenuBar":
+            // メニューバーは除外（フォーカスがないとき）
             return
-        case "AXTextField", "AXTextArea":
-            // 編集中のテキストを取ってしまうと無意味にテキストが増える
-            return
-        case "AXToolbar":
-            // ツールバーにアクセスする必要はない
-            return
-        case "AXMenu", "AXMenuItem", "AXMenuBarItem", "AXMenuBar":
-            // メニューバーにアクセスする必要はない
-            return
-        case "AXValueIndicator":
-            // よくわからないが多分不要
-            return
-        case "AXText", "AXStaticText", "AXLink":
-            // 明らかに進めるべき
-            break
         default:
-            // それ以外の場合はこのまま進める
+            // それ以外の要素は処理を続行
             break
         }
 
-        var value: AnyObject?
-        // FIXME: Error: Thread 1: EXC_BAD_ACCESS (code=2, address=0x16f563f40)
-        let result = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &value)
-        if result == .success, let text = value as? String {
-            if text != "" {
+        // テキスト取得を試みる属性のリスト
+        let textAttributes = [
+            kAXValueAttribute as CFString,
+            kAXTitleAttribute as CFString,
+            kAXDescriptionAttribute as CFString,
+            kAXHelpAttribute as CFString,
+            kAXPlaceholderValueAttribute as CFString,
+            kAXSelectedTextAttribute as CFString
+        ]
+        
+        // 複数の属性からテキスト取得を試みる
+        for attribute in textAttributes {
+            var value: AnyObject?
+            let result = AXUIElementCopyAttributeValue(element, attribute, &value)
+            if result == .success, let text = value as? String, !text.isEmpty {
+                // 取得したテキストをデバッグログに出力
+                os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
+                       log: OSLog.default, 
+                       type: .debug, 
+                       appName, 
+                       role ?? "Unknown", 
+                       String(describing: attribute), 
+                       text)
                 DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, saveIntervalSec: self.shareData.saveIntervalSec, avoidApps: self.shareData.avoidApps, minTextLength: self.shareData.minTextLength)
+                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, 
+                                           saveIntervalSec: self.shareData.saveIntervalSec, 
+                                           avoidApps: self.shareData.avoidApps, 
+                                           minTextLength: self.shareData.minTextLength)
                 }
+                break  // テキストが見つかったらこの要素の他の属性は確認しない
             }
         }
 
+        // 子要素の探索
         var childValue: AnyObject?
         let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
         if childResult == .success, let children = childValue as? [AXUIElement] {
@@ -131,7 +231,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // アプリケーションの監視を開始するメソッド
     private func startMonitoringApp(_ app: AXUIElement, appName: String) {
-        print("Start monitoring app: \(String(describing: getAppNameFromAXUIElement(app)))")
+        os_log("Start monitoring app: %@", log: OSLog.default, type: .debug, String(describing: getAppNameFromAXUIElement(app)))
         if let observer = observer {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
         }
@@ -144,7 +244,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         let error = AXObserverCreate(activeApp.processIdentifier, AppDelegate.axObserverCallback, &newObserver)
 
         if error != .success {
-            print("Failed to create observer: \(error)")
+            os_log("Failed to create observer: %@", log: OSLog.default, type: .error, String(describing: error))
             return
         }
 
@@ -176,7 +276,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     // AXUIElementからアプリケーションの名前を取得するメソッド
-
     func getAppNameFromAXUIElement(_ element: AXUIElement) -> String? {
         var currentElement = element
         var parentElement: AXUIElement? = nil

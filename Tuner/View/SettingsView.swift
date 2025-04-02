@@ -118,6 +118,19 @@ struct SettingsView: View {
                         .frame(width: 80, alignment: .leading)
                 }
             }
+
+            HStack {
+                Text("Polling Interval:")
+                    .frame(width: 120, alignment: .trailing)
+                Picker("", selection: $shareData.pollingInterval) {
+                    Text("Disabled").tag(0)
+                    Text("5 seconds").tag(5)
+                    Text("10 seconds").tag(10)
+                    Text("30 seconds").tag(30)
+                    Text("60 seconds").tag(60)
+                }
+                .frame(width: 120, alignment: .leading)
+            }
             
             Text("Data will be saved when either condition is met.")
                 .font(.caption)
