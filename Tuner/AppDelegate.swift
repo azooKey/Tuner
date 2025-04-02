@@ -8,12 +8,30 @@ import Cocoa
 import SwiftUI
 import os.log
 
+// ShareData の定義は別のファイル (Model/ShareData.swift) に移動
+/*
+struct ShareData {
+    var activateAccessibility = true
+    var avoidApps: [String] = ["Finder", "ContextDatabaseApp"] // 例: 除外するアプリ名
+    var pollingInterval: Int = 5 // 例: ポーリング間隔（秒）
+    var saveLineTh: Int = 10 // 例: 一度に保存する行数の閾値
+    var saveIntervalSec: Int = 5 // 例: 保存間隔の閾値（秒）
+    var minTextLength: Int = 3 // 例: 保存する最小テキスト長
+}
+*/
+
 class AppDelegate: NSObject, NSApplicationDelegate {
     var textModel = TextModel()
     var isDataSaveEnabled = true
     var observer: AXObserver?
     var shareData = ShareData()
     var pollingTimer: Timer?
+    // 定期的な浄化処理用タイマー
+    var purifyTimer: Timer?
+    // 最後に浄化処理を実行した時刻
+    var lastPurifyTime: Date?
+    // 浄化処理の実行間隔（秒）例: 1時間ごと
+    let purifyInterval: TimeInterval = 3600
 
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // アクセシビリティ権限を確認（初回起動時のみ）
@@ -38,6 +56,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             // テキスト取得用のポーリングタイマーを開始
             startTextPollingTimer()
+
+            // 定期的な浄化処理タイマーを開始
+            startPurifyTimer()
+            lastPurifyTime = Date() // 開始時刻を記録
         }
     }
 
@@ -45,6 +67,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ aNotification: Notification) {
         // ポーリングタイマーを停止
         stopTextPollingTimer()
+        // 浄化タイマーを停止
+        purifyTimer?.invalidate()
+        purifyTimer = nil
+        
+        // アプリ終了前に最後の浄化処理を実行
+        print("Running final purify before termination...")
+        textModel.purifyFile(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength) {
+             print("Final purify completed.")
+             // 必要であれば、ここでアプリ終了を待つ処理を追加
+         }
+         // 非同期処理の完了を待つ必要があるかもしれないが、一旦待たない実装とする
     }
 
     // テキスト取得用のポーリングタイマーを開始
@@ -67,6 +100,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pollingTimer = nil
     }
     
+    // 定期的な浄化処理タイマーを開始
+    private func startPurifyTimer() {
+        // 既存のタイマーがあれば停止
+        purifyTimer?.invalidate()
+        
+        // 設定された間隔でタイマーを開始
+        purifyTimer = Timer.scheduledTimer(timeInterval: purifyInterval, target: self, selector: #selector(runPeriodicPurify), userInfo: nil, repeats: true)
+        print("Purify timer started with interval: \(purifyInterval) seconds")
+    }
+
+    // 定期的な浄化処理を実行
+    @objc private func runPeriodicPurify() {
+        print("Running periodic purify...")
+        textModel.purifyFile(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength) {
+            print("Periodic purify completed.")
+        }
+        lastPurifyTime = Date() // 実行時刻を更新
+    }
+
     // 定期的にアクティブアプリからテキストをポーリング
     @objc private func pollActiveAppForText() {
         guard shareData.activateAccessibility, hasAccessibilityPermission() else {
@@ -82,6 +134,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let axApp = getActiveApplicationAXUIElement() {
                 os_log("ポーリング実行: %@", log: OSLog.default, type: .debug, activeApplicationName)
                 fetchTextElements(from: axApp, appName: activeApplicationName)
+                // ポーリング時の浄化処理呼び出しは削除（専用タイマーで行うため）
             }
         }
     }
@@ -195,9 +248,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                        String(describing: attribute), 
                        text)
                 DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName, saveLineTh: self.shareData.saveLineTh, 
-                                           saveIntervalSec: self.shareData.saveIntervalSec, 
-                                           avoidApps: self.shareData.avoidApps, 
+                    self.textModel.addText(text, appName: appName,
+                                           // saveLineTh と saveIntervalSec のデフォルト値はTextModel側で定義されているものを使用
+                                           avoidApps: self.shareData.avoidApps,
                                            minTextLength: self.shareData.minTextLength)
                 }
                 break  // テキストが見つかったらこの要素の他の属性は確認しない
@@ -217,6 +270,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// AXUIElementのroleを取得するメソッド
     private func getRole(of element: AXUIElement) -> String? {
         var roleValue: AnyObject?
+        // Use do-catch for safer error handling
         do {
             let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
             if roleResult == .success, let role = roleValue as? String {
@@ -224,7 +278,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             } else {
                 return nil
             }
-        }catch{
+        } catch {
+            print("Error getting role: \(error)")
             return nil
         }
     }
@@ -290,7 +345,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 parentElement = currentElement
                 break
             } else {
-                currentElement = (newParentElement as! AXUIElement)
+                // AXUIElementCopyAttributeValueは常にAXUIElementを返すため、強制キャストを使用
+                currentElement = newParentElement as! AXUIElement
             }
         }
 

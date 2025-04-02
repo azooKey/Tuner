@@ -72,83 +72,112 @@ class TextModel: ObservableObject {
         guard !isUpdatingFile else {
             return
         }
-        
+        // ファイル書き込み対象のテキストを取得
+        let textsToSave = self.texts
+        // 書き込み対象がなければメモリをクリアして終了
+        guard !textsToSave.isEmpty else {
+            DispatchQueue.main.async { [weak self] in
+                self?.texts.removeAll()
+                self?.lastSavedDate = Date()
+            }
+            return
+        }
+
         isUpdatingFile = true
-        
+
         let fileURL = getFileURL()
         fileAccessQueue.async { [weak self] in
             guard let self = self else { return }
-            
+
             defer {
                 DispatchQueue.main.async {
                     self.isUpdatingFile = false
                 }
             }
-            // ファイルの有無を確認
+            // ファイルの有無を確認し、なければ作成
             if !FileManager.default.fileExists(atPath: fileURL.path) {
-                print("File does not exist")
-                self.fileAccessQueue.async {
-                    do {
-                        // ファイルが存在しない場合、新しく作成
-                        let jsonData = try JSONEncoder().encode(TextEntry(appName: "App", text: "Sample", timestamp: Date()))
-                        try jsonData.write(to: fileURL, options: .atomic)
-                        self.updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
-                    } catch {
-                        print("Failed to create file: \(error.localizedDescription)")
-                    }
+                print("File does not exist, creating...")
+                do {
+                    // 空のファイルを作成するか、初期エントリを追加するかは設計による
+                    // ここでは空ファイルを作成
+                    try "".write(to: fileURL, atomically: true, encoding: .utf8)
+                    // 再度 updateFile を呼ぶのではなく、このまま処理を続ける
+                } catch {
+                    print("Failed to create file: \(error.localizedDescription)")
+                    // ファイル作成に失敗したら更新処理を中断
+                    return
                 }
             }
-            
+
             do {
                 let fileHandle = try FileHandle(forUpdating: fileURL)
                 defer {
                     fileHandle.closeFile()
                 }
-                
-                // 末尾に移動して改行を追加
+
+                // 末尾に移動
                 fileHandle.seekToEndOfFile()
-                fileHandle.write("\n".data(using: .utf8)!)
-                
-                // texts 配列内のエントリを前処理（重複排除等）して新規エントリ群を取得
-                // MinHashを使用した重複除去
+                // 最初の追記でなければ改行を追加
+                // Check if file is not empty before adding newline
+                 let currentOffset = fileHandle.offsetInFile
+                 if currentOffset > 0 {
+                     // Check if the last byte is already a newline
+                     fileHandle.seek(toFileOffset: currentOffset - 1)
+                     if let lastByte = try fileHandle.read(upToCount: 1), lastByte != "\n".data(using: .utf8) {
+                         // Only add newline if the last byte isn't already one
+                          fileHandle.seekToEndOfFile()
+                         fileHandle.write("\n".data(using: .utf8)!)
+                     } else {
+                          fileHandle.seekToEndOfFile() // Go back to end if last byte was newline
+                     }
+                 }
+
+
+                // 最低限のフィルタリングのみ実施 (avoidApps, minTextLength, isSymbolOrNumber)
                 let avoidAppsSet = Set(avoidApps)
-                let (newEntries, duplicateCount) = self.minHashOptimizer.purifyTextEntriesWithMinHash(
-                    self.texts,
-                    avoidApps: avoidAppsSet,
-                    minTextLength: minTextLength,
-                    similarityThreshold: self.similarityThreshold
-                )
-                
-                print("\(newEntries.count) new entries saved to file... \(Date())")
-                print("Duplicates removed: \(duplicateCount)")
-                
+                let filteredEntries = textsToSave.filter {
+                    !avoidAppsSet.contains($0.appName) &&
+                    $0.text.count >= minTextLength &&
+                    !$0.text.utf16.isSymbolOrNumber
+                }
+
+                print("\(filteredEntries.count) entries being saved to file... \(Date())")
+
                 // 各エントリを jsonl 形式で追記
-                for textEntry in newEntries {
+                var linesWritten = 0
+                for textEntry in filteredEntries {
                     let jsonData = try JSONEncoder().encode(textEntry)
-                    // JSON文字列に変換してファイルに書き込み
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
+                        // 追記なので各行末に改行を追加
                         let jsonLine = jsonString + "\n"
                         if let data = jsonLine.data(using: .utf8) {
                             fileHandle.write(data)
-                        } else {
-                            print("Failed to encode data to write \(jsonLine)")
+                            linesWritten += 1
                         }
                     }
                 }
-                
-                // newEntries を使い、追加学習を実施
-                Task {
-                    print("=== Incremental Training from New Text Entries ===")
-                    await self.trainNGramOnNewEntries(newEntries: newEntries, n: self.ngramSize, baseFilename: "lm")
-                }
-                
+                print("\(linesWritten) lines actually written.")
+
+                // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
+                // Use a slightly different condition to avoid learning too frequently
+                if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 { // 例: 500エントリごとに追加学習
+                     Task {
+                         print("=== Incremental Training from New Text Entries (\(filteredEntries.count)) ===")
+                         await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilename: "lm")
+                     }
+                 }
+
+
                 DispatchQueue.main.async {
-                    self.texts.removeAll()
+                    self.texts.removeAll() // メモリをクリア
                     self.lastSavedDate = Date() // 保存日時を更新
-                    self.clearMemory()
                 }
             } catch {
                 print("Failed to update file: \(error.localizedDescription)")
+                // エラー発生時もメモリはクリアする（データ損失の可能性あり、要検討）
+                DispatchQueue.main.async {
+                     self.texts.removeAll()
+                 }
             }
         }
     }
@@ -167,63 +196,70 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
     
-    func addText(_ text: String, appName: String, saveLineTh: Int = 50, saveIntervalSec: Int = 10, avoidApps: [String], minTextLength: Int) {
+    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 5, avoidApps: [String], minTextLength: Int) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
             return
         }
         if !text.isEmpty {
+            // 最小テキスト長のチェックは維持
             if text.count < minTextLength {
                 return
             }
             let cleanedText = removeExtraNewlines(from: text)
-            
-            // 完全一致であればskip
+
+            // 完全一致チェックのみ維持（メモリ内での直前エントリとの重複のみ排除）
             if texts.last?.text == cleanedText {
+                // print("Skipped identical text in memory: \(cleanedText)")
                 return
             }
-            
-            // 記号か数字のみのテキストはスキップ
+
+            // 記号か数字のみのテキストはスキップ（これも最低限の品質確保として維持）
             if cleanedText.utf16.isSymbolOrNumber {
+                // print("Skipped symbol/number only text: \(cleanedText)")
                 return
             }
-            
-            // 最後のテキストの前方一致文字列であればやめる
-            let lastText = texts.last?.text.utf16 ?? "".utf16
-            if cleanedText.utf16.starts(with: lastText) && texts.count > 0 {
-                texts.removeLast()
-            } else if lastText.starts(with: cleanedText.utf16) {
-                return
-            }
-            
+
+            // 前方一致チェックは削除
+
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
-            
+
             texts.append(newTextEntry)
             saveCounter += 1
-            
-            // 最後の保存から10秒経過していたら
-            let intervalFlag : Bool = {
-                if let lastSavedDate = lastSavedDate {
-                    let interval = Date().timeIntervalSince(lastSavedDate)
-                    return Int(interval) > saveIntervalSec
-                } else {
-                    return true
+
+            // 最後の保存からの経過時間チェック
+             let intervalFlag : Bool = {
+                 if let lastSavedDate = lastSavedDate {
+                     let interval = Date().timeIntervalSince(lastSavedDate)
+                     // print("Interval since last save: \(interval)")
+                     return interval > Double(saveIntervalSec)
+                 } else {
+                     return true // まだ一度も保存されていない場合
+                 }
+             }()
+
+            // ファイルへの保存条件（行数閾値 または 一定時間経過）
+            // Check if texts is not empty before triggering save
+            if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
+                 print("Triggering save: count=\(texts.count) >= \(saveLineTh) or intervalFlag=\(intervalFlag)")
+                 // updateFile内でメモリ(`self.texts`)はクリアされる
+                 updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
+             }
+
+            // 定期的なファイル全体の浄化処理
+            // 保存回数ではなく、時間ベースでAppDelegateから呼び出す方式に変更
+            /*
+            if saveCounter > saveLineTh * 20 { // 例: 20回保存ごと (200行程度)
+                print("Triggering purifyFile due to save count: \(saveCounter)")
+                // 浄化処理を呼び出す
+                purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
+                    // 浄化完了後に特別な処理が必要な場合はここに記述
+                    print("Purify file completed after save count trigger.")
                 }
-            }()
-            
-            if saveCounter % saveLineTh == 0 || intervalFlag {
-                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
+                saveCounter = 0 // 浄化をトリガーしたらカウンターをリセット
             }
-            
-            // 10回の保存ごとにファイルを浄化
-            if saveCounter > saveLineTh * 10 {
-                // 重複削除のためファイルを浄化
-                purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) { [weak self] in
-                    self?.updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
-                }
-                saveCounter = 0
-            }
+            */
         }
     }
     

@@ -15,13 +15,9 @@ struct MenuView: View {
         //
         Toggle("Enable Read Everything", isOn: $shareData.activateAccessibility)
             .padding(.bottom)
-            .onChange(of: shareData.activateAccessibility) { newValue in
-                shareData.activateAccessibility = newValue
+            .onChange(of: shareData.activateAccessibility) { oldValue, newValue in
                 if newValue {
-                    print("Enable Accessibility")
-                    shareData.requestAccessibilityPermission()
-                }else{
-                    print("Deactivate Accessibility")
+                    checkAndRequestAccessibilityPermission()
                 }
             }
         Toggle("Save Data", isOn: $textModel.isDataSaveEnabled)
@@ -40,8 +36,14 @@ struct MenuView: View {
         }
     }
 
+    private func checkAndRequestAccessibilityPermission() {
+        print("Enable Accessibility")
+        shareData.requestAccessibilityPermission()
+    }
 }
 
 #Preview {
     MenuView()
+        .environmentObject(TextModel())
+        .environmentObject(ShareData())
 }

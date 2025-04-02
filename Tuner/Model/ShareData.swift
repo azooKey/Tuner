@@ -7,41 +7,39 @@
 
 import SwiftUI
 import Combine
+import Foundation
+
+// struct ShareData の定義を削除
+/*
+/// アプリケーション全体で共有される設定や状態を保持する構造体
+struct ShareData {
+    /// アクセシビリティ機能によるテキスト取得を有効にするか
+    var activateAccessibility: Bool = true
+    /// テキスト取得を除外するアプリケーション名のリスト
+    var avoidApps: [String] = ["Finder", "ContextDatabaseApp"]
+    /// テキスト取得のポーリング間隔（秒）
+    var pollingInterval: Int = 5
+    /// 一度にファイルに保存するテキストエントリ数の閾値
+    var saveLineTh: Int = 10
+    /// ファイルへの保存間隔の閾値（秒）
+    var saveIntervalSec: Int = 5
+    /// 保存するテキストの最小文字数
+    var minTextLength: Int = 3
+}
+*/
 
 class ShareData: ObservableObject {
-    @Published var avoidApps: [String] = ["ContextHarvester"] {
-        didSet {
-            saveAvoidApps()
-        }
-    }
+    // AppDelegateから移動したプロパティをPublishedで定義
+    @Published var activateAccessibility: Bool = true
+    @Published var avoidApps: [String] = ["Finder", "ContextDatabaseApp"]
+    @Published var pollingInterval: Int = 5
+    @Published var saveLineTh: Int = 10
+    @Published var saveIntervalSec: Int = 5
+    @Published var minTextLength: Int = 3
     @Published var apps: [String] = []
-    @Published var saveLineTh: Int = 50 {
-        didSet {
-            saveSaveLineTh()
-        }
-    }
-    @Published var saveIntervalSec: Int = 10 {
-        didSet {
-            saveSaveIntervalSec()
-        }
-    }
-    @Published var minTextLength: Int = 0 {
-        didSet {
-            saveMinTextLength()
-        }
-    }
-    // ポーリング間隔の設定（秒）
-    @Published var pollingInterval: Int = 10 {
-        didSet {
-            savePollingInterval()
-        }
-    }
-    // アクセシビリティAPIの利用
-    @Published var activateAccessibility: Bool = false {
-        didSet {
-            saveActivateAccessibility()
-        }
-    }
+
+    // 必要に応じて既存のプロパティやメソッドはそのまま維持
+    // @Published var exampleProperty: String = ""
 
     private let avoidAppsKey = "avoidApps"
     private let saveLineThKey = "saveLineTh"
@@ -127,3 +125,37 @@ class ShareData: ObservableObject {
         _ = AXIsProcessTrustedWithOptions(options)
     }
 }
+
+#if DEBUG
+extension ShareData {
+    // テスト用のヘルパーメソッド
+    func resetToDefaults() {
+        activateAccessibility = true
+        avoidApps = ["Finder", "ContextDatabaseApp"]
+        pollingInterval = 5
+        saveLineTh = 10
+        saveIntervalSec = 5
+        minTextLength = 3
+        apps = []
+        
+        // UserDefaultsもリセット
+        UserDefaults.standard.removeObject(forKey: activateAccessibilityKey)
+        UserDefaults.standard.removeObject(forKey: avoidAppsKey)
+        UserDefaults.standard.removeObject(forKey: pollingIntervalKey)
+        UserDefaults.standard.removeObject(forKey: saveLineThKey)
+        UserDefaults.standard.removeObject(forKey: saveIntervalSecKey)
+        UserDefaults.standard.removeObject(forKey: minTextLengthKey)
+    }
+    
+    // テスト用の検証メソッド
+    func verifyDefaultValues() -> Bool {
+        return activateAccessibility == true &&
+               avoidApps == ["Finder", "ContextDatabaseApp"] &&
+               pollingInterval == 5 &&
+               saveLineTh == 10 &&
+               saveIntervalSec == 5 &&
+               minTextLength == 3 &&
+               apps.isEmpty
+    }
+}
+#endif
