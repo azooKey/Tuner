@@ -39,51 +39,65 @@ struct StatisticsView: View {
     @State private var selectedDataSource: DataSource = .combined
 
     var body: some View {
-        ZStack {
-            VStack {
-                // 更新ボタン
-                HStack {
-                    Button(action: {
-                        Task {
-                            await loadStatisticsAsync()
-                        }
-                    }) {
-                        Label("Update Statistics", systemImage: "arrow.clockwise")
-                            .font(.headline)
-                    }
-                    .buttonStyle(PlainButtonStyle())
-                    .disabled(isLoading)
-                    .padding(.bottom, 8)
-                }
-                .padding(.horizontal)
+        VStack(spacing: 0) { // spacing 0 に変更
+            // ヘッダー：更新ボタンとデータソース選択
+            headerView
+                .padding(.horizontal, 8) // padding を追加
+                .padding(.top, 8)       // padding を追加
+                .padding(.bottom, 8)    // 下部にも padding 追加
 
-                // データソース選択セグメント
-                Picker("Data Source", selection: $selectedDataSource) {
-                    Text("Combined").tag(DataSource.combined)
-                    Text("savedTexts").tag(DataSource.savedTexts)
-                    Text("importTexts").tag(DataSource.importTexts)
-                }
-                .pickerStyle(SegmentedPickerStyle())
-                .padding(.horizontal)
-                .padding(.bottom, 8)
-
-                if isLoading {
-                    loadingView
-                } else {
-                    // 現在選択されているデータソースに基づいて表示
-                    ScrollView {
-                        statisticsView(for: currentStats)
-                            .padding(.horizontal)
-                    }
+            // メインコンテンツ：統計情報またはローディング表示
+            if isLoading && combinedStats.totalEntries == 0 { // 初期ロード中はローディング表示
+                loadingView // シンプルなローディング表示
+                    .frame(maxWidth: .infinity, maxHeight: .infinity) // 中央寄せ
+            } else {
+                ScrollView { // ScrollView を外側に
+                    statisticsView(for: currentStats)
+                        .padding(8) // 全体に padding
                 }
             }
-
-            // ローディングオーバーレイ
+        }
+        .overlay { // ローディング表示を overlay に変更
             if isLoading {
-                Color.black.opacity(0.15)
-                    .edgesIgnoringSafeArea(.all)
-                    .transition(.opacity)
+                loadingOverlay
             }
+        }
+        .onAppear { // 初回表示時に統計情報を読み込む (既にデータがあれば再読み込みしない)
+             if combinedStats.totalEntries == 0 {
+                 Task {
+                     await loadStatisticsAsync()
+                 }
+             }
+         }
+    }
+
+    // ヘッダービュー（更新ボタンとデータソース選択）
+    private var headerView: some View {
+        VStack(spacing: 8) { // spacing を追加
+            HStack {
+                Spacer() // ボタンを右寄せ
+
+                Button(action: {
+                    Task {
+                        await loadStatisticsAsync()
+                    }
+                }) {
+                    Label("統計更新", systemImage: "arrow.clockwise") // 日本語に変更
+                        .font(.footnote) // フォントサイズ調整
+                }
+                .buttonStyle(.bordered) // スタイル変更
+                .controlSize(.small) // サイズ変更
+                .disabled(isLoading)
+            }
+
+            Picker("データソース", selection: $selectedDataSource) { // ラベル追加
+                Text("統合").tag(DataSource.combined) // 日本語に変更
+                Text("保存済み").tag(DataSource.savedTexts) // 日本語に変更
+                Text("インポート").tag(DataSource.importTexts) // 日本語に変更
+            }
+            .pickerStyle(.segmented)
+            .padding(.horizontal, 8)
+            .padding(.top, 8)
         }
     }
 
@@ -99,113 +113,119 @@ struct StatisticsView: View {
         }
     }
 
-    // ローディング中のビュー
-    private var loadingView: some View {
-        VStack(spacing: 12) {
-            ProgressView("Loading Statistics...")
-                .padding()
-
-            // プログレスバー
-            ProgressView(value: progress)
-                .progressViewStyle(LinearProgressViewStyle())
-                .frame(maxWidth: 300)
-                .padding(.horizontal)
-
-            Text("\(Int(progress * 100))%")
-                .font(.caption)
-                .foregroundColor(.secondary)
-
-            // アニメーション付きローディングアイコン
-            HStack(spacing: 15) {
-                Image(systemName: "chart.bar.fill")
-                    .foregroundColor(.blue)
-                    .imageScale(.large)
-                    .rotationEffect(.degrees(progress * 360))
-                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: false), value: progress)
-
-                Image(systemName: "chart.pie.fill")
-                    .foregroundColor(.green)
-                    .imageScale(.large)
-                    .scaleEffect(1.0 + sin(progress * .pi * 2) * 0.2)
-                    .animation(.easeInOut(duration: 1).repeatForever(autoreverses: true), value: progress)
-
-                Image(systemName: "text.magnifyingglass")
-                    .foregroundColor(.orange)
-                    .imageScale(.large)
-                    .opacity(0.5 + sin(progress * .pi) * 0.5)
-                    .animation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true), value: progress)
+    // ローディングオーバーレイ (SettingsView に似せる)
+    private var loadingOverlay: some View {
+        VStack {
+            ProgressView {
+                VStack(spacing: 4) { // spacing追加
+                    Text(statusMessage)
+                        .font(.footnote) // サイズ調整
+                    Text("(\(processingStep))")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    ProgressView(value: progress)
+                        .progressViewStyle(LinearProgressViewStyle())
+                        .frame(width: 150) // 幅調整
+                        .padding(.vertical, 4) // padding調整
+                    Text("\(Int(progress * 100))%")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
-            .padding(.top, 8)
+            .progressViewStyle(CircularProgressViewStyle())
+            .scaleEffect(1.0)
+            .padding() // ProgressView自体のパディング
+            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 8)) // 背景追加
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.black.opacity(0.1)) // 背景
+        .edgesIgnoringSafeArea(.all) // 全画面を覆う
+    }
 
-            Text(statusMessage)
-                .font(.caption)
+    // ローディング中のビュー (シンプル版、overlay で詳細表示するため)
+    private var loadingView: some View {
+        VStack {
+            Spacer()
+            ProgressView("統計情報を読み込み中...")
+                .font(.footnote)
                 .foregroundColor(.secondary)
-                .padding(.top, 4)
-
-            Text(processingStep)
-                .font(.caption2)
-                .foregroundColor(.secondary.opacity(0.8))
-                .padding(.top, 2)
+            Spacer()
         }
     }
 
-    // 統計情報の表示
+    // 統計情報の表示 (GroupBox を使用)
     private func statisticsView(for data: StatisticsData) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            // 統計の詳細テキスト
-            Text(data.details)
-                .font(.system(.body, design: .monospaced))
-                .padding()
+        VStack(alignment: .leading, spacing: 12) { // spacing 調整
+            // 統計概要セクション
+            GroupBox(label: Label("統計概要", systemImage: "info.circle").font(.subheadline)) {
+                // data.details が空の場合の表示を追加
+                 if data.details.isEmpty {
+                     Text("データがありません。")
+                         .font(.footnote)
+                         .foregroundColor(.secondary)
+                         .padding(.vertical, 4)
+                 } else {
+                     Text(data.details)
+                         .font(.system(.footnote, design: .monospaced)) // フォントサイズ調整
+                         .lineLimit(nil) // 複数行表示を許可
+                         .fixedSize(horizontal: false, vertical: true) // 縦に伸長
+                         .padding(.vertical, 4) // 内側の padding
+                         .frame(maxWidth: .infinity, alignment: .leading) // 左寄せ確保
+                 }
+            }
+            .padding(.vertical, 4) // GroupBox 間の padding
 
-            // グラフ表示
-            if selectedGraphStyle == .bar {
-                Text("アプリごとのテキスト量")
-                    .font(.headline)
-                    .padding(.top, 8)
-
-                BarChartView(data: data.appTexts, total: data.totalTextLength)
-                    .frame(height: 300)
-                    .padding(.vertical, 8)
-            } else if selectedGraphStyle == .pie {
-                HStack() {
-                    VStack {
-                        Text("アプリごとのテキスト量")
-                            .font(.headline)
-                            .padding(.top, 8)
-
-                        PieChartView(data: data.appTexts, total: data.totalTextLength)
-                            .frame(height: 250)
-                            .padding(.vertical, 8)
+            // グラフ表示セクション (データがない場合は非表示)
+            if data.totalEntries > 0 {
+                GroupBox(label: Label("グラフ表示", systemImage: "chart.bar.xaxis").font(.subheadline)) {
+                    VStack(spacing: 10) { // グラフ間の spacing
+                        if selectedGraphStyle == .bar {
+                            Text("アプリごとのテキスト量")
+                                .font(.caption) // フォントサイズ調整
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            BarChartView(data: data.appTexts, total: data.totalTextLength)
+                                .frame(height: 250) // 高さを少し調整
+                        } else if selectedGraphStyle == .pie {
+                            HStack(alignment: .top) { // 上揃え
+                                VStack {
+                                    Text("アプリ別テキスト量") // タイトル変更
+                                        .font(.caption) // フォントサイズ調整
+                                    PieChartView(data: data.appTexts, total: data.totalTextLength)
+                                        .frame(height: 200) // 高さを少し調整
+                                }
+                                VStack {
+                                    Text("言語別テキスト比率")
+                                        .font(.caption) // フォントサイズ調整
+                                    PieChartView(data: data.langTexts, total: data.totalTextLength)
+                                        .frame(height: 200) // 高さを少し調整
+                                }
+                            }
+                        } else if selectedGraphStyle == .detail {
+                            Text("詳細データ")
+                                .font(.caption) // フォントサイズ調整
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            DetailView(data: data.appTexts)
+                                .frame(height: 250) // 高さを少し調整
+                        }
                     }
-
-                    VStack{
-                        Text("言語別テキスト比率")
-                            .font(.headline)
-                            .padding(.top, 8)
-
-                        PieChartView(data: data.langTexts, total: data.totalTextLength)
-                            .frame(height: 250)
-                            .padding(.vertical, 8)
-                    }
+                    .padding(.vertical, 6) // 内側の padding
                 }
-            } else if selectedGraphStyle == .detail {
-                Text("詳細データ")
-                    .font(.headline)
-                    .padding(.top, 8)
+                .padding(.vertical, 4)
 
-                DetailView(data: data.appTexts)
-                    .frame(height: 300)
-                    .padding(.vertical, 8)
+                // グラフ設定セクション (データがない場合は非表示)
+                GroupBox(label: Label("グラフ設定", systemImage: "gearshape").font(.subheadline)) {
+                    Picker("", selection: $selectedGraphStyle) {
+                        Label("Pie", systemImage: "chart.pie").tag(GraphStyle.pie) // Icon 追加
+                        Label("Bar", systemImage: "chart.bar").tag(GraphStyle.bar) // Icon 追加
+                        Label("Detail", systemImage: "list.bullet").tag(GraphStyle.detail) // Icon 追加
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden() // ラベルは非表示のまま
+                    .controlSize(.small) // サイズ調整
+                    .padding(.vertical, 2) // 内側の padding
+                }
+                .padding(.vertical, 4)
             }
-
-            // グラフスタイル選択
-            Picker("", selection: $selectedGraphStyle) {
-                Text("Pie").tag(GraphStyle.pie)
-                Text("Bar").tag(GraphStyle.bar)
-                Text("Detail").tag(GraphStyle.detail)
-            }
-            .pickerStyle(SegmentedPickerStyle())
-            .padding(.vertical)
         }
     }
 }
@@ -223,7 +243,7 @@ extension StatisticsView {
     func loadStatisticsAsync() async {
         // UIを更新するため、メインスレッドで実行
         await MainActor.run {
-            withAnimation(.easeIn(duration: 0.3)) {
+            withAnimation(.easeIn(duration: 0.2)) { // アニメーション調整
                 isLoading = true
                 progress = 0.0
                 statusMessage = "準備中..."
@@ -238,7 +258,10 @@ extension StatisticsView {
             progressCallback: { newProgress in
                 // プログレスの更新をメインスレッドで実行
                 Task { @MainActor in
-                    self.progress = newProgress
+                    // アニメーション付きでプログレスを更新
+                    withAnimation(.linear(duration: 0.1)) {
+                        self.progress = newProgress
+                    }
                 }
             },
             statusCallback: { status, step in
@@ -250,8 +273,8 @@ extension StatisticsView {
             }
         )
 
-        // 少し遅延を入れて、完了アニメーションを表示
-        try? await Task.sleep(nanoseconds: 500_000_000) // 0.5秒
+        // 少し遅延を入れて、完了アニメーションを表示（オプション）
+        // try? await Task.sleep(nanoseconds: 300_000_000) // 0.3秒
 
         await MainActor.run {
             // 結合データ
@@ -278,11 +301,11 @@ extension StatisticsView {
             self.importTextStats.details = result.importTexts.4
             self.importTextStats.langTexts = result.importTexts.5
 
-            // アプリ名リストを更新
-            shareData.apps = self.combinedStats.appNameCounts.map { $0.key }
+            // アプリ名リストを更新 (SettingsView との連携のため)
+            // shareData.apps = self.combinedStats.appNameCounts.map { $0.key }
 
             // アニメーションでローディング表示を終了
-            withAnimation(.easeOut(duration: 0.3)) {
+            withAnimation(.easeOut(duration: 0.3)) { // アニメーション調整
                 isLoading = false
             }
         }
