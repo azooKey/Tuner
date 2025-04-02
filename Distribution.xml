@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<installer-script minSpecVersion="1.000000">
+    <title>Tuner</title>
+    <options allow-external-scripts="no"/>
+    <domains enable-local="true"/>
+    <installation-check script="pm_install_check();"/>
+    <script>
+        function pm_install_check() {
+            if(!(system.compareVersions(system.version.ProductVersion,'10.10.0') >= 0)) {
+            my.result.message = "Tuner requires Mac OS X 10.10 or later.";
+            my.result.type = 'Fatal';
+            return false;
+            }
+            return true;
+        }
+    </script>
+    <choices-outline>
+        <line choice="com.tuner.app"/>
+    </choices-outline>
+    <choice id="com.tuner.app" title="Tuner">
+        <pkg-ref id="com.tuner.app.pkg"/>
+    </choice>
+    <pkg-ref id="com.tuner.app.pkg" auth="Root">Tuner.pkg</pkg-ref>
+</installer-script> 

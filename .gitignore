@@ -22,3 +22,4 @@ DerivedData/
 !*.xcodeproj/xcshareddata/
 **/xcshareddata/WorkspaceSettings.xcsettings
 !*.xcworkspace/contents.xcworkspacedata
+/.cursor
