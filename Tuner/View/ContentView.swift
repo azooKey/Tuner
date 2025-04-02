@@ -5,12 +5,16 @@ struct ContentView: View {
         TabView {
             SettingsView()
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape")
+                    Label("設定", systemImage: "gearshape")
                 }
+                .tag(0)
+            
             StatisticsView()
                 .tabItem {
-                    Label("Statistics", systemImage: "chart.bar")
+                    Label("統計", systemImage: "chart.bar")
                 }
+                .tag(1)
         }
+        .padding(.top, 1) // タブビューの上部に小さなパディングを追加
     }
 }

@@ -124,6 +124,34 @@ class ShareData: ObservableObject {
         let options = [trustedCheckOptionPrompt: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)
     }
+
+    // 現在実行中のアプリケーションを取得するメソッド
+    func updateRunningApps() {
+        let workspace = NSWorkspace.shared
+        let apps = workspace.runningApplications
+            .filter { $0.activationPolicy == .regular } // 通常のアプリケーションのみをフィルタリング
+            .compactMap { $0.localizedName } // アプリケーション名を取得
+            .sorted() // アルファベット順にソート
+        
+        DispatchQueue.main.async {
+            self.apps = apps
+        }
+    }
+
+    // アプリケーションの除外設定を更新
+    func toggleAppExclusion(_ appName: String) {
+        if avoidApps.contains(appName) {
+            avoidApps.removeAll { $0 == appName }
+        } else {
+            avoidApps.append(appName)
+        }
+        saveAvoidApps()
+    }
+
+    // アプリケーションが除外されているかどうかを確認
+    func isAppExcluded(_ appName: String) -> Bool {
+        return avoidApps.contains(appName)
+    }
 }
 
 #if DEBUG
