@@ -9,38 +9,34 @@ import SwiftUI
 import Combine
 import Foundation
 
-// struct ShareData の定義を削除
-/*
-/// アプリケーション全体で共有される設定や状態を保持する構造体
-struct ShareData {
-    /// アクセシビリティ機能によるテキスト取得を有効にするか
-    var activateAccessibility: Bool = true
-    /// テキスト取得を除外するアプリケーション名のリスト
-    var avoidApps: [String] = ["Finder", "ContextDatabaseApp"]
-    /// テキスト取得のポーリング間隔（秒）
-    var pollingInterval: Int = 5
-    /// 一度にファイルに保存するテキストエントリ数の閾値
-    var saveLineTh: Int = 10
-    /// ファイルへの保存間隔の閾値（秒）
-    var saveIntervalSec: Int = 5
-    /// 保存するテキストの最小文字数
-    var minTextLength: Int = 3
-}
-*/
-
+/// アプリケーション全体で共有される設定や状態を管理するクラス
+/// - アクセシビリティ設定
+/// - アプリケーション除外リスト
+/// - テキスト取得の設定
+/// - データ保存の設定
 class ShareData: ObservableObject {
-    // AppDelegateから移動したプロパティをPublishedで定義
+    /// アクセシビリティ機能によるテキスト取得を有効にするか
     @Published var activateAccessibility: Bool = true
+    
+    /// テキスト取得を除外するアプリケーション名のリスト
     @Published var avoidApps: [String] = ["Finder", "ContextDatabaseApp"]
+    
+    /// テキスト取得のポーリング間隔（秒）
     @Published var pollingInterval: Int = 5
+    
+    /// 一度にファイルに保存するテキストエントリ数の閾値
     @Published var saveLineTh: Int = 10
+    
+    /// ファイルへの保存間隔の閾値（秒）
     @Published var saveIntervalSec: Int = 5
+    
+    /// 保存するテキストの最小文字数
     @Published var minTextLength: Int = 3
+    
+    /// 現在実行中のアプリケーションのリスト
     @Published var apps: [String] = []
 
-    // 必要に応じて既存のプロパティやメソッドはそのまま維持
-    // @Published var exampleProperty: String = ""
-
+    // UserDefaultsのキー定義
     private let avoidAppsKey = "avoidApps"
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
@@ -48,7 +44,7 @@ class ShareData: ObservableObject {
     private let pollingIntervalKey = "pollingInterval"
     private let activateAccessibilityKey = "activateAccessibility"
 
-
+    /// 初期化時に保存された設定を読み込む
     init() {
         loadActivateAccessibility()
         loadAvoidApps()
@@ -58,66 +54,79 @@ class ShareData: ObservableObject {
         loadPollingInterval()
     }
 
+    /// アクセシビリティ設定を保存
     private func saveActivateAccessibility() {
         UserDefaults.standard.set(activateAccessibility, forKey: activateAccessibilityKey)
     }
 
+    /// アクセシビリティ設定を読み込む
     private func loadActivateAccessibility() {
         if let savedValue = UserDefaults.standard.value(forKey: activateAccessibilityKey) as? Bool {
             activateAccessibility = savedValue
         }
     }
 
+    /// 除外アプリリストを保存
     private func saveAvoidApps() {
         UserDefaults.standard.set(avoidApps, forKey: avoidAppsKey)
     }
 
+    /// 除外アプリリストを読み込む
     private func loadAvoidApps() {
         if let savedAvoidApps = UserDefaults.standard.array(forKey: avoidAppsKey) as? [String] {
             avoidApps = savedAvoidApps
         }
     }
 
+    /// 保存行数閾値を保存
     private func saveSaveLineTh() {
         UserDefaults.standard.set(saveLineTh, forKey: saveLineThKey)
     }
 
+    /// 保存行数閾値を読み込む
     private func loadSaveLineTh() {
         if let savedSaveLineTh = UserDefaults.standard.value(forKey: saveLineThKey) as? Int {
             saveLineTh = savedSaveLineTh
         }
     }
 
+    /// 保存間隔を保存
     private func saveSaveIntervalSec() {
         UserDefaults.standard.set(saveIntervalSec, forKey: saveIntervalSecKey)
     }
 
+    /// 保存間隔を読み込む
     private func loadSaveIntervalSec() {
         if let savedSaveIntervalSec = UserDefaults.standard.value(forKey: saveIntervalSecKey) as? Int {
             saveIntervalSec = savedSaveIntervalSec
         }
     }
 
+    /// 最小テキスト長を保存
     private func saveMinTextLength() {
         UserDefaults.standard.set(minTextLength, forKey: minTextLengthKey)
     }
 
+    /// 最小テキスト長を読み込む
     private func loadMinTextLength() {
         if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
             minTextLength = savedMinTextLength
         }
     }
 
+    /// ポーリング間隔を保存
     private func savePollingInterval() {
         UserDefaults.standard.set(pollingInterval, forKey: pollingIntervalKey)
     }
 
+    /// ポーリング間隔を読み込む
     private func loadPollingInterval() {
         if let savedPollingInterval = UserDefaults.standard.value(forKey: pollingIntervalKey) as? Int {
             pollingInterval = savedPollingInterval
         }
     }
 
+    /// アクセシビリティ権限を要求
     func requestAccessibilityPermission() {
         print("requestAccessibilityPermission")
         let trustedCheckOptionPrompt = kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString
@@ -125,20 +134,24 @@ class ShareData: ObservableObject {
         _ = AXIsProcessTrustedWithOptions(options)
     }
 
-    // 現在実行中のアプリケーションを取得するメソッド
+    /// 現在実行中のアプリケーションリストを更新
+    /// - 通常のアプリケーションのみをフィルタリング
+    /// - アプリケーション名をアルファベット順にソート
     func updateRunningApps() {
         let workspace = NSWorkspace.shared
         let apps = workspace.runningApplications
-            .filter { $0.activationPolicy == .regular } // 通常のアプリケーションのみをフィルタリング
-            .compactMap { $0.localizedName } // アプリケーション名を取得
-            .sorted() // アルファベット順にソート
+            .filter { $0.activationPolicy == .regular }
+            .compactMap { $0.localizedName }
+            .sorted()
         
         DispatchQueue.main.async {
             self.apps = apps
         }
     }
 
-    // アプリケーションの除外設定を更新
+    /// アプリケーションの除外設定を切り替え
+    /// - Parameters:
+    ///   - appName: 対象のアプリケーション名
     func toggleAppExclusion(_ appName: String) {
         if avoidApps.contains(appName) {
             avoidApps.removeAll { $0 == appName }
@@ -148,7 +161,10 @@ class ShareData: ObservableObject {
         saveAvoidApps()
     }
 
-    // アプリケーションが除外されているかどうかを確認
+    /// アプリケーションが除外されているかどうかを確認
+    /// - Parameters:
+    ///   - appName: 対象のアプリケーション名
+    /// - Returns: 除外されている場合はtrue
     func isAppExcluded(_ appName: String) -> Bool {
         return avoidApps.contains(appName)
     }
@@ -156,7 +172,7 @@ class ShareData: ObservableObject {
 
 #if DEBUG
 extension ShareData {
-    // テスト用のヘルパーメソッド
+    /// デバッグ用：設定をデフォルト値にリセット
     func resetToDefaults() {
         activateAccessibility = true
         avoidApps = ["Finder", "ContextDatabaseApp"]
@@ -175,7 +191,8 @@ extension ShareData {
         UserDefaults.standard.removeObject(forKey: minTextLengthKey)
     }
     
-    // テスト用の検証メソッド
+    /// デバッグ用：デフォルト値の検証
+    /// - Returns: すべての値がデフォルト値と一致する場合はtrue
     func verifyDefaultValues() -> Bool {
         return activateAccessibility == true &&
                avoidApps == ["Finder", "ContextDatabaseApp"] &&

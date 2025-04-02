@@ -8,23 +8,34 @@
 import SwiftUI
 import AppKit
 
+/// アプリケーションの設定画面を表示するビュー
+/// - 基本設定（アクセシビリティ、保存設定、ポーリング間隔）
+/// - データ管理（ファイル保存場所、データ状態、アクション）
+/// - アプリケーション除外設定
 struct SettingsView: View {
+    /// テキストモデル（環境オブジェクト）
     @EnvironmentObject var textModel: TextModel
+    /// 共有データ（環境オブジェクト）
     @EnvironmentObject var shareData: ShareData
+    /// 選択中の設定セクション
     @State private var selectedSection = 0
+    /// アプリリスト更新中かどうか
     @State private var isRefreshing = false
+    /// アプリケーションアイコンのキャッシュ
     @State private var appIcons: [String: NSImage] = [:]
+    /// アプリケーション検索用のテキスト
     @State private var searchText = ""
+    /// ローディング中のメッセージ
     @State private var loadingMessage = "アプリリスト更新中..."
 
-    // Documents/importText フォルダーのURLを computed property として用意
+    /// Documents/importText フォルダーのURL
     private var importFolderURL: URL {
         let fileManager = FileManager.default
         let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         return documentsDirectory.appendingPathComponent("importText")
     }
     
-    // 検索フィルター適用後のアプリリスト
+    /// 検索フィルター適用後のアプリケーションリスト
     private var filteredApps: [String] {
         if searchText.isEmpty {
             return shareData.apps
@@ -33,6 +44,9 @@ struct SettingsView: View {
         }
     }
 
+    /// ビューの本体
+    /// - セクション選択用のピッカー
+    /// - 選択されたセクションの内容表示
     var body: some View {
         VStack(spacing: 0) {
             // セクション選択用のピッカー
@@ -72,7 +86,9 @@ struct SettingsView: View {
         }
     }
     
-    // ローディングオーバーレイ
+    /// ローディングオーバーレイ
+    /// - 進捗状況の表示
+    /// - 半透明の背景
     private var loadingOverlay: some View {
         VStack {
             ProgressView(loadingMessage)
@@ -83,6 +99,7 @@ struct SettingsView: View {
         }
     }
     
+    /// 日付フォーマッター
     private var dateFormatter: DateFormatter {
         let formatter = DateFormatter()
         formatter.dateStyle = .short
@@ -90,6 +107,9 @@ struct SettingsView: View {
         return formatter
     }
 
+    /// 指定されたURLのフォルダをFinderで開く
+    /// - Parameters:
+    ///   - url: 開くフォルダのURL
     private func openFolderInFinder(url: URL) {
         let folderURL = url.deletingLastPathComponent()
         NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
@@ -98,7 +118,11 @@ struct SettingsView: View {
 
 // MARK: - SettingsView Sections
 extension SettingsView {
-    // MARK: - 基本設定セクション
+    /// 基本設定セクション
+    /// - アクセシビリティ設定
+    /// - データ保存設定
+    /// - ポーリング間隔設定
+    /// - 最終保存日時表示
     var basicSettingsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // アクセシビリティセクション
@@ -187,7 +211,10 @@ extension SettingsView {
         }
     }
     
-    // MARK: - データ管理セクション
+    /// データ管理セクション
+    /// - ファイル保存場所の表示
+    /// - データ状態の表示
+    /// - データ管理アクション
     var dataManagementSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             // パス表示セクション

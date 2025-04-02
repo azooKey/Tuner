@@ -8,18 +8,11 @@ import Cocoa
 import SwiftUI
 import os.log
 
-// ShareData の定義は別のファイル (Model/ShareData.swift) に移動
-/*
-struct ShareData {
-    var activateAccessibility = true
-    var avoidApps: [String] = ["Finder", "ContextDatabaseApp"] // 例: 除外するアプリ名
-    var pollingInterval: Int = 5 // 例: ポーリング間隔（秒）
-    var saveLineTh: Int = 10 // 例: 一度に保存する行数の閾値
-    var saveIntervalSec: Int = 5 // 例: 保存間隔の閾値（秒）
-    var minTextLength: Int = 3 // 例: 保存する最小テキスト長
-}
-*/
-
+/// アプリケーションのメインのデリゲートクラス
+/// - アクセシビリティ権限の管理
+/// - アプリケーション切り替えの監視
+/// - テキスト要素の取得と保存
+/// - 定期的なデータの浄化
 class AppDelegate: NSObject, NSApplicationDelegate {
     var textModel = TextModel()
     var isDataSaveEnabled = true
@@ -33,6 +26,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // 浄化処理の実行間隔（秒）例: 1時間ごと
     let purifyInterval: TimeInterval = 3600
 
+    /// アプリケーション起動時の初期化処理
+    /// - アクセシビリティ権限の確認
+    /// - アプリケーション切り替えの監視設定
+    /// - テキスト取得用のポーリングタイマー開始
+    /// - 定期的な浄化処理タイマー開始
     func applicationDidFinishLaunching(_ aNotification: Notification) {
         // アクセシビリティ権限を確認（初回起動時のみ）
         checkAndRequestAccessibilityPermission()
@@ -63,7 +61,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // アプリケーション終了時の処理
+    /// アプリケーション終了時のクリーンアップ処理
+    /// - ポーリングタイマーの停止
+    /// - 浄化タイマーの停止
+    /// - 最終的なデータ浄化の実行
     func applicationWillTerminate(_ aNotification: Notification) {
         // ポーリングタイマーを停止
         stopTextPollingTimer()
@@ -80,7 +81,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
          // 非同期処理の完了を待つ必要があるかもしれないが、一旦待たない実装とする
     }
 
-    // テキスト取得用のポーリングタイマーを開始
+    /// テキスト取得用のポーリングタイマーを開始
+    /// - 既存のタイマーを停止
+    /// - 設定された間隔で新しいタイマーを開始
     private func startTextPollingTimer() {
         // 既存のタイマーがあれば停止
         stopTextPollingTimer()
@@ -94,13 +97,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         pollingTimer = Timer.scheduledTimer(timeInterval: TimeInterval(shareData.pollingInterval), target: self, selector: #selector(pollActiveAppForText), userInfo: nil, repeats: true)
     }
     
-    // テキスト取得用のポーリングタイマーを停止
+    /// テキスト取得用のポーリングタイマーを停止
     private func stopTextPollingTimer() {
         pollingTimer?.invalidate()
         pollingTimer = nil
     }
     
-    // 定期的な浄化処理タイマーを開始
+    /// 定期的な浄化処理タイマーを開始
+    /// - 既存のタイマーを停止
+    /// - 設定された間隔で新しいタイマーを開始
     private func startPurifyTimer() {
         // 既存のタイマーがあれば停止
         purifyTimer?.invalidate()
@@ -110,7 +115,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         print("Purify timer started with interval: \(purifyInterval) seconds")
     }
 
-    // 定期的な浄化処理を実行
+    /// 定期的な浄化処理を実行
+    /// - テキストモデルの浄化処理を呼び出し
+    /// - 実行時刻を更新
     @objc private func runPeriodicPurify() {
         print("Running periodic purify...")
         textModel.purifyFile(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength) {
@@ -119,7 +126,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         lastPurifyTime = Date() // 実行時刻を更新
     }
 
-    // 定期的にアクティブアプリからテキストをポーリング
+    /// アクティブアプリケーションからテキストを定期的に取得
+    /// - アクセシビリティ権限の確認
+    /// - 除外アプリのチェック
+    /// - テキスト要素の取得
     @objc private func pollActiveAppForText() {
         guard shareData.activateAccessibility, hasAccessibilityPermission() else {
             return
@@ -139,7 +149,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // アクセシビリティ権限をチェックし、必要に応じて要求するメソッド
+    /// アクセシビリティ権限をチェックし、必要に応じて要求
+    /// - 権限がない場合は説明付きのアラートを表示
+    /// - ユーザーが許可した場合はシステムの権限ダイアログを表示
     private func checkAndRequestAccessibilityPermission() {
         if !hasAccessibilityPermission() {
             // 権限がない場合は説明付きのアラートを表示
@@ -158,13 +170,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
-    // アクセシビリティ権限の有無をチェックするメソッド（プロンプトなし）
+    /// アクセシビリティ権限の有無をチェック
+    /// - Returns: 権限がある場合はtrue
     private func hasAccessibilityPermission() -> Bool {
         let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: false]
         return AXIsProcessTrustedWithOptions(options as CFDictionary)
     }
 
-    // アクティブなアプリケーションが変更されたときに呼び出されるメソッド
+    /// アクティブアプリケーションが変更されたときの処理
+    /// - アクセシビリティ権限の確認
+    /// - 除外アプリのチェック
+    /// - テキスト要素の取得と監視開始
     @objc func activeAppDidChange(_ notification: Notification) {
         guard shareData.activateAccessibility else {
             return
@@ -188,7 +204,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // アクティブなアプリケーションのAXUIElementオブジェクトを取得するメソッド
+    /// アクティブアプリケーションのAXUIElementを取得
+    /// - Returns: AXUIElementオブジェクト、取得できない場合はnil
     private func getActiveApplicationAXUIElement() -> AXUIElement? {
         guard let app = NSWorkspace.shared.frontmostApplication else {
             return nil
@@ -196,7 +213,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return AXUIElementCreateApplication(app.processIdentifier)
     }
 
-    // 指定されたAXUIElementからテキスト要素を取得するメソッド
+    /// 指定されたAXUIElementからテキスト要素を取得
+    /// - Parameters:
+    ///   - element: 対象のAXUIElement
+    ///   - appName: アプリケーション名
     private func fetchTextElements(from element: AXUIElement, appName: String) {
         var value: AnyObject?
         let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
@@ -207,7 +227,10 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    // AXUIElementからテキストを抽出するメソッド
+    /// AXUIElementからテキストを抽出
+    /// - Parameters:
+    ///   - element: 対象のAXUIElement
+    ///   - appName: アプリケーション名
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
         let role = self.getRole(of: element)
         

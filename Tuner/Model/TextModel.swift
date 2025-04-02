@@ -8,7 +8,11 @@
 import Foundation
 import EfficientNGram
 
-
+/// テキストデータの管理と処理を行うモデルクラス
+/// - テキストエントリの保存と読み込み
+/// - テキストの重複除去
+/// - N-gramモデルの学習
+/// - 統計情報の生成
 class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
@@ -198,6 +202,14 @@ class TextModel: ObservableObject {
         return modifiedText ?? text
     }
     
+    /// テキストエントリを追加し、条件に応じてファイルに保存
+    /// - Parameters:
+    ///   - text: 追加するテキスト
+    ///   - appName: アプリケーション名
+    ///   - saveLineTh: 保存をトリガーする行数閾値
+    ///   - saveIntervalSec: 保存をトリガーする時間間隔（秒）
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
     func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 5, avoidApps: [String], minTextLength: Int) {
         // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
@@ -269,6 +281,8 @@ class TextModel: ObservableObject {
         texts = []
     }
     
+    /// ファイルからテキストエントリを読み込む
+    /// - Parameter completion: 読み込み完了時に実行するコールバック
     func loadFromFile(completion: @escaping ([TextEntry]) -> Void) {
         let fileURL = getFileURL()
         fileAccessQueue.async {
@@ -346,6 +360,8 @@ class TextModel: ObservableObject {
         }
     }
     
+    /// アプリケーション名ごとのエントリ数を集計
+    /// - Parameter completion: 集計完了時に実行するコールバック
     func aggregateAppNames(completion: @escaping ([String: Int]) -> Void) {
         loadFromFile { loadedTexts in
             var appNameCounts: [String: Int] = [:]
@@ -358,6 +374,11 @@ class TextModel: ObservableObject {
         }
     }
     
+    /// 統計情報を生成する
+    /// - Parameters:
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
+    ///   - completion: 生成完了時に実行するコールバック
     func generateStatisticsParameter(avoidApps: [String], minTextLength: Int, completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)])) -> Void) {
         // データのクリーンアップ
         purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
@@ -421,6 +442,11 @@ class TextModel: ObservableObject {
         }
     }
 
+    /// ファイルの重複エントリを除去し、クリーンアップを実行
+    /// - Parameters:
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
+    ///   - completion: クリーンアップ完了時に実行するコールバック
     func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
         // 仮の保存先
@@ -577,8 +603,11 @@ class TextModel: ObservableObject {
         return (textEntries, duplicatedCount)
     }
     
-    /// 今回 updateFile で書き出した新規エントリ newEntries を使い、n-gram モデルを追加学習します
-    /// 追加学習用のベースは、初回は「original」を複製した「lm」として用意し、以降はlmに学習を追加していきます。
+    /// 新規エントリを使用してN-gramモデルを追加学習
+    /// - Parameters:
+    ///   - newEntries: 新規テキストエントリの配列
+    ///   - n: N-gramのサイズ
+    ///   - baseFilename: ベースとなるファイル名
     func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
         let lines = newEntries.map { $0.text }
         print("追加学習 \(lines)")
@@ -656,7 +685,11 @@ class TextModel: ObservableObject {
     }
     
     
-    /// 保存された jsonl ファイルからテキスト部分のみのリストを抽出し、学習を行う
+    /// 保存されたテキストエントリからN-gramモデルを学習
+    /// - Parameters:
+    ///   - n: N-gramのサイズ
+    ///   - baseFilename: ベースとなるファイル名
+    ///   - maxEntryCount: 最大エントリ数
     func trainNGramFromTextEntries(n: Int = 5, baseFilename: String = "original", maxEntryCount: Int = 100_000) async {
         print("train ngram from jsonl")
         let fileManager = FileManager.default
@@ -741,9 +774,10 @@ class TextModel: ObservableObject {
 
 // MARK: - テキストファイルからのインポート処理
 extension TextModel {
-    /// Documents/ImportTexts フォルダ内の .txt ファイルを読み込み、
-    /// 各行を個別のエントリーとしてimport.jsonlへ出力します。
-    /// 読み込んだ（または条件に合わなかった）ファイルは、ファイル名の先頭に "IMPORTED_" を付けてリネームします。
+    /// テキストファイルからインポートを実行
+    /// - Parameters:
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
     func importTextFiles(avoidApps: [String], minTextLength: Int) async {
         print("import files")
         let fileManager = FileManager.default
@@ -924,7 +958,13 @@ extension TextModel {
         }
     }
     
-    // 3つの統計情報（結合、savedTexts、importTexts）を個別に生成
+    /// 統計情報を個別に生成
+    /// - Parameters:
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
+    ///   - progressCallback: 進捗状況を通知するコールバック
+    ///   - statusCallback: ステータス情報を通知するコールバック
+    /// - Returns: 結合データ、savedTexts、importTextsの統計情報
     func generateSeparatedStatisticsAsync(
         avoidApps: [String],
         minTextLength: Int,
@@ -996,7 +1036,16 @@ extension TextModel {
         return (combinedStats, savedTextStats, importTextStats)
     }
     
-    // 個別の統計処理を行うヘルパーメソッド
+    /// 統計情報を処理するヘルパーメソッド
+    /// - Parameters:
+    ///   - entries: 処理対象のテキストエントリ
+    ///   - avoidApps: 除外するアプリケーション名のリスト
+    ///   - minTextLength: 最小テキスト長
+    ///   - source: データソース名
+    ///   - progressRange: 進捗状況の範囲
+    ///   - progressCallback: 進捗状況を通知するコールバック
+    ///   - statusCallback: ステータス情報を通知するコールバック
+    /// - Returns: 統計情報のタプル
     private func processStatistics(
         entries: [TextEntry],
         avoidApps: [String],
