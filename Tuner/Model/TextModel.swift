@@ -102,15 +102,10 @@ class TextModel: ObservableObject {
             }
             // ファイルの有無を確認し、なければ作成
             if !FileManager.default.fileExists(atPath: fileURL.path) {
-                print("File does not exist, creating...")
                 do {
-                    // 空のファイルを作成するか、初期エントリを追加するかは設計による
-                    // ここでは空ファイルを作成
                     try "".write(to: fileURL, atomically: true, encoding: .utf8)
-                    // 再度 updateFile を呼ぶのではなく、このまま処理を続ける
                 } catch {
-                    print("Failed to create file: \(error.localizedDescription)")
-                    // ファイル作成に失敗したら更新処理を中断
+                    print("❌ Failed to create file: \(error.localizedDescription)")
                     return
                 }
             }
@@ -124,20 +119,16 @@ class TextModel: ObservableObject {
                 // 末尾に移動
                 fileHandle.seekToEndOfFile()
                 // 最初の追記でなければ改行を追加
-                // Check if file is not empty before adding newline
-                 let currentOffset = fileHandle.offsetInFile
-                 if currentOffset > 0 {
-                     // Check if the last byte is already a newline
-                     fileHandle.seek(toFileOffset: currentOffset - 1)
-                     if let lastByte = try fileHandle.read(upToCount: 1), lastByte != "\n".data(using: .utf8) {
-                         // Only add newline if the last byte isn't already one
-                          fileHandle.seekToEndOfFile()
-                         fileHandle.write("\n".data(using: .utf8)!)
-                     } else {
-                          fileHandle.seekToEndOfFile() // Go back to end if last byte was newline
-                     }
-                 }
-
+                let currentOffset = fileHandle.offsetInFile
+                if currentOffset > 0 {
+                    fileHandle.seek(toFileOffset: currentOffset - 1)
+                    if let lastByte = try fileHandle.read(upToCount: 1), lastByte != "\n".data(using: .utf8) {
+                        fileHandle.seekToEndOfFile()
+                        fileHandle.write("\n".data(using: .utf8)!)
+                    } else {
+                        fileHandle.seekToEndOfFile()
+                    }
+                }
 
                 // 最低限のフィルタリングのみ実施 (avoidApps, minTextLength, isSymbolOrNumber)
                 let avoidAppsSet = Set(avoidApps)
@@ -147,14 +138,11 @@ class TextModel: ObservableObject {
                     !$0.text.utf16.isSymbolOrNumber
                 }
 
-                print("\(filteredEntries.count) entries being saved to file... \(Date())")
-
                 // 各エントリを jsonl 形式で追記
                 var linesWritten = 0
                 for textEntry in filteredEntries {
                     let jsonData = try JSONEncoder().encode(textEntry)
                     if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        // 追記なので各行末に改行を追加
                         let jsonLine = jsonString + "\n"
                         if let data = jsonLine.data(using: .utf8) {
                             fileHandle.write(data)
@@ -162,28 +150,23 @@ class TextModel: ObservableObject {
                         }
                     }
                 }
-                print("\(linesWritten) lines actually written.")
 
                 // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
-                // Use a slightly different condition to avoid learning too frequently
-                if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 { // 例: 500エントリごとに追加学習
-                     Task {
-                         print("=== Incremental Training from New Text Entries (\(filteredEntries.count)) ===")
-                         await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilename: "lm")
-                     }
-                 }
-
+                if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 {
+                    Task {
+                        await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilename: "lm")
+                    }
+                }
 
                 DispatchQueue.main.async {
-                    self.texts.removeAll() // メモリをクリア
-                    self.lastSavedDate = Date() // 保存日時を更新
+                    self.texts.removeAll()
+                    self.lastSavedDate = Date()
                 }
             } catch {
-                print("Failed to update file: \(error.localizedDescription)")
-                // エラー発生時もメモリはクリアする（データ損失の可能性あり、要検討）
+                print("❌ Failed to update file: \(error.localizedDescription)")
                 DispatchQueue.main.async {
-                     self.texts.removeAll()
-                 }
+                    self.texts.removeAll()
+                }
             }
         }
     }
@@ -211,30 +194,22 @@ class TextModel: ObservableObject {
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
     func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 5, avoidApps: [String], minTextLength: Int) {
-        // もしもテキスト保存がOFF
         if !isDataSaveEnabled {
             return
         }
         if !text.isEmpty {
-            // 最小テキスト長のチェックは維持
             if text.count < minTextLength {
                 return
             }
             let cleanedText = removeExtraNewlines(from: text)
 
-            // 完全一致チェックのみ維持（メモリ内での直前エントリとの重複のみ排除）
             if texts.last?.text == cleanedText {
-                // print("Skipped identical text in memory: \(cleanedText)")
                 return
             }
 
-            // 記号か数字のみのテキストはスキップ（これも最低限の品質確保として維持）
             if cleanedText.utf16.isSymbolOrNumber {
-                // print("Skipped symbol/number only text: \(cleanedText)")
                 return
             }
-
-            // 前方一致チェックは削除
 
             let timestamp = Date()
             let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
@@ -242,38 +217,18 @@ class TextModel: ObservableObject {
             texts.append(newTextEntry)
             saveCounter += 1
 
-            // 最後の保存からの経過時間チェック
-             let intervalFlag : Bool = {
-                 if let lastSavedDate = lastSavedDate {
-                     let interval = Date().timeIntervalSince(lastSavedDate)
-                     // print("Interval since last save: \(interval)")
-                     return interval > Double(saveIntervalSec)
-                 } else {
-                     return true // まだ一度も保存されていない場合
-                 }
-             }()
-
-            // ファイルへの保存条件（行数閾値 または 一定時間経過）
-            // Check if texts is not empty before triggering save
-            if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
-                 print("Triggering save: count=\(texts.count) >= \(saveLineTh) or intervalFlag=\(intervalFlag)")
-                 // updateFile内でメモリ(`self.texts`)はクリアされる
-                 updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
-             }
-
-            // 定期的なファイル全体の浄化処理
-            // 保存回数ではなく、時間ベースでAppDelegateから呼び出す方式に変更
-            /*
-            if saveCounter > saveLineTh * 20 { // 例: 20回保存ごと (200行程度)
-                print("Triggering purifyFile due to save count: \(saveCounter)")
-                // 浄化処理を呼び出す
-                purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
-                    // 浄化完了後に特別な処理が必要な場合はここに記述
-                    print("Purify file completed after save count trigger.")
+            let intervalFlag : Bool = {
+                if let lastSavedDate = lastSavedDate {
+                    let interval = Date().timeIntervalSince(lastSavedDate)
+                    return interval > Double(saveIntervalSec)
+                } else {
+                    return true
                 }
-                saveCounter = 0 // 浄化をトリガーしたらカウンターをリセット
+            }()
+
+            if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
+                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
-            */
         }
     }
     
@@ -289,31 +244,26 @@ class TextModel: ObservableObject {
             var loadedTexts: [TextEntry] = []
             var unreadableLines: [String] = []
             
-            // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: fileURL.path) {
-                print("File does not exist")
                 DispatchQueue.main.async {
                     completion(loadedTexts)
                 }
                 return
             }
             
-            // ファイルを読み込む
             var fileContents = ""
             do {
                 fileContents = try String(contentsOf: fileURL, encoding: .utf8)
             } catch {
-                print("Failed to load from file: \(error.localizedDescription)")
+                print("❌ Failed to load from file: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     completion([])
                 }
                 return
             }
             
-            // ファイルを1行ずつ読み込む
             var skipCount = 0
             let lines = fileContents.split(separator: "\n")
-            print("total lines: \(lines.count)")
             for line in lines {
                 if line.isEmpty {
                     continue
@@ -324,27 +274,24 @@ class TextModel: ObservableObject {
                         loadedTexts.append(textEntry)
                     }
                 } catch {
-                    print("Failed to load from file: \(error.localizedDescription)")
                     if error.localizedDescription.contains("The data couldn't be read because it isn't in the correct format.") {
-                        print("line: \(line)")
+                        skipCount += 1
+                        unreadableLines.append(String(line))
                     }
-                    // FIXME: 読めない行を一旦スキップ
-                    skipCount += 1
-                    unreadableLines.append(String(line))
                     continue
                 }
             }
-            print("skipCount: \(skipCount)")
-            // 読めなかった行を追加で保存
+
             if unreadableLines.count > 0 {
                 let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
                 let unreadableText = unreadableLines.joined(separator: "\n")
                 do {
                     try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
                 } catch {
-                    print("Failed to save unreadable lines: \(error.localizedDescription)")
+                    print("❌ Failed to save unreadable lines: \(error.localizedDescription)")
                 }
             }
+
             DispatchQueue.main.async {
                 completion(loadedTexts)
             }
@@ -610,9 +557,7 @@ class TextModel: ObservableObject {
     ///   - baseFilename: ベースとなるファイル名
     func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
         let lines = newEntries.map { $0.text }
-        print("追加学習 \(lines)")
         if lines.isEmpty {
-            print("追加学習なし")
             return
         }
         let fileManager = FileManager.default
@@ -630,11 +575,9 @@ class TextModel: ObservableObject {
             return
         }
         
-        // lmモードの場合、lm用ファイルが存在しなければ original から複製して lm を作成
         if baseFilename == "lm" {
             let lmCheckURL = URL(fileURLWithPath: outputDir).appendingPathComponent("lm_c_abc.marisa")
             if !fileManager.fileExists(atPath: lmCheckURL.path) {
-                print("lmモデルが存在しないため、originalから複製を実施します。")
                 let originalFiles = [
                     "original_c_abc.marisa",
                     "original_u_abx.marisa",
@@ -653,16 +596,14 @@ class TextModel: ObservableObject {
                     if fileManager.fileExists(atPath: origPath) {
                         do {
                             try fileManager.copyItem(atPath: origPath, toPath: lmPath)
-                            print("Duplicated \(origFile) to \(lmFile)")
                         } catch {
-                            print("Error duplicating \(origFile) to \(lmFile): \(error)")
+                            print("❌ Error duplicating \(origFile) to \(lmFile): \(error)")
                         }
                     }
                 }
             }
         }
         
-        // WIP ファイルの作成
         let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilename).wip")
         do {
             try "Training in progress".write(to: wipFileURL, atomically: true, encoding: .utf8)
@@ -670,18 +611,13 @@ class TextModel: ObservableObject {
             print("❌ Failed to create WIP file: \(error)")
         }
         
-        // EfficientNGram パッケージ側の学習関数を呼び出す（async/await 版）
         await trainNGram(lines: lines, n: ngramSize, baseFilename: baseFilename, outputDir: outputDir)
         
-        // WIP ファイルの削除
         do {
             try fileManager.removeItem(at: wipFileURL)
-            print("✅ Training completed. WIP file removed.")
         } catch {
             print("❌ Failed to remove WIP file: \(error)")
         }
-        
-        print("✅ Training completed for new entries. Model saved as \(baseFilename) in \(outputDir)")
     }
     
     
@@ -691,18 +627,13 @@ class TextModel: ObservableObject {
     ///   - baseFilename: ベースとなるファイル名
     ///   - maxEntryCount: 最大エントリ数
     func trainNGramFromTextEntries(n: Int = 5, baseFilename: String = "original", maxEntryCount: Int = 100_000) async {
-        print("train ngram from jsonl")
         let fileManager = FileManager.default
         
-        // savedTexts.jsonlからエントリを読み込み
         let savedTexts = await loadFromFileAsync()
-        print("savedTexts.jsonl: \(savedTexts.count)")
         
-        // import.jsonlのパスを取得
         let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
         var importEntries: [TextEntry] = []
         if fileManager.fileExists(atPath: importFileURL.path) {
-            // ファイルの内容を読み込み、各行ごとにJSONデコード
             if let fileContents = try? String(contentsOf: importFileURL, encoding: .utf8) {
                 let lines = fileContents.split(separator: "\n")
                 for line in lines {
@@ -714,16 +645,11 @@ class TextModel: ObservableObject {
                 }
             }
         }
-        print("importText: \(importEntries.count)")
         
-        // 両方のエントリを結合し、最新のmaxEntryCount件を使用する
         let combinedEntries = savedTexts + importEntries
         let trainingEntries = combinedEntries.suffix(maxEntryCount)
         let lines = trainingEntries.map { $0.text }
         
-        print("Training with \(lines.count) lines")
-        
-        // containerディレクトリの取得と出力先ディレクトリの作成
         guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
             print("❌ Failed to get container URL.")
             return
@@ -731,7 +657,6 @@ class TextModel: ObservableObject {
         
         let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
         
-        // ディレクトリを作成
         do {
             try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
         } catch {
@@ -739,7 +664,6 @@ class TextModel: ObservableObject {
             return
         }
         
-        // baseFilenameが"original"の場合、既存のlmファイルを削除する
         if baseFilename == "original" {
             let lmFiles = [
                 "lm_c_abc.marisa",
@@ -752,23 +676,18 @@ class TextModel: ObservableObject {
                 if fileManager.fileExists(atPath: lmFilePath) {
                     do {
                         try fileManager.removeItem(atPath: lmFilePath)
-                        print("Removed existing lm file: \(lmFile)")
                     } catch {
-                        print("Failed to remove lm file \(lmFile): \(error)")
+                        print("❌ Failed to remove lm file \(lmFile): \(error)")
                     }
                 }
             }
         }
         
-        // n-gram学習の実行
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
         
-        // 訓練完了時に日時を更新（メインスレッドで実行）
         await MainActor.run {
             self.lastNGramTrainingDate = Date()
         }
-        
-        print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
     }
 }
 
@@ -779,15 +698,11 @@ extension TextModel {
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
     func importTextFiles(avoidApps: [String], minTextLength: Int) async {
-        print("import files")
         let fileManager = FileManager.default
-        // Documentsディレクトリ内の "ImportTexts" フォルダのURLを取得
         let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
         let importFolder = documentsDirectory.appendingPathComponent("ImportTexts")
         
-        // "ImportTexts" フォルダが存在しなければ作成
         if !fileManager.fileExists(atPath: importFolder.path) {
-            print("ImportTexts Folder doesn't exist")
             do {
                 try fileManager.createDirectory(at: importFolder, withIntermediateDirectories: true, attributes: nil)
             } catch {
@@ -796,14 +711,12 @@ extension TextModel {
             }
         }
         
-        // "ImportTexts" フォルダ内のファイル一覧を取得
         do {
             let fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
             if fileURLs.isEmpty {
-                print("No files to import in \(importFolder.path)")
+                return
             }
             
-            // すでに保存済みのエントリを取得してキー集合を作成（キー＝ "appName-テキスト"）
             let existingEntries = await loadFromFileAsync()
             var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
             
@@ -811,37 +724,29 @@ extension TextModel {
             
             for fileURL in fileURLs {
                 let fileName = fileURL.lastPathComponent
-                // 既に "IMPORTED" で始まるファイルはスキップ
                 if fileName.hasPrefix("IMPORTED") {
                     continue
                 }
                 
-                // 拡張子が txt のファイルのみ対象
                 if fileURL.pathExtension.lowercased() != "txt" {
                     continue
                 }
                 
                 do {
                     let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
-                    // ファイル内の各行ごとに分割
                     let lines = fileContent.components(separatedBy: .newlines)
-                    // ファイル名（拡張子除く）を appName として利用
                     let fileAppName = fileURL.deletingPathExtension().lastPathComponent
                     
-                    // 同じファイル内での重複も防ぐため、ローカルなキー集合を用意
                     var localKeys = existingKeys
                     
                     for line in lines {
-                        // 改行等を除去して整形
                         let cleanedLine = removeExtraNewlines(from: line)
                         
-                        // 空行や最小文字数未満の場合はスキップ
                         if cleanedLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cleanedLine.count < minTextLength {
                             continue
                         }
                         
                         let key = "\(fileAppName)-\(cleanedLine)"
-                        // すでに同じ内容が取り込まれていればスキップ
                         if localKeys.contains(key) {
                             continue
                         }
@@ -853,7 +758,6 @@ extension TextModel {
                         newEntries.append(newEntry)
                     }
                     
-                    // 処理が完了したら、ファイル名の先頭に "IMPORTED_" を付けてリネーム
                     try markFileAsImported(fileURL: fileURL)
                     
                 } catch {
@@ -861,7 +765,6 @@ extension TextModel {
                 }
             }
             
-            // 新規エントリがあればimport.jsonlに書き出し（既存のものは上書き）
             if !newEntries.isEmpty {
                 let appDirectory = getAppDirectory()
                 let importFileURL = appDirectory.appendingPathComponent("import.jsonl")
@@ -875,7 +778,6 @@ extension TextModel {
                         }
                     }
                     try fileContent.write(to: importFileURL, atomically: true, encoding: .utf8)
-                    print("import.jsonl updated with \(newEntries.count) entries at \(importFileURL.path)")
                 } catch {
                     print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
                 }
@@ -913,30 +815,25 @@ extension TextModel {
         fileAccessQueue.async {
             var loadedTexts: [TextEntry] = []
             
-            // ファイルの有無を確認
             if !FileManager.default.fileExists(atPath: importFileURL.path) {
-                print("Import file does not exist")
                 DispatchQueue.main.async {
                     completion(loadedTexts)
                 }
                 return
             }
             
-            // ファイルを読み込む
             var fileContents = ""
             do {
                 fileContents = try String(contentsOf: importFileURL, encoding: .utf8)
             } catch {
-                print("Failed to load from import file: \(error.localizedDescription)")
+                print("❌ Failed to load from import file: \(error.localizedDescription)")
                 DispatchQueue.main.async {
                     completion([])
                 }
                 return
             }
             
-            // ファイルを1行ずつ読み込む
             let lines = fileContents.split(separator: "\n")
-            print("Import file total lines: \(lines.count)")
             for line in lines {
                 if line.isEmpty {
                     continue
@@ -947,7 +844,7 @@ extension TextModel {
                         loadedTexts.append(textEntry)
                     }
                 } catch {
-                    print("Failed to load from import file: \(error.localizedDescription)")
+                    print("❌ Failed to load from import file: \(error.localizedDescription)")
                     continue
                 }
             }
