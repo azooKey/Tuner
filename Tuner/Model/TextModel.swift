@@ -13,6 +13,8 @@ class TextModel: ObservableObject {
     @Published var texts: [TextEntry] = []
     @Published var lastSavedDate: Date? = nil
     @Published var isDataSaveEnabled: Bool = true
+    @Published var lastNGramTrainingDate: Date? = nil
+    @Published var lastPurifyDate: Date? = nil
     
     private let ngramSize: Int = 5
     private var saveCounter = 0
@@ -500,6 +502,11 @@ class TextModel: ObservableObject {
                         // 新規ファイルの名前を変更
                         try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
                         print("File purify completed. Removed \(duplicatedCount) duplicated entries. Wrote \(entriesWritten) entries.")
+                        
+                        // purify完了時に日時を更新（メインスレッドで実行）
+                        DispatchQueue.main.async {
+                            self.lastPurifyDate = Date()
+                        }
                     } else {
                         print("⚠️ Write was not successful or no entries were written - keeping original file")
                         // 一時ファイルを削除
@@ -722,6 +729,11 @@ class TextModel: ObservableObject {
         
         // n-gram学習の実行
         await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
+        
+        // 訓練完了時に日時を更新（メインスレッドで実行）
+        await MainActor.run {
+            self.lastNGramTrainingDate = Date()
+        }
         
         print("✅ Training completed and model saved as \(baseFilename) in \(outputDir)")
     }

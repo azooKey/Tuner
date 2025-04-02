@@ -123,7 +123,7 @@ extension SettingsView {
                     // しきい値設定
                     VStack(spacing: 4) {
                         HStack {
-                            Text("行数しきい値:")
+                            Text("行数閾値:")
                                 .font(.footnote)
                             Spacer()
                             Text("\(shareData.saveLineTh)行")
@@ -190,78 +190,142 @@ extension SettingsView {
     // MARK: - データ管理セクション
     var dataManagementSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            // パス表示
+            // パス表示セクション
             GroupBox(label: Label("保存場所", systemImage: "folder").font(.subheadline)) {
                 VStack(alignment: .leading, spacing: 8) {
-                    // 保存先pathの表示
-                    HStack {
-                        Text("JSONL:")
-                            .font(.footnote)
-                        Text(textModel.getFileURL().lastPathComponent)
-                            .font(.system(.footnote, design: .monospaced))
-                            .lineLimit(1)
-                        Spacer()
-                        Button(action: {
-                            openFolderInFinder(url: textModel.getFileURL())
-                        }) {
-                            Image(systemName: "folder")
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.borderless)
-                    }
-                    
+                    // 保存先 JSONL パス
+                    fileLocationRow(label: "JSONL:", path: textModel.getFileURL())
+
                     Divider()
+
+                    // インポートフォルダパス
+                    fileLocationRow(label: "インポート:", path: importFolderURL, isDirectory: true)
+                }
+                .padding(.vertical, 4)
+            }
+            .padding(.bottom, 4)
+
+            // 状態表示セクション
+            GroupBox(label: Label("データ状態", systemImage: "info.circle").font(.subheadline)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    // 最終保存日時
+                    if let lastSavedDate = textModel.lastSavedDate {
+                        HStack {
+                            Image(systemName: "arrow.down.doc")
+                                .foregroundColor(.blue)
+                            Text("最終保存:")
+                                .font(.caption)
+                            Text(lastSavedDate, formatter: dateFormatter)
+                                .font(.caption)
+                        }
+                    }
                     
-                    // importTextフォルダーのパス表示
+                    // 最終purify日時
+                    if let lastPurifyDate = textModel.lastPurifyDate {
+                        HStack {
+                            Image(systemName: "sparkles")
+                                .foregroundColor(.green)
+                            Text("最終整理:")
+                                .font(.caption)
+                            Text(lastPurifyDate, formatter: dateFormatter)
+                                .font(.caption)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+            .padding(.bottom, 4)
+
+            // アクションセクション
+            GroupBox(label: Label("アクション", systemImage: "gearshape").font(.subheadline)) {
+                VStack(alignment: .leading, spacing: 10) {
+                    // インポートボタン
                     HStack {
-                        Text("インポート:")
-                            .font(.footnote)
-                        Text(importFolderURL.lastPathComponent)
-                            .font(.system(.footnote, design: .monospaced))
-                            .lineLimit(1)
-                        Spacer()
-                        Button(action: {
-                            let dummyFileURL = importFolderURL.appendingPathComponent("dummy.txt")
-                            self.openFolderInFinder(url: dummyFileURL)
-                        }) {
-                            Image(systemName: "folder")
+                        Button {
+                            Task {
+                                await textModel.importTextFiles(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
+                            }
+                        } label: {
+                            Label("テキストファイルをインポート", systemImage: "square.and.arrow.down")
                                 .font(.footnote)
                         }
-                        .buttonStyle(.borderless)
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        Spacer()
+                    }
+
+                    Divider()
+
+                    // N-gram 訓練ボタンと最終訓練日時
+                    HStack {
+                        Button {
+                            Task {
+                                await textModel.trainNGramFromTextEntries()
+                            }
+                        } label: {
+                            Label("N-gramモデル訓練", systemImage: "wand.and.stars")
+                                .font(.footnote)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Spacer()
+
+                        // 最終訓練日時を表示
+                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
+                             HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle")
+                                    .foregroundColor(.green)
+                                Text("最終訓練: \(lastTrainingDate, formatter: dateFormatter)")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.orange)
+                                Text("未訓練")
+                            }
+                           .font(.caption)
+                           .foregroundColor(.secondary)
+                        }
                     }
                 }
+                .padding(.vertical, 6)
             }
-            .padding(.vertical, 4)
-            
-            // アクションボタン
-            GroupBox(label: Label("アクション", systemImage: "gearshape").font(.subheadline)) {
-                HStack {
-                    Button(action: {
-                        Task {
-                            await textModel.importTextFiles(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
-                        }
-                    }) {
-                        Label("インポート", systemImage: "square.and.arrow.down")
-                            .font(.footnote)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        Task {
-                            await textModel.trainNGramFromTextEntries()
-                        }
-                    }) {
-                        Label("Ngram訓練", systemImage: "wand.and.stars")
-                            .font(.footnote)
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+        }
+    }
+
+    // ファイル/フォルダパス表示用の補助ビュー
+    private func fileLocationRow(label: String, path: URL, isDirectory: Bool = false) -> some View {
+        HStack {
+            Text(label)
+                .font(.footnote)
+                .frame(width: 60, alignment: .leading) // ラベル幅を固定
+
+            // パス表示 (省略表示)
+            Text(path.lastPathComponent)
+                .font(.system(.footnote, design: .monospaced))
+                .lineLimit(1)
+                .truncationMode(.middle) // 中央を省略
+
+            Spacer()
+
+            // Finderで開くボタン
+            Button {
+                if isDirectory {
+                    // ディレクトリを開く
+                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.path)
+                } else {
+                    // ファイルを含むフォルダを開く
+                    openFolderInFinder(url: path)
                 }
+            } label: {
+                Image(systemName: "folder")
+                    .font(.footnote)
             }
-            .padding(.vertical, 4)
+            .buttonStyle(.borderless)
+            .help("Finderで表示") // ツールチップ追加
         }
     }
 }
