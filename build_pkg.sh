@@ -14,40 +14,77 @@ PKG_DIR="$BUILD_DIR/pkg"
 TEMP_DIR="$BUILD_DIR/temp"
 APPLICATIONS_DIR="$TEMP_DIR"
 
+# 証明書の確認
+echo "証明書の確認を開始します..."
+if ! security find-identity -v | grep -q "Developer ID Application"; then
+    echo "エラー: Developer ID Application証明書が見つかりません"
+    exit 1
+fi
+
+if ! security find-identity -v | grep -q "Developer ID Installer"; then
+    echo "エラー: Developer ID Installer証明書が見つかりません"
+    exit 1
+fi
+
 # ディレクトリの作成
 mkdir -p "$BUILD_DIR" "$PKG_DIR" "$TEMP_DIR"
 
-# Xcodeビルド（自動署名を有効化）
-xcodebuild -project Tuner.xcodeproj -scheme Tuner -configuration Release CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+# Xcodeビルド（開発用署名）
+echo "Xcodeビルドを開始します..."
+xcodebuild -project Tuner.xcodeproj -scheme Tuner -configuration Release \
+    CODE_SIGN_STYLE="Automatic" \
+    DEVELOPMENT_TEAM="CW97U5J24N" \
+    CODE_SIGN_IDENTITY="Apple Development" \
+    CODE_SIGNING_REQUIRED=YES \
+    CODE_SIGNING_ALLOWED=YES || {
+    echo "エラー: Xcodeビルドに失敗しました"
+    exit 1
+}
 
 # アプリケーションバンドルをコピー
-DERIVED_DATA_APP="$HOME/Library/Developer/Xcode/DerivedData/Tuner-ciqmcchfmnbfecalwkclsxhusmkq/Build/Products/Release/$APP_NAME.app"
-cp -R "$DERIVED_DATA_APP" "$APPLICATIONS_DIR/"
+echo "アプリケーションバンドルをコピーしています..."
+DERIVED_DATA_APP=$(find "$HOME/Library/Developer/Xcode/DerivedData" -name "$APP_NAME.app" -type d | grep "Release" | head -n 1)
+
+if [ -z "$DERIVED_DATA_APP" ]; then
+    echo "エラー: ビルドされたアプリケーションが見つかりません"
+    exit 1
+fi
+
+cp -R "$DERIVED_DATA_APP" "$APPLICATIONS_DIR/" || {
+    echo "エラー: アプリケーションバンドルのコピーに失敗しました"
+    exit 1
+}
+
+# アプリケーションの再署名
+echo "アプリケーションを再署名しています..."
+codesign --force --sign "Developer ID Application: Naoki Takahashi (CW97U5J24N)" \
+         --options runtime \
+         --timestamp \
+         "$APPLICATIONS_DIR/$APP_NAME.app" || {
+    echo "エラー: アプリケーションの再署名に失敗しました"
+    exit 1
+}
 
 # パッケージの分析
-pkgbuild --analyze --root "$TEMP_DIR" pkg.plist
+echo "パッケージの分析を開始します..."
+pkgbuild --analyze --root "$TEMP_DIR" pkg.plist || {
+    echo "エラー: パッケージの分析に失敗しました"
+    exit 1
+}
 
-# 一時パッケージの作成
+# パッケージの作成と署名
+echo "パッケージを作成しています..."
 pkgbuild --root "$TEMP_DIR" \
          --component-plist pkg.plist \
          --identifier "$BUNDLE_ID" \
          --version "$VERSION" \
          --install-location "/Applications" \
-         "$PKG_DIR/$APP_NAME-tmp.pkg"
-
-# 最終パッケージの作成
-productbuild --distribution Distribution.xml \
-             --package-path "$PKG_DIR" \
-             --version "$VERSION" \
-             "$BUILD_DIR/$APP_NAME-$VERSION.pkg"
-
-# 署名
-productsign --sign "Developer ID Installer" \
-            "$BUILD_DIR/$APP_NAME-$VERSION.pkg" \
-            "$BUILD_DIR/$APP_NAME-$VERSION-signed.pkg"
-
-# 署名済みパッケージを元の名前に移動
-mv "$BUILD_DIR/$APP_NAME-$VERSION-signed.pkg" "$BUILD_DIR/$APP_NAME-$VERSION.pkg"
+         --sign "Developer ID Installer: Naoki Takahashi (CW97U5J24N)" \
+         --timestamp \
+         "$BUILD_DIR/$APP_NAME-$VERSION.pkg" || {
+    echo "エラー: パッケージの作成に失敗しました"
+    exit 1
+}
 
 # クリーンアップ
 rm -rf "$TEMP_DIR" "$PKG_DIR" pkg.plist
