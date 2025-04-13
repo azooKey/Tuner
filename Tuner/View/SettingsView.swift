@@ -28,13 +28,6 @@ struct SettingsView: View {
     /// ローディング中のメッセージ
     @State private var loadingMessage = "アプリリスト更新中..."
 
-    /// Documents/importText フォルダーのURL
-    private var importFolderURL: URL {
-        let fileManager = FileManager.default
-        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        return documentsDirectory.appendingPathComponent("importText")
-    }
-    
     /// 検索フィルター適用後のアプリケーションリスト
     private var filteredApps: [String] {
         if searchText.isEmpty {
@@ -225,8 +218,8 @@ extension SettingsView {
 
                     Divider()
 
-                    // インポートフォルダパス
-                    fileLocationRow(label: "インポート:", path: importFolderURL, isDirectory: true)
+                    // インポートフォルダパス（変更可能）
+                    importFolderRow()
                 }
                 .padding(.vertical, 4)
             }
@@ -294,7 +287,8 @@ extension SettingsView {
                     HStack {
                         Button {
                             Task {
-                                await textModel.importTextFiles(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
+                                // shareDataを引数として渡す
+                                await textModel.importTextFiles(shareData: shareData, avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
                             }
                         } label: {
                             Label("テキストファイルをインポート", systemImage: "square.and.arrow.down")
@@ -415,6 +409,132 @@ extension SettingsView {
             }
             .buttonStyle(.borderless)
             .help("Finderで表示") // ツールチップ追加
+        }
+    }
+
+    // インポートフォルダのパス表示と設定変更用の補助ビュー
+    private func importFolderRow() -> some View {
+        HStack {
+            Text("インポート:")
+                .font(.footnote)
+                .frame(width: 60, alignment: .leading)
+
+            // パス表示 (クリックでFinder表示)
+            Button(action: openImportFolderInFinder) {
+                // パスが空でなく、ファイルURLとして有効な場合にlastPathComponentを表示 - フルパス表示に変更
+                let pathToShow = shareData.importTextPath.isEmpty ? "未設定" : shareData.importTextPath
+                Text(pathToShow)
+                    .font(.system(.footnote, design: .monospaced))
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    // ブックマークが存在しない場合はグレー表示
+                    .foregroundColor(shareData.importBookmarkData == nil ? .secondary : .primary)
+            }
+            .buttonStyle(.plain)
+            // ブックマークが存在しない場合は無効
+            .disabled(shareData.importBookmarkData == nil)
+            // ツールチップにはフルパスを表示（ブックマークがあれば）
+            .help(shareData.importBookmarkData == nil ? "" : shareData.importTextPath)
+
+            Spacer()
+
+            // フォルダ選択ボタン
+            Button("変更") {
+                selectImportFolder()
+            }
+            .font(.footnote)
+            .controlSize(.small)
+            .buttonStyle(.bordered)
+            .help("インポートフォルダを選択")
+
+            // Finderで開くボタン (TextFieldのクリックと機能重複するが、視認性のために残す)
+            Button {
+                 openImportFolderInFinder()
+            } label: {
+                Image(systemName: "folder")
+                    .font(.footnote)
+            }
+            .buttonStyle(.borderless)
+            // ブックマークが存在しない場合は無効
+            .disabled(shareData.importBookmarkData == nil)
+            .help(shareData.importBookmarkData == nil ? "" : "Finderでインポートフォルダを表示")
+        }
+    }
+    
+    // インポートフォルダを選択するためのパネルを表示
+    private func selectImportFolder() {
+        let openPanel = NSOpenPanel()
+        openPanel.canChooseFiles = false
+        openPanel.canChooseDirectories = true
+        openPanel.allowsMultipleSelection = false
+        openPanel.title = "インポートフォルダを選択してください"
+        openPanel.message = "テキストファイルを含むフォルダを選択してください。"
+        openPanel.prompt = "選択"
+
+        openPanel.begin { response in
+            if response == .OK,
+               let url = openPanel.url {
+                DispatchQueue.main.async {
+                    // パスを保存
+                    shareData.importTextPath = url.path
+                    // ブックマークを生成して保存
+                    do {
+                        let bookmarkData = try url.bookmarkData(options: .withSecurityScope,
+                                                                includingResourceValuesForKeys: nil,
+                                                                relativeTo: nil)
+                        shareData.importBookmarkData = bookmarkData
+                        print("ブックマークを保存しました: \(url.path)")
+                    } catch {
+                        print("ブックマークの作成に失敗しました: \(error.localizedDescription)")
+                        // エラー発生時はパスとブックマークをクリアするなどの処理も検討可能
+                        shareData.importTextPath = ""
+                        shareData.importBookmarkData = nil
+                    }
+                }
+            }
+        }
+    }
+
+    // 設定されたインポートフォルダをFinderで開く
+    private func openImportFolderInFinder() {
+        guard let bookmarkData = shareData.importBookmarkData else {
+            print("ブックマークデータが見つかりません。")
+            return
+        }
+
+        var isStale = false
+        do {
+            let url = try URL(resolvingBookmarkData: bookmarkData,
+                            options: [.withSecurityScope], // セキュリティスコープ付きで解決
+                            relativeTo: nil,
+                            bookmarkDataIsStale: &isStale)
+            
+            if isStale {
+                print("ブックマークが古くなっています。再選択が必要です。")
+                // 必要であればここで古いブックマークをクリアする
+                // shareData.importBookmarkData = nil
+                // shareData.importTextPath = ""
+                return
+            }
+
+            // アクセス権の取得を試みる
+            guard url.startAccessingSecurityScopedResource() else {
+                print("フォルダへのアクセス権を取得できませんでした: \(url.path)")
+                return
+            }
+            
+            // アクセス終了処理をdeferで保証
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            // Finderで開く
+            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+            print("Finderで開きました: \(url.path)")
+
+        } catch {
+            print("ブックマークからのURL解決に失敗しました: \(error.localizedDescription)")
+            // エラー発生時はブックマークをクリアするなどの処理も検討可能
+            // shareData.importBookmarkData = nil
+            // shareData.importTextPath = ""
         }
     }
 }

@@ -702,27 +702,73 @@ class TextModel: ObservableObject {
 extension TextModel {
     /// テキストファイルからインポートを実行
     /// - Parameters:
+    ///   - shareData: 共有データオブジェクト (インポートパスとブックマークを含む)
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
-    func importTextFiles(avoidApps: [String], minTextLength: Int) async {
+    func importTextFiles(shareData: ShareData, avoidApps: [String], minTextLength: Int) async {
         let fileManager = FileManager.default
-        let documentsDirectory = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
-        let importFolder = documentsDirectory.appendingPathComponent("ImportTexts")
         
-        if !fileManager.fileExists(atPath: importFolder.path) {
-            do {
-                try fileManager.createDirectory(at: importFolder, withIntermediateDirectories: true, attributes: nil)
-            } catch {
-                print("❌ Failed to create import folder: \(error.localizedDescription)")
+        // 1. ブックマークデータが存在するか確認
+        guard let bookmarkData = shareData.importBookmarkData else {
+            print("インポートフォルダが設定されていません。Settings -> データ管理でフォルダを選択してください。")
+            // 必要であればユーザーに通知する処理を追加
+            return
+        }
+        
+        var isStale = false
+        var importFolderURL: URL?
+        
+        do {
+            // 2. ブックマークデータからURLを解決し、アクセス権を取得
+            let url = try URL(resolvingBookmarkData: bookmarkData,
+                            options: [.withSecurityScope], // セキュリティスコープ付きで解決
+                            relativeTo: nil,
+                            bookmarkDataIsStale: &isStale)
+            
+            if isStale {
+                print("インポートフォルダのブックマークが古くなっています。Settings -> データ管理で再選択してください。")
+                // 必要であればユーザーに通知 & ブックマークをクリアする処理
+                // shareData.importBookmarkData = nil
+                // shareData.importTextPath = ""
                 return
             }
+            
+            guard url.startAccessingSecurityScopedResource() else {
+                print("インポートフォルダへのアクセス権を取得できませんでした: \(url.path)")
+                // 必要であればユーザーに通知
+                return
+            }
+            
+            // アクセス権を確実に解放するためのdeferブロック
+            defer { url.stopAccessingSecurityScopedResource() }
+            
+            print("インポートフォルダへのアクセス権を取得: \(url.path)")
+            importFolderURL = url // アクセス可能なURLを保持
+
+        } catch {
+            print("インポートフォルダのブックマーク解決またはアクセス権取得に失敗しました: \(error.localizedDescription)")
+            // 必要であればユーザーに通知 & ブックマークをクリアする処理
+            // shareData.importBookmarkData = nil
+            // shareData.importTextPath = ""
+            return
+        }
+        
+        // 3. アクセス可能なURLを使用してインポート処理を実行
+        guard let importFolder = importFolderURL else {
+             // ここに来ることは通常ないはずだが、念のため
+             print("エラー: アクセス可能なインポートフォルダURLがありません。")
+             return
         }
         
         do {
+            // importFolder (ブックマークから解決したURL) の内容を取得
             let fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
             if fileURLs.isEmpty {
+                print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(importFolder.path)")
                 return
             }
+            
+            print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(importFolder.path)")
             
             let existingEntries = await loadFromFileAsync()
             var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
@@ -777,21 +823,32 @@ extension TextModel {
                 let importFileURL = appDirectory.appendingPathComponent("import.jsonl")
                 
                 do {
-                    var fileContent = ""
+                    // import.jsonlへの追記処理に変更
+                    var currentContent = ""
+                    if fileManager.fileExists(atPath: importFileURL.path) {
+                        currentContent = try String(contentsOf: importFileURL, encoding: .utf8)
+                        if !currentContent.isEmpty && !currentContent.hasSuffix("\n") {
+                             currentContent += "\n"
+                        }
+                    }
+                    
+                    var newContent = ""
                     for entry in newEntries {
                         let jsonData = try JSONEncoder().encode(entry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
-                            fileContent.append(jsonString + "\n")
+                            newContent.append(jsonString + "\n")
                         }
                     }
-                    try fileContent.write(to: importFileURL, atomically: true, encoding: .utf8)
+                    // 既存の内容と新しい内容を結合して書き込む
+                    try (currentContent + newContent).write(to: importFileURL, atomically: true, encoding: .utf8)
+                    print("\(newEntries.count) 件の新規エントリを import.jsonl に追記しました。")
                 } catch {
                     print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
                 }
             }
             
         } catch {
-            print("❌ Failed to list import folder: \(error.localizedDescription)")
+            print("❌ Failed to list import folder contents: \(error.localizedDescription)")
         }
     }
     

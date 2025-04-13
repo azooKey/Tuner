@@ -16,114 +16,64 @@ import Foundation
 /// - データ保存の設定
 class ShareData: ObservableObject {
     /// アクセシビリティ機能によるテキスト取得を有効にするか
-    @Published var activateAccessibility: Bool = true
+    @AppStorage("activateAccessibility") var activateAccessibility: Bool = true
     
     /// テキスト取得を除外するアプリケーション名のリスト
-    @Published var avoidApps: [String] = ["Finder", "ContextDatabaseApp"]
+    @AppStorage("avoidApps") var avoidAppsData: Data = ShareData.encodeAvoidApps(["Finder", "ContextDatabaseApp"])
     
     /// テキスト取得のポーリング間隔（秒）
-    @Published var pollingInterval: Int = 5
+    @AppStorage("pollingInterval") var pollingInterval: Int = 5
     
     /// 一度にファイルに保存するテキストエントリ数の閾値
-    @Published var saveLineTh: Int = 10
+    @AppStorage("saveLineTh") var saveLineTh: Int = 10
     
     /// ファイルへの保存間隔の閾値（秒）
-    @Published var saveIntervalSec: Int = 5
+    @AppStorage("saveIntervalSec") var saveIntervalSec: Int = 5
     
     /// 保存するテキストの最小文字数
-    @Published var minTextLength: Int = 3
+    @AppStorage("minTextLength") var minTextLength: Int = 3
     
-    /// 現在実行中のアプリケーションのリスト
+    /// ユーザーが設定したテキストインポートフォルダのパス (表示用)
+    @AppStorage("importTextPath") var importTextPath: String = ""
+    /// ユーザーが設定したテキストインポートフォルダへのアクセス権を保持するブックマークデータ
+    @Published var importBookmarkData: Data? = nil
+    
+    /// 現在実行中のアプリケーションのリスト (これは永続化しない)
     @Published var apps: [String] = []
 
     // UserDefaultsのキー定義
+    private let activateAccessibilityKey = "activateAccessibility"
     private let avoidAppsKey = "avoidApps"
+    private let pollingIntervalKey = "pollingInterval"
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
     private let minTextLengthKey = "minTextLength"
-    private let pollingIntervalKey = "pollingInterval"
-    private let activateAccessibilityKey = "activateAccessibility"
+    private let importTextPathKey = "importTextPath"
+    private let importBookmarkDataKey = "importBookmarkData"
 
-    /// 初期化時に保存された設定を読み込む
+    // avoidAppsをData <-> [String] 変換するためのComputed Property
+    var avoidApps: [String] {
+        get { ShareData.decodeAvoidApps(avoidAppsData) }
+        set { avoidAppsData = ShareData.encodeAvoidApps(newValue) }
+    }
+
+    // Combineの購読を管理するためのセット
+    private var cancellables = Set<AnyCancellable>()
+
+    /// 初期化時に保存された設定を読み込み、変更を監視
     init() {
-        loadActivateAccessibility()
-        loadAvoidApps()
-        loadSaveLineTh()
-        loadSaveIntervalSec()
-        loadMinTextLength()
-        loadPollingInterval()
-    }
+        // ブックマークデータをUserDefaultsから読み込む
+        self.importBookmarkData = UserDefaults.standard.data(forKey: importBookmarkDataKey)
 
-    /// アクセシビリティ設定を保存
-    private func saveActivateAccessibility() {
-        UserDefaults.standard.set(activateAccessibility, forKey: activateAccessibilityKey)
-    }
-
-    /// アクセシビリティ設定を読み込む
-    private func loadActivateAccessibility() {
-        if let savedValue = UserDefaults.standard.value(forKey: activateAccessibilityKey) as? Bool {
-            activateAccessibility = savedValue
-        }
-    }
-
-    /// 除外アプリリストを保存
-    private func saveAvoidApps() {
-        UserDefaults.standard.set(avoidApps, forKey: avoidAppsKey)
-    }
-
-    /// 除外アプリリストを読み込む
-    private func loadAvoidApps() {
-        if let savedAvoidApps = UserDefaults.standard.array(forKey: avoidAppsKey) as? [String] {
-            avoidApps = savedAvoidApps
-        }
-    }
-
-    /// 保存行数閾値を保存
-    private func saveSaveLineTh() {
-        UserDefaults.standard.set(saveLineTh, forKey: saveLineThKey)
-    }
-
-    /// 保存行数閾値を読み込む
-    private func loadSaveLineTh() {
-        if let savedSaveLineTh = UserDefaults.standard.value(forKey: saveLineThKey) as? Int {
-            saveLineTh = savedSaveLineTh
-        }
-    }
-
-    /// 保存間隔を保存
-    private func saveSaveIntervalSec() {
-        UserDefaults.standard.set(saveIntervalSec, forKey: saveIntervalSecKey)
-    }
-
-    /// 保存間隔を読み込む
-    private func loadSaveIntervalSec() {
-        if let savedSaveIntervalSec = UserDefaults.standard.value(forKey: saveIntervalSecKey) as? Int {
-            saveIntervalSec = savedSaveIntervalSec
-        }
-    }
-
-    /// 最小テキスト長を保存
-    private func saveMinTextLength() {
-        UserDefaults.standard.set(minTextLength, forKey: minTextLengthKey)
-    }
-
-    /// 最小テキスト長を読み込む
-    private func loadMinTextLength() {
-        if let savedMinTextLength = UserDefaults.standard.value(forKey: minTextLengthKey) as? Int {
-            minTextLength = savedMinTextLength
-        }
-    }
-
-    /// ポーリング間隔を保存
-    private func savePollingInterval() {
-        UserDefaults.standard.set(pollingInterval, forKey: pollingIntervalKey)
-    }
-
-    /// ポーリング間隔を読み込む
-    private func loadPollingInterval() {
-        if let savedPollingInterval = UserDefaults.standard.value(forKey: pollingIntervalKey) as? Int {
-            pollingInterval = savedPollingInterval
-        }
+        // importBookmarkDataの変更を監視し、UserDefaultsに保存する
+        $importBookmarkData
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main) // 短期間の連続変更をまとめる
+            .sink { [weak self] newValue in
+                guard let self = self else { return }
+                UserDefaults.standard.set(newValue, forKey: self.importBookmarkDataKey)
+                // print("Bookmark data saved to UserDefaults.") // デバッグ用
+            }
+            .store(in: &cancellables)
     }
 
     /// アクセシビリティ権限を要求
@@ -153,12 +103,13 @@ class ShareData: ObservableObject {
     /// - Parameters:
     ///   - appName: 対象のアプリケーション名
     func toggleAppExclusion(_ appName: String) {
-        if avoidApps.contains(appName) {
-            avoidApps.removeAll { $0 == appName }
+        var currentAvoidApps = self.avoidApps // Computed propertyから値を取得
+        if currentAvoidApps.contains(appName) {
+            currentAvoidApps.removeAll { $0 == appName }
         } else {
-            avoidApps.append(appName)
+            currentAvoidApps.append(appName)
         }
-        saveAvoidApps()
+        self.avoidApps = currentAvoidApps // Computed property経由で値を設定（自動で保存される）
     }
 
     /// アプリケーションが除外されているかどうかを確認
@@ -168,39 +119,51 @@ class ShareData: ObservableObject {
     func isAppExcluded(_ appName: String) -> Bool {
         return avoidApps.contains(appName)
     }
+
+    // Helper functions for encoding/decoding avoidApps [String] <-> Data
+    static func encodeAvoidApps(_ apps: [String]) -> Data {
+        (try? JSONEncoder().encode(apps)) ?? Data()
+    }
+    
+    static func decodeAvoidApps(_ data: Data) -> [String] {
+        (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
 }
 
 #if DEBUG
 extension ShareData {
     /// デバッグ用：設定をデフォルト値にリセット
     func resetToDefaults() {
-        activateAccessibility = true
-        avoidApps = ["Finder", "ContextDatabaseApp"]
-        pollingInterval = 5
-        saveLineTh = 10
-        saveIntervalSec = 5
-        minTextLength = 3
-        apps = []
-        
-        // UserDefaultsもリセット
+        // @AppStorageで管理されているものはUserDefaultsから削除するだけで初期値に戻る
         UserDefaults.standard.removeObject(forKey: activateAccessibilityKey)
+        // avoidAppsDataはData型なので、キー削除でデフォルト値に戻る
         UserDefaults.standard.removeObject(forKey: avoidAppsKey)
         UserDefaults.standard.removeObject(forKey: pollingIntervalKey)
         UserDefaults.standard.removeObject(forKey: saveLineThKey)
         UserDefaults.standard.removeObject(forKey: saveIntervalSecKey)
         UserDefaults.standard.removeObject(forKey: minTextLengthKey)
+        UserDefaults.standard.removeObject(forKey: importTextPathKey)
+        UserDefaults.standard.removeObject(forKey: importBookmarkDataKey)
+        
+        // @Publishedなプロパティは直接初期化
+        DispatchQueue.main.async {
+            self.apps = []
+            self.importBookmarkData = nil // Publishedプロパティもリセット
+        }
     }
     
     /// デバッグ用：デフォルト値の検証
     /// - Returns: すべての値がデフォルト値と一致する場合はtrue
     func verifyDefaultValues() -> Bool {
         return activateAccessibility == true &&
-               avoidApps == ["Finder", "ContextDatabaseApp"] &&
+               self.avoidApps == ["Finder", "ContextDatabaseApp"] && // Computed Propertyで比較 (selfを明示)
                pollingInterval == 5 &&
                saveLineTh == 10 &&
                saveIntervalSec == 5 &&
                minTextLength == 3 &&
-               apps.isEmpty
+               apps.isEmpty &&
+               importTextPath == "" &&
+               importBookmarkData == nil
     }
 }
 #endif
