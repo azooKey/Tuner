@@ -41,36 +41,52 @@ class TextModel: ObservableObject {
         return paths[0]
     }
     
-    private func getAppDirectory() -> URL {
+    // LM (.marisa) ファイルの保存ディレクトリを取得
+    private func getLMDirectory() -> URL {
         let fileManager = FileManager.default
         
-        // `Containers` 内の `Application Support` に保存
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
-            fatalError("❌ Failed to get container URL.")
+        guard let libraryDirectory = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
+             fatalError("❌ Failed to get Library directory URL.")
         }
         
-        let appDirectory = containerURL.appendingPathComponent("Library/Application Support/ContextDatabaseApp")
+        let lmDirectory = libraryDirectory.appendingPathComponent("Application Support/p13n_v1/lm")
         
         do {
-            try fileManager.createDirectory(at: appDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: lmDirectory, withIntermediateDirectories: true)
         } catch {
-            print("❌ Failed to create app directory: \(error.localizedDescription)")
+            print("❌ Failed to create LM directory: \(error.localizedDescription)")
         }
         
-        return appDirectory
+        return lmDirectory
+    }
+    
+    // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得
+    private func getTextEntryDirectory() -> URL {
+        let fileManager = FileManager.default
+        
+        guard let libraryDirectory = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
+            fatalError("❌ Failed to get Library directory URL.")
+        }
+        
+        let textEntryDirectory = libraryDirectory.appendingPathComponent("Application Support/p13n_v1/textEntry")
+        
+        do {
+            try fileManager.createDirectory(at: textEntryDirectory, withIntermediateDirectories: true)
+        } catch {
+            print("❌ Failed to create TextEntry directory: \(error.localizedDescription)")
+        }
+        
+        return textEntryDirectory
     }
     
     func getFileURL() -> URL {
-        return getAppDirectory().appendingPathComponent("savedTexts.jsonl")
+        return getTextEntryDirectory().appendingPathComponent("savedTexts.jsonl")
     }
     
     private func createAppDirectory() {
-        let appDirectory = getAppDirectory()
-        do {
-            try FileManager.default.createDirectory(at: appDirectory, withIntermediateDirectories: true, attributes: nil)
-        } catch {
-            print("Failed to create app directory: \(error.localizedDescription)")
-        }
+        // Ensure both directories are created upon initialization
+        _ = getLMDirectory()
+        _ = getTextEntryDirectory()
     }
     
     private func updateFile(avoidApps: [String], minTextLength: Int) {
@@ -107,6 +123,17 @@ class TextModel: ObservableObject {
                 } catch {
                     print("❌ Failed to create file: \(error.localizedDescription)")
                     return
+                }
+            }
+
+            // 書き込む前に、TextEntry ディレクトリの存在を確認（念のため）
+            let textEntryDir = self.getTextEntryDirectory()
+            if !FileManager.default.fileExists(atPath: textEntryDir.path) {
+                do {
+                    try FileManager.default.createDirectory(at: textEntryDir, withIntermediateDirectories: true)
+                } catch {
+                     print("❌ Failed to create TextEntry directory during update: \(error.localizedDescription)")
+                     return
                 }
             }
 
@@ -290,7 +317,7 @@ class TextModel: ObservableObject {
             }
 
             if unreadableLines.count > 0 {
-                let unreadableFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("unreadableLines.txt")
+                let unreadableFileURL = self.getFileURL().deletingLastPathComponent().appendingPathComponent("unreadableLines.txt") // Use same directory
                 let unreadableText = unreadableLines.joined(separator: "\n")
                 do {
                     try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
@@ -403,8 +430,8 @@ class TextModel: ObservableObject {
     ///   - completion: クリーンアップ完了時に実行するコールバック
     func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
-        // 仮の保存先
-        let tempFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("tempSavedTexts.jsonl")
+        // 仮の保存先も TextEntry ディレクトリ内に
+        let tempFileURL = getTextEntryDirectory().appendingPathComponent("tempSavedTexts.jsonl")
 
         loadFromFile { loadedTexts in
             // 空のファイルを防止: ロードしたテキストが空の場合は何もせずに終了
@@ -436,8 +463,8 @@ class TextModel: ObservableObject {
             }
 
             self.fileAccessQueue.async {
-                // バックアップファイルの作成 (問題特定用)
-                let backupFileURL = fileURL.deletingLastPathComponent().appendingPathComponent("backup_savedTexts_\(Int(Date().timeIntervalSince1970)).jsonl")
+                // バックアップファイルの作成 (問題特定用) - TextEntry ディレクトリ内に
+                let backupFileURL = self.getTextEntryDirectory().appendingPathComponent("backup_savedTexts_\(Int(Date().timeIntervalSince1970)).jsonl")
                 do {
                     try FileManager.default.copyItem(at: fileURL, to: backupFileURL)
                     print("Backup file created at: \(backupFileURL.path)")
@@ -570,12 +597,8 @@ class TextModel: ObservableObject {
             return
         }
         let fileManager = FileManager.default
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
-            print("❌ Failed to get container URL.")
-            return
-        }
-        
-        let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
+        let outputDirURL = getLMDirectory() // Use the LM directory function
+        let outputDir = outputDirURL.path
         
         do {
             try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true, attributes: nil)
@@ -584,35 +607,7 @@ class TextModel: ObservableObject {
             return
         }
         
-        if baseFilePattern == "lm" {
-            let lmCheckURL = URL(fileURLWithPath: outputDir).appendingPathComponent("lm_c_abc.marisa")
-            if !fileManager.fileExists(atPath: lmCheckURL.path) {
-                let originalFiles = [
-                    "original_c_abc.marisa",
-                    "original_u_abx.marisa",
-                    "original_u_xbc.marisa",
-                    "original_r_xbx.marisa",
-                ]
-                let lmFiles = [
-                    "lm_c_abc.marisa",
-                    "lm_u_abx.marisa",
-                    "lm_u_xbc.marisa",
-                    "lm_r_xbx.marisa",
-                ]
-                for (origFile, lmFile) in zip(originalFiles, lmFiles) {
-                    let origPath = URL(fileURLWithPath: outputDir).appendingPathComponent(origFile).path
-                    let lmPath = URL(fileURLWithPath: outputDir).appendingPathComponent(lmFile).path
-                    if fileManager.fileExists(atPath: origPath) {
-                        do {
-                            try fileManager.copyItem(atPath: origPath, toPath: lmPath)
-                        } catch {
-                            print("❌ Error duplicating \(origFile) to \(lmFile): \(error)")
-                        }
-                    }
-                }
-            }
-        }
-        
+        // WIPファイルの作成（コピー処理は削除）
         let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilePattern).wip")
         do {
             try "Training in progress".write(to: wipFileURL, atomically: true, encoding: .utf8)
@@ -622,11 +617,14 @@ class TextModel: ObservableObject {
         
         await trainNGram(lines: lines, n: ngramSize, baseFilePattern: baseFilePattern, outputDir: outputDir, resumeFilePattern: baseFilePattern)
 
+        // WIP ファイルを削除
         do {
             try fileManager.removeItem(at: wipFileURL)
         } catch {
             print("❌ Failed to remove WIP file: \(error)")
         }
+
+        // lm モデルのコピー処理は trainNGramFromTextEntries で行うため、ここからは削除
     }
     
     
@@ -640,7 +638,7 @@ class TextModel: ObservableObject {
         
         let savedTexts = await loadFromFileAsync()
         
-        let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
+        let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
         var importEntries: [TextEntry] = []
         if fileManager.fileExists(atPath: importFileURL.path) {
             if let fileContents = try? String(contentsOf: importFileURL, encoding: .utf8) {
@@ -659,12 +657,8 @@ class TextModel: ObservableObject {
         let trainingEntries = combinedEntries.suffix(maxEntryCount)
         let lines = trainingEntries.map { $0.text }
         
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
-            print("❌ Failed to get container URL.")
-            return
-        }
-        
-        let outputDir = containerURL.appendingPathComponent("Library/Application Support/SwiftNGram").path
+        let outputDirURL = getLMDirectory() // Use the LM directory function
+        let outputDir = outputDirURL.path
         
         do {
             try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
@@ -679,6 +673,7 @@ class TextModel: ObservableObject {
                 "lm_u_abx.marisa",
                 "lm_u_xbc.marisa",
                 "lm_r_xbx.marisa",
+                "lm_c_bc.marisa",
             ]
             for lmFile in lmFiles {
                 let lmFilePath = URL(fileURLWithPath: outputDir).appendingPathComponent(lmFile).path
@@ -693,6 +688,52 @@ class TextModel: ObservableObject {
         }
         
         await trainNGram(lines: lines, n: n, baseFilePattern: baseFilePattern, outputDir: outputDir)
+
+        // オリジナルモデル生成後、追加学習用のlmモデルをコピーして準備 (baseFilePattern == "original" の場合のみ)
+        if baseFilePattern == "original" {
+            let originalFiles = [
+                "original_c_abc.marisa",
+                "original_u_abx.marisa",
+                "original_u_xbc.marisa",
+                "original_r_xbx.marisa",
+                "original_c_bc.marisa",
+            ]
+            let lmFiles = [
+                "lm_c_abc.marisa",
+                "lm_u_abx.marisa",
+                "lm_u_xbc.marisa",
+                "lm_r_xbx.marisa",
+                "lm_c_bc.marisa",
+            ]
+
+            print("Copying original models to lm models after training...")
+            for (origFile, lmFile) in zip(originalFiles, lmFiles) {
+                let origPath = URL(fileURLWithPath: outputDir).appendingPathComponent(origFile).path
+                let lmPath = URL(fileURLWithPath: outputDir).appendingPathComponent(lmFile).path
+                
+                // 既存の lm ファイルがあれば削除
+                if fileManager.fileExists(atPath: lmPath) {
+                    do {
+                        try fileManager.removeItem(atPath: lmPath)
+                        print("  Removed existing lm file: \(lmFile)")
+                    } catch {
+                        print("❌ Failed to remove existing lm file \(lmFile): \(error)")
+                    }
+                }
+                
+                // original ファイルが存在すればコピー
+                if fileManager.fileExists(atPath: origPath) {
+                    do {
+                        try fileManager.copyItem(atPath: origPath, toPath: lmPath)
+                        print("  Copied \(origFile) to \(lmFile)")
+                    } catch {
+                        print("❌ Error duplicating \(origFile) to \(lmFile): \(error)")
+                    }
+                } else {
+                    print("⚠️ Original file \(origFile) not found, cannot copy to \(lmFile).")
+                }
+            }
+        }
 
         await MainActor.run {
             self.lastNGramTrainingDate = Date()
@@ -824,8 +865,7 @@ extension TextModel {
             }
             
             if !newEntries.isEmpty {
-                let appDirectory = getAppDirectory()
-                let importFileURL = appDirectory.appendingPathComponent("import.jsonl")
+                let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
                 
                 do {
                     var currentContent = ""
@@ -876,7 +916,7 @@ extension TextModel {
     /// import.jsonl ファイルを削除し、ShareDataのインポート履歴をリセットする
     func resetImportHistory(shareData: ShareData) async {
         let fileManager = FileManager.default
-        let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
+        let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
         
         do {
             // import.jsonlを削除
@@ -915,7 +955,7 @@ extension TextModel {
     
     // import.jsonlファイルから読み込むメソッド
     func loadFromImportFile(completion: @escaping ([TextEntry]) -> Void) {
-        let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
+        let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
         fileAccessQueue.async {
             var loadedTexts: [TextEntry] = []
             
@@ -1176,7 +1216,7 @@ extension TextModel {
     
     /// インポート状態ファイルのURLを取得
     private func getImportStatusFileURL() -> URL {
-        return getAppDirectory().appendingPathComponent("import_status.json")
+        return getTextEntryDirectory().appendingPathComponent("import_status.json") // Use TextEntry directory
     }
     
     /// インポート状態を読み込む
