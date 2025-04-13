@@ -867,34 +867,6 @@ extension TextModel {
             }
         }
     }
-    
-    /// 指定したファイルを、同じフォルダー内でファイル名の先頭に "IMPORTED_" を付けてリネームする
-    private func markFileAsImported(_ fileName: String, jsonlFileName: String, lastModifiedDate: Date) {
-        let fileManager = FileManager.default
-        let importedFileName = "IMPORTED_" + fileName
-        let newURL = getAppDirectory().appendingPathComponent(importedFileName)
-        try? fileManager.moveItem(at: getAppDirectory().appendingPathComponent(fileName), to: newURL)
-        
-        var status = loadImportStatus()
-        status.importedFiles[fileName] = ImportStatus.FileInfo(
-            importDate: Date(),
-            jsonlFileName: jsonlFileName,
-            lastModifiedDate: lastModifiedDate
-        )
-        saveImportStatus(status)
-    }
-    
-    /// ファイルのJSONLファイル名を生成
-    private func generateJsonlFileName(for fileName: String) -> String {
-        let timestamp = Int(Date().timeIntervalSince1970)
-        return "imported_\(fileName)_\(timestamp).jsonl"
-    }
-    
-    /// ファイルがインポート済みかどうかを確認
-    private func isFileImported(_ fileName: String) -> Bool {
-        let status = loadImportStatus()
-        return status.importedFiles[fileName] != nil
-    }
 }
 
 // MARK: - インポート履歴のリセット
