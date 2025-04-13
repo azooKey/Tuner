@@ -481,7 +481,9 @@ class TextModel: ObservableObject {
                         try FileManager.default.removeItem(at: fileURL)
                         // 新規ファイルの名前を変更
                         try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
-                        print("File purify completed. Removed \(duplicatedCount) duplicated entries. Wrote \(entriesWritten) entries.")
+                        // 正常に完了した場合、バックアップファイルを削除
+                        try? FileManager.default.removeItem(at: backupFileURL)
+                        print("File purify completed. Removed \(duplicatedCount) duplicated entries. Wrote \(entriesWritten) entries. Backup file deleted.")
                         
                         // purify完了時に日時を更新（メインスレッドで実行）
                         DispatchQueue.main.async {
