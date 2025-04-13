@@ -245,38 +245,6 @@ extension SettingsView {
                                 .foregroundColor(.secondary)
                         }
                     }
-
-                    // 最終N-gram訓練日時
-                    HStack {
-                        Image(systemName: "brain.head.profile")
-                            .foregroundColor(textModel.lastNGramTrainingDate == nil ? .gray : .purple)
-                        Text("最終N-gram訓練:")
-                            .font(.caption)
-                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
-                            Text(lastTrainingDate, formatter: dateFormatter)
-                                .font(.caption)
-                        } else {
-                            Text("未訓練")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    // 最終purify日時
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundColor(textModel.lastPurifyDate == nil ? .gray : .orange)
-                        Text("最終データ整理:")
-                            .font(.caption)
-                        if let lastPurifyDate = textModel.lastPurifyDate {
-                            Text(lastPurifyDate, formatter: dateFormatter)
-                                .font(.caption)
-                        } else {
-                            Text("未実行")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
                 }
                 .padding(.vertical, 4)
             }

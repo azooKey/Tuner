@@ -31,7 +31,7 @@ struct TunerApp: App {
             ContentView()
                 .environmentObject(appDelegate.textModel)
                 .environmentObject(appDelegate.shareData)
-                .frame(width: 450, height: 380)
+                .frame(width: 450, height: 450)
         }
     }
 }
