@@ -33,6 +33,8 @@ struct MinHashOptimized {
     private let numHashFunctions: Int
     /// 各ハッシュ関数で使用するシード値
     private let seeds: [Int]
+    /// N-gramのサイズ
+    private let nGramSize = 3
 
     /// 初期化
     /// - Parameters:
@@ -42,20 +44,46 @@ struct MinHashOptimized {
         self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
     }
 
-    /// テキストのMinHashシグネチャを計算
+    /// 文字列から文字ベースのN-gramを生成
+    private func generateCharacterNGrams(for text: String) -> [String] {
+        guard text.count >= nGramSize else { return [text] } // N-gramサイズ未満の場合はテキスト全体を返す
+
+        var ngrams: [String] = []
+        let characters = Array(text) // 文字の配列に変換
+
+        for index in 0...(characters.count - nGramSize) {
+            let ngram = String(characters[index..<(index + nGramSize)])
+            ngrams.append(ngram)
+        }
+        return ngrams
+    }
+
+    /// テキストのMinHashシグネチャを計算 (文字ベースN-gramを使用)
     /// - Parameters:
     ///   - text: シグネチャを計算するテキスト
     /// - Returns: 計算されたMinHashシグネチャ
     func computeMinHashSignature(for text: String) -> [Int] {
-        let words = text.unicodeScalars.split(separator: " ")
+        // 文字ベースのN-gramを生成
+        let ngrams = generateCharacterNGrams(for: text)
+
+        // N-gramがない場合は空のシグネチャを返す（またはエラー処理）
+        guard !ngrams.isEmpty else {
+            // すべてのハッシュ関数に対して最大値を返すことで、他のテキストとの類似度を0にする
+            return Array(repeating: Int.max, count: numHashFunctions)
+        }
+
         return self.seeds.map { seed in
             var minHash = Int.max
-            for word in words {
-                let hash = SimpleHasher.customHash(word, seed: seed)
+            // 各N-gramに対してハッシュを計算し、最小値を見つける
+            for ngram in ngrams {
+                // SimpleHasher.customHashはCollection<Unicode.Scalar>を期待するため、Stringを変換
+                let hash = SimpleHasher.customHash(ngram.unicodeScalars, seed: seed)
                 if hash < minHash {
                     minHash = hash
                 }
             }
+            // もしminHashがInt.maxのままなら（理論上はngramsが空でない限り起こらないはず）、
+            // 0を返すなど、明確なデフォルト値を設定することも検討できる
             return minHash
         }
     }
@@ -98,11 +126,11 @@ struct TextModelOptimizedWithLRU {
     ///   - entries: 処理対象のテキストエントリ
     ///   - avoidApps: 除外するアプリケーション名のセット
     ///   - minTextLength: 最小テキスト長
-    ///   - similarityThreshold: 類似度の閾値（デフォルト: 0.8）
+    ///   - similarityThreshold: 類似度の閾値（デフォルト: 0.7）
     /// - Returns: 重複を除去したエントリと重複数
     mutating func purifyTextEntriesWithMinHash(
         _ entries: [TextEntry], avoidApps: Set<String>, minTextLength: Int,
-        similarityThreshold: Double = 0.8
+        similarityThreshold: Double = 0.7
     ) -> ([TextEntry], Int) {
         var uniqueEntries: [TextEntry] = []
         var duplicateCount = 0
