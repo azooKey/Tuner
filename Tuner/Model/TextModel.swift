@@ -812,7 +812,7 @@ extension TextModel {
                     }
                     
                     // ファイルをインポート済みとしてマーク
-                    markFileAsImported(fileName)
+                    markFileAsImported(fileName, jsonlFileName: generateJsonlFileName(for: fileName), lastModifiedDate: Date())
                     importedFileCount += 1
                     print("[DEBUG] Successfully imported: \(fileName)")
                     
@@ -869,12 +869,31 @@ extension TextModel {
     }
     
     /// 指定したファイルを、同じフォルダー内でファイル名の先頭に "IMPORTED_" を付けてリネームする
-    private func markFileAsImported(fileURL: URL) throws {
+    private func markFileAsImported(_ fileName: String, jsonlFileName: String, lastModifiedDate: Date) {
         let fileManager = FileManager.default
-        let fileName = fileURL.lastPathComponent
         let importedFileName = "IMPORTED_" + fileName
-        let newURL = fileURL.deletingLastPathComponent().appendingPathComponent(importedFileName)
-        try fileManager.moveItem(at: fileURL, to: newURL)
+        let newURL = getAppDirectory().appendingPathComponent(importedFileName)
+        try? fileManager.moveItem(at: getAppDirectory().appendingPathComponent(fileName), to: newURL)
+        
+        var status = loadImportStatus()
+        status.importedFiles[fileName] = ImportStatus.FileInfo(
+            importDate: Date(),
+            jsonlFileName: jsonlFileName,
+            lastModifiedDate: lastModifiedDate
+        )
+        saveImportStatus(status)
+    }
+    
+    /// ファイルのJSONLファイル名を生成
+    private func generateJsonlFileName(for fileName: String) -> String {
+        let timestamp = Int(Date().timeIntervalSince1970)
+        return "imported_\(fileName)_\(timestamp).jsonl"
+    }
+    
+    /// ファイルがインポート済みかどうかを確認
+    private func isFileImported(_ fileName: String) -> Bool {
+        let status = loadImportStatus()
+        return status.importedFiles[fileName] != nil
     }
 }
 
@@ -1173,7 +1192,12 @@ extension TextModel {
 extension TextModel {
     /// インポート状態を管理する構造体
     private struct ImportStatus: Codable {
-        var importedFiles: [String: Date] // ファイル名: インポート日時
+        struct FileInfo: Codable {
+            var importDate: Date
+            var jsonlFileName: String
+            var lastModifiedDate: Date
+        }
+        var importedFiles: [String: FileInfo] // ファイル名: ファイル情報
     }
     
     /// インポート状態ファイルのURLを取得
@@ -1212,10 +1236,40 @@ extension TextModel {
         return status.importedFiles[fileName] != nil
     }
     
+    /// ファイルのJSONLファイル名を生成
+    private func generateJsonlFileName(for fileName: String) -> String {
+        let timestamp = Int(Date().timeIntervalSince1970)
+        return "imported_\(fileName)_\(timestamp).jsonl"
+    }
+    
     /// ファイルをインポート済みとしてマーク
-    private func markFileAsImported(_ fileName: String) {
+    private func markFileAsImported(_ fileName: String, jsonlFileName: String, lastModifiedDate: Date) {
         var status = loadImportStatus()
-        status.importedFiles[fileName] = Date()
+        status.importedFiles[fileName] = ImportStatus.FileInfo(
+            importDate: Date(),
+            jsonlFileName: jsonlFileName,
+            lastModifiedDate: lastModifiedDate
+        )
         saveImportStatus(status)
+    }
+    
+    /// ファイルの最終更新日時を取得
+    private func getFileLastModifiedDate(_ fileURL: URL) -> Date? {
+        do {
+            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
+            return attributes[.modificationDate] as? Date
+        } catch {
+            print("❌ Failed to get file modification date: \(error.localizedDescription)")
+            return nil
+        }
+    }
+    
+    /// ファイルが更新されているかどうかを確認
+    private func isFileUpdated(_ fileName: String, currentModifiedDate: Date) -> Bool {
+        let status = loadImportStatus()
+        guard let fileInfo = status.importedFiles[fileName] else {
+            return false
+        }
+        return currentModifiedDate > fileInfo.lastModifiedDate
     }
 }
