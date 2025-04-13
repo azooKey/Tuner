@@ -318,7 +318,8 @@ class TextModel: ObservableObject {
 
             if unreadableLines.count > 0 {
                 let unreadableFileURL = self.getFileURL().deletingLastPathComponent().appendingPathComponent("unreadableLines.txt") // Use same directory
-                let unreadableText = unreadableLines.joined(separator: "\n")
+                let unreadableText = unreadableLines.joined(separator
+                                                            : "\n")
                 do {
                     try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
                 } catch {
@@ -615,7 +616,23 @@ class TextModel: ObservableObject {
             print("❌ Failed to create WIP file: \(error)")
         }
         
-        await trainNGram(lines: lines, n: ngramSize, baseFilePattern: baseFilePattern, outputDir: outputDir, resumeFilePattern: baseFilePattern)
+        // trainNGram 呼び出しを do-catch で囲む
+        do {
+             // --- テスト用変更を元に戻す ---
+             let resumePattern = baseFilePattern // lm の場合は lm を resumePattern として渡す
+             print("    Calling trainNGram with resumeFilePattern = \(resumePattern)") // ログ追加
+             try await trainNGram( // try を追加 (もし trainNGram が throws する場合)
+                 lines: lines,
+                 n: n,
+                 baseFilePattern: baseFilePattern,
+                 outputDir: outputDir,
+                 resumeFilePattern: resumePattern // 元のコードに戻す
+             )
+             // --- テスト用変更ここまで ---
+             print("  trainNGram call finished successfully.")
+        } catch {
+            print("❌ Failed to train N-gram model: \(error)")
+        }
 
         // WIP ファイルを削除
         do {
@@ -1285,5 +1302,73 @@ extension TextModel {
             return false
         }
         return currentModifiedDate > fileInfo.lastModifiedDate
+    }
+}
+
+// MARK: - 手動での追加学習
+extension TextModel {
+    /// 手動でN-gramモデルの追加学習 (lm) を実行する
+    func trainIncrementalNGramManually() async {
+        print("Starting manual incremental N-gram training (lm)...")
+        
+        // --- 事前チェック: 必要な lm ファイルが存在するか確認 ---
+        let fileManager = FileManager.default
+        let lmDirURL = getLMDirectory()
+        let expectedLmFiles = [
+            "lm_c_abc.marisa",
+            "lm_u_abx.marisa",
+            "lm_u_xbc.marisa",
+            "lm_r_xbx.marisa",
+            "lm_c_bc.marisa"
+        ]
+        var allLmFilesExist = true
+        print("  Checking for existing LM files in: \(lmDirURL.path)")
+        for lmFile in expectedLmFiles {
+            let lmPath = lmDirURL.appendingPathComponent(lmFile).path
+            if fileManager.fileExists(atPath: lmPath) {
+                print("    Found: \(lmFile)")
+            } else {
+                print("    ❌ MISSING: \(lmFile)")
+                allLmFilesExist = false
+            }
+        }
+        
+        guard allLmFilesExist else {
+            print("  Required LM files are missing. Aborting incremental training.")
+            print("  Please run 'N-gram再構築 (全データ)' first to create the initial LM models.")
+            // ここでユーザーにアラートを表示するなどの処理を追加することも可能
+            return
+        }
+        print("  All required LM files found.")
+        // --- 事前チェック完了 ---
+        
+        // savedTexts.jsonl から読み込み
+        let savedTexts = await loadFromFileAsync()
+        print("  Loaded \(savedTexts.count) entries from savedTexts.jsonl")
+        
+        // import.jsonl から読み込み
+        let importTexts = await loadFromImportFileAsync()
+        print("  Loaded \(importTexts.count) entries from import.jsonl")
+        
+        // 両方を結合
+        let combinedEntries = savedTexts + importTexts
+        print("  Total entries for training: \(combinedEntries.count)")
+        
+        guard !combinedEntries.isEmpty else {
+            print("No entries found to train. Aborting incremental training.")
+            // 必要であればユーザーに通知する処理を追加
+            return
+        }
+        
+        // trainNGramOnNewEntries を lm モードで呼び出す
+        // trainNGramOnNewEntries は内部で trainNGram を呼び出し、
+        // resumeFilePattern="lm" により既存の lm モデルに追記学習する
+        await trainNGramOnNewEntries(newEntries: combinedEntries, n: self.ngramSize, baseFilePattern: "lm")
+        
+        // 最終訓練日時を更新
+        await MainActor.run {
+            self.lastNGramTrainingDate = Date()
+            print("Manual incremental N-gram training (lm) finished at \(self.lastNGramTrainingDate!)")
+        }
     }
 }
