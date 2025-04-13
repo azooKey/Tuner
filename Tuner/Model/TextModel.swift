@@ -904,6 +904,33 @@ extension TextModel {
     }
 }
 
+// MARK: - インポート履歴のリセット
+extension TextModel {
+    /// import.jsonl ファイルを削除し、ShareDataのインポート履歴をリセットする
+    func resetImportHistory(shareData: ShareData) async {
+        let fileManager = FileManager.default
+        let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
+        
+        do {
+            if fileManager.fileExists(atPath: importFileURL.path) {
+                try fileManager.removeItem(at: importFileURL)
+                print("Deleted import.jsonl successfully.")
+            } else {
+                print("import.jsonl does not exist, skipping deletion.")
+            }
+            
+            // ShareDataの値をリセット
+            await MainActor.run {
+                shareData.lastImportDate = nil
+                shareData.lastImportedFileCount = -1
+                print("Import history in ShareData reset.")
+            }
+        } catch {
+            print("❌ Failed to reset import history: \(error.localizedDescription)")
+        }
+    }
+}
+
 // TextModel.swift に追加する拡張
 extension TextModel {
     // import.jsonlからテキストエントリを読み込む関数

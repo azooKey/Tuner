@@ -27,6 +27,8 @@ struct SettingsView: View {
     @State private var searchText = ""
     /// ローディング中のメッセージ
     @State private var loadingMessage = "アプリリスト更新中..."
+    /// インポート履歴リセット確認アラートの表示状態
+    @State private var showingResetAlert = false
 
     /// 検索フィルター適用後のアプリケーションリスト
     private var filteredApps: [String] {
@@ -283,38 +285,59 @@ extension SettingsView {
             // アクションセクション
             GroupBox(label: Label("アクション", systemImage: "gearshape").font(.subheadline)) {
                 VStack(alignment: .leading, spacing: 10) {
-                    // インポートボタン
+                    // インポートボタン、リセットボタン、最終状況表示のHStack
                     HStack {
+                        // インポートボタン
                         Button {
                             Task {
-                                // shareDataを引数として渡す
                                 await textModel.importTextFiles(shareData: shareData, avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
                             }
                         } label: {
-                            Label("テキストファイルをインポート", systemImage: "square.and.arrow.down")
+                            Label("ファイルインポート", systemImage: "square.and.arrow.down")
                                 .font(.footnote)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
-                        
+
+                        // インポート履歴リセットボタン (インポートフォルダが設定されている場合のみ表示)
+                        if shareData.importBookmarkData != nil {
+                             Button(role: .destructive) {
+                                 showingResetAlert = true
+                             } label: {
+                                 Label("リセット", systemImage: "trash")
+                                     .font(.caption)
+                             }
+                             .buttonStyle(.bordered)
+                             .controlSize(.small)
+                             .help("import.jsonlとインポート記録を削除")
+                        }
+
                         Spacer()
-                        
+
                         // 最終インポート状況を表示
                         if let lastImportDate = shareData.lastImportDateAsDate {
                             VStack(alignment: .trailing, spacing: 2) {
                                 Text("最終チェック: \(lastImportDate, formatter: dateFormatter)")
                                 if shareData.lastImportedFileCount >= 0 {
-                                    Text("\(shareData.lastImportedFileCount) ファイルインポート済")
+                                    Text("最後に \(shareData.lastImportedFileCount) ファイルをインポート")
                                 }
                             }
                             .font(.caption)
                             .foregroundColor(.secondary)
                         } else {
-                            Text("未実行")
+                             Text("未実行")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
+
+                    // インポート機能の説明
+                    Text("インポートフォルダ内の `.txt` ファイルを読み込み、`savedText.jsonl` に追加します。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text("既にインポート済みのファイルはスキップされます。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
 
                     Divider()
 
@@ -393,6 +416,16 @@ extension SettingsView {
                 }
                 .padding(.vertical, 6)
             }
+        }
+        .alert("インポート履歴のリセット", isPresented: $showingResetAlert) {
+            Button("キャンセル", role: .cancel) { }
+            Button("リセット", role: .destructive) {
+                Task {
+                    await textModel.resetImportHistory(shareData: shareData)
+                }
+            }
+        } message: {
+            Text("`import.jsonl` ファイルと記録された日時/ファイル数が削除されます。よろしいですか？")
         }
     }
 
