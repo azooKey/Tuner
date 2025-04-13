@@ -386,8 +386,8 @@ extension SettingsView {
                 .font(.footnote)
                 .frame(width: 60, alignment: .leading) // ラベル幅を固定
 
-            // パス表示 (省略表示)
-            Text(path.lastPathComponent)
+            // パス表示 (省略表示) - フルパス表示に変更
+            Text(path.path) // .lastPathComponent を削除
                 .font(.system(.footnote, design: .monospaced))
                 .lineLimit(1)
                 .truncationMode(.middle) // 中央を省略
