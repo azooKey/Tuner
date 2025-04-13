@@ -711,7 +711,6 @@ extension TextModel {
         // 1. ブックマークデータが存在するか確認
         guard let bookmarkData = shareData.importBookmarkData else {
             print("インポートフォルダが設定されていません。Settings -> データ管理でフォルダを選択してください。")
-            // 必要であればユーザーに通知する処理を追加
             return
         }
         
@@ -721,82 +720,63 @@ extension TextModel {
         do {
             // 2. ブックマークデータからURLを解決し、アクセス権を取得
             let url = try URL(resolvingBookmarkData: bookmarkData,
-                            options: [.withSecurityScope], // セキュリティスコープ付きで解決
+                            options: [.withSecurityScope],
                             relativeTo: nil,
                             bookmarkDataIsStale: &isStale)
             
             if isStale {
                 print("インポートフォルダのブックマークが古くなっています。Settings -> データ管理で再選択してください。")
-                // 必要であればユーザーに通知 & ブックマークをクリアする処理
-                // shareData.importBookmarkData = nil
-                // shareData.importTextPath = ""
                 return
             }
             
             guard url.startAccessingSecurityScopedResource() else {
                 print("インポートフォルダへのアクセス権を取得できませんでした: \(url.path)")
-                // 必要であればユーザーに通知
                 return
             }
             
-            // アクセス権を確実に解放するためのdeferブロック
             defer { url.stopAccessingSecurityScopedResource() }
             
             print("インポートフォルダへのアクセス権を取得: \(url.path)")
-            importFolderURL = url // アクセス可能なURLを保持
+            importFolderURL = url
 
         } catch {
             print("インポートフォルダのブックマーク解決またはアクセス権取得に失敗しました: \(error.localizedDescription)")
-            // 必要であればユーザーに通知 & ブックマークをクリアする処理
-            // shareData.importBookmarkData = nil
-            // shareData.importTextPath = ""
             return
         }
         
-        // 3. アクセス可能なURLを使用してインポート処理を実行
         guard let importFolder = importFolderURL else {
-             // ここに来ることは通常ないはずだが、念のため
-             print("エラー: アクセス可能なインポートフォルダURLがありません。")
-             return
+            print("エラー: アクセス可能なインポートフォルダURLがありません。")
+            return
         }
         
-        // インポートしたファイル数をカウントする変数 (スコープを外に出す)
         var importedFileCount = 0
-        // ファイルURLリスト (スコープを外に出す)
         let fileURLs: [URL]
         
         do {
-            // importFolder (ブックマークから解決したURL) の内容を取得
             fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
         } catch {
-             print("❌ Failed to list import folder contents: \(error.localizedDescription)")
-             // フォルダ内容の取得に失敗したらここで終了
-             return
+            print("❌ Failed to list import folder contents: \(error.localizedDescription)")
+            return
         }
             
-        // フォルダ内容の取得に成功した場合のみ続行
         if fileURLs.isEmpty {
             print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(importFolder.path)")
-            // ファイルがない場合もShareData更新のために末尾まで進む (必要に応じて)
-            // return // ここでreturnするとShareDataが更新されない
         } else {
             print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(importFolder.path)")
         }
             
-        // --- ファイルごとの処理 --- 
-        do { // エラーハンドリングのためdoブロックは残す
+        do {
             let existingEntries = await loadFromFileAsync()
             var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
             
             var newEntries: [TextEntry] = []
-            // var importedFileCount = 0 // 宣言を上に移動
             
-            print("[DEBUG] Starting file processing loop...")
             for fileURL in fileURLs {
                 let fileName = fileURL.lastPathComponent
                 print("[DEBUG] Processing file: \(fileName)")
                 
-                if fileName.hasPrefix("IMPORTED") {
+                // インポート状態を確認
+                if isFileImported(fileName) {
                     print("[DEBUG] Skipping already imported file: \(fileName)")
                     continue
                 }
@@ -831,9 +811,10 @@ extension TextModel {
                         newEntries.append(newEntry)
                     }
                     
-                    try markFileAsImported(fileURL: fileURL)
-                    importedFileCount += 1 // インポート成功したらカウントアップ
-                    print("[DEBUG] Successfully imported and marked: \(fileName)")
+                    // ファイルをインポート済みとしてマーク
+                    markFileAsImported(fileName)
+                    importedFileCount += 1
+                    print("[DEBUG] Successfully imported: \(fileName)")
                     
                 } catch {
                     print("❌ Error processing file \(fileName): \(error.localizedDescription)")
@@ -845,7 +826,6 @@ extension TextModel {
                 let importFileURL = appDirectory.appendingPathComponent("import.jsonl")
                 
                 do {
-                    // import.jsonlへの追記処理に変更
                     var currentContent = ""
                     if fileManager.fileExists(atPath: importFileURL.path) {
                         currentContent = try String(contentsOf: importFileURL, encoding: .utf8)
@@ -861,7 +841,6 @@ extension TextModel {
                             newContent.append(jsonString + "\n")
                         }
                     }
-                    // 既存の内容と新しい内容を結合して書き込む
                     try (currentContent + newContent).write(to: importFileURL, atomically: true, encoding: .utf8)
                     print("\(newEntries.count) 件の新規エントリを import.jsonl に追記しました。")
                 } catch {
@@ -870,27 +849,22 @@ extension TextModel {
             }
             
         } catch {
-            // このcatchは主にJSONLへの書き込みエラーを捕捉する
             print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
         }
         
         print("[DEBUG] Finished file processing loop.")
-        // インポート処理の最後にShareDataを更新
-        await MainActor.run { // @Publishedプロパティへのアクセスはメインスレッドで
-             print("[DEBUG] Updating ShareData. Imported count: \(importedFileCount)")
-             if importedFileCount > 0 {
-                 shareData.lastImportedFileCount = importedFileCount
-                 shareData.lastImportDate = Date().timeIntervalSince1970
-                 print("[DEBUG] Import record updated: \(importedFileCount) files, Date: \(shareData.lastImportDateAsDate?.description ?? "nil")")
-             } else if !fileURLs.isEmpty {
-                 print("[DEBUG] No new files were imported, but folder was checked. Updating check date.")
-                 // ファイルは存在したがインポートされなかった場合 (例: 全てIMPORTED_済み)
-                 // 最終チェック日時のみ更新する
-                 shareData.lastImportDate = Date().timeIntervalSince1970
-                 // lastImportedFileCount は変更しない
-             } else {
-                 print("[DEBUG] No files found in import folder. Import record not updated.")
-             }
+        await MainActor.run {
+            print("[DEBUG] Updating ShareData. Imported count: \(importedFileCount)")
+            if importedFileCount > 0 {
+                shareData.lastImportedFileCount = importedFileCount
+                shareData.lastImportDate = Date().timeIntervalSince1970
+                print("[DEBUG] Import record updated: \(importedFileCount) files, Date: \(shareData.lastImportDateAsDate?.description ?? "nil")")
+            } else if !fileURLs.isEmpty {
+                print("[DEBUG] No new files were imported, but folder was checked. Updating check date.")
+                shareData.lastImportDate = Date().timeIntervalSince1970
+            } else {
+                print("[DEBUG] No files found in import folder. Import record not updated.")
+            }
         }
     }
     
@@ -912,12 +886,16 @@ extension TextModel {
         let importFileURL = getAppDirectory().appendingPathComponent("import.jsonl")
         
         do {
+            // import.jsonlを削除
             if fileManager.fileExists(atPath: importFileURL.path) {
                 try fileManager.removeItem(at: importFileURL)
                 print("Deleted import.jsonl successfully.")
             } else {
                 print("import.jsonl does not exist, skipping deletion.")
             }
+            
+            // インポート状態をリセット
+            resetImportStatus()
             
             // ShareDataの値をリセット
             await MainActor.run {
@@ -1188,5 +1166,56 @@ extension TextModel {
         let sortedLangTextCounts = langText.sorted { $0.value > $1.value } + [("Other", langOther)]
         
         return (sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats, sortedLangTextCounts)
+    }
+}
+
+// MARK: - インポート状態管理
+extension TextModel {
+    /// インポート状態を管理する構造体
+    private struct ImportStatus: Codable {
+        var importedFiles: [String: Date] // ファイル名: インポート日時
+    }
+    
+    /// インポート状態ファイルのURLを取得
+    private func getImportStatusFileURL() -> URL {
+        return getAppDirectory().appendingPathComponent("import_status.json")
+    }
+    
+    /// インポート状態を読み込む
+    private func loadImportStatus() -> ImportStatus {
+        let fileURL = getImportStatusFileURL()
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              let data = try? Data(contentsOf: fileURL),
+              let status = try? JSONDecoder().decode(ImportStatus.self, from: data) else {
+            return ImportStatus(importedFiles: [:])
+        }
+        return status
+    }
+    
+    /// インポート状態を保存する
+    private func saveImportStatus(_ status: ImportStatus) {
+        let fileURL = getImportStatusFileURL()
+        if let data = try? JSONEncoder().encode(status) {
+            try? data.write(to: fileURL)
+        }
+    }
+    
+    /// インポート状態をリセットする
+    private func resetImportStatus() {
+        let fileURL = getImportStatusFileURL()
+        try? FileManager.default.removeItem(at: fileURL)
+    }
+    
+    /// ファイルがインポート済みかどうかを確認
+    private func isFileImported(_ fileName: String) -> Bool {
+        let status = loadImportStatus()
+        return status.importedFiles[fileName] != nil
+    }
+    
+    /// ファイルをインポート済みとしてマーク
+    private func markFileAsImported(_ fileName: String) {
+        var status = loadImportStatus()
+        status.importedFiles[fileName] = Date()
+        saveImportStatus(status)
     }
 }
