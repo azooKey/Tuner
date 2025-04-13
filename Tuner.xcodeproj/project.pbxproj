@@ -369,7 +369,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
-				DEVELOPMENT_TEAM = 9S3UXHYP65;
+				DEVELOPMENT_TEAM = CW97U5J24N;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -401,7 +401,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Tuner/Preview Content\"";
-				DEVELOPMENT_TEAM = 9S3UXHYP65;
+				DEVELOPMENT_TEAM = CW97U5J24N;
 				ENABLE_HARDENED_RUNTIME = YES;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
@@ -451,7 +451,7 @@
 			repositoryURL = "https://github.com/ensan-hcl/AzooKeyKanaKanjiConverter";
 			requirement = {
 				kind = revision;
-				revision = 0e8e3e7ba33ab4c085c70192034611d131502f9e;
+				revision = 24f506b5b522f54854860364d9fb261033408a0b;
 			};
 		};
 /* End XCRemoteSwiftPackageReference section */
