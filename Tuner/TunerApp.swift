@@ -16,10 +16,14 @@ struct TunerApp: App {
     /// - 設定画面の表示
     var body: some Scene {
         // メニューバーに表示されるメニュービュー
-        MenuBarExtra("Tuner", systemImage: "doc.text"){
+        MenuBarExtra {
+            // メニューをクリックしたときに表示される内容
             MenuView()
                 .environmentObject(appDelegate.textModel)
                 .environmentObject(appDelegate.shareData)
+        } label: {
+            // メニューバーに表示するアイコン画像
+            Image("MenuBarIcon") // Assets.xcassets に追加した画像名を指定
         }
         
         // 設定画面
