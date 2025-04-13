@@ -296,7 +296,24 @@ extension SettingsView {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        
                         Spacer()
+                        
+                        // 最終インポート状況を表示
+                        if let lastImportDate = shareData.lastImportDateAsDate {
+                            VStack(alignment: .trailing, spacing: 2) {
+                                Text("最終チェック: \(lastImportDate, formatter: dateFormatter)")
+                                if shareData.lastImportedFileCount >= 0 {
+                                    Text("\(shareData.lastImportedFileCount) ファイルインポート済")
+                                }
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        } else {
+                            Text("未実行")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     }
 
                     Divider()

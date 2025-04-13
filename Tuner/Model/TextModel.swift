@@ -760,24 +760,44 @@ extension TextModel {
              return
         }
         
+        // インポートしたファイル数をカウントする変数 (スコープを外に出す)
+        var importedFileCount = 0
+        // ファイルURLリスト (スコープを外に出す)
+        let fileURLs: [URL]
+        
         do {
             // importFolder (ブックマークから解決したURL) の内容を取得
-            let fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
-            if fileURLs.isEmpty {
-                print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(importFolder.path)")
-                return
-            }
+            fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
+        } catch {
+             print("❌ Failed to list import folder contents: \(error.localizedDescription)")
+             // フォルダ内容の取得に失敗したらここで終了
+             return
+        }
             
+        // フォルダ内容の取得に成功した場合のみ続行
+        if fileURLs.isEmpty {
+            print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(importFolder.path)")
+            // ファイルがない場合もShareData更新のために末尾まで進む (必要に応じて)
+            // return // ここでreturnするとShareDataが更新されない
+        } else {
             print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(importFolder.path)")
+        }
             
+        // --- ファイルごとの処理 --- 
+        do { // エラーハンドリングのためdoブロックは残す
             let existingEntries = await loadFromFileAsync()
             var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
             
             var newEntries: [TextEntry] = []
+            // var importedFileCount = 0 // 宣言を上に移動
             
+            print("[DEBUG] Starting file processing loop...")
             for fileURL in fileURLs {
                 let fileName = fileURL.lastPathComponent
+                print("[DEBUG] Processing file: \(fileName)")
+                
                 if fileName.hasPrefix("IMPORTED") {
+                    print("[DEBUG] Skipping already imported file: \(fileName)")
                     continue
                 }
                 
@@ -812,6 +832,8 @@ extension TextModel {
                     }
                     
                     try markFileAsImported(fileURL: fileURL)
+                    importedFileCount += 1 // インポート成功したらカウントアップ
+                    print("[DEBUG] Successfully imported and marked: \(fileName)")
                     
                 } catch {
                     print("❌ Error processing file \(fileName): \(error.localizedDescription)")
@@ -848,7 +870,27 @@ extension TextModel {
             }
             
         } catch {
-            print("❌ Failed to list import folder contents: \(error.localizedDescription)")
+            // このcatchは主にJSONLへの書き込みエラーを捕捉する
+            print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
+        }
+        
+        print("[DEBUG] Finished file processing loop.")
+        // インポート処理の最後にShareDataを更新
+        await MainActor.run { // @Publishedプロパティへのアクセスはメインスレッドで
+             print("[DEBUG] Updating ShareData. Imported count: \(importedFileCount)")
+             if importedFileCount > 0 {
+                 shareData.lastImportedFileCount = importedFileCount
+                 shareData.lastImportDate = Date().timeIntervalSince1970
+                 print("[DEBUG] Import record updated: \(importedFileCount) files, Date: \(shareData.lastImportDateAsDate?.description ?? "nil")")
+             } else if !fileURLs.isEmpty {
+                 print("[DEBUG] No new files were imported, but folder was checked. Updating check date.")
+                 // ファイルは存在したがインポートされなかった場合 (例: 全てIMPORTED_済み)
+                 // 最終チェック日時のみ更新する
+                 shareData.lastImportDate = Date().timeIntervalSince1970
+                 // lastImportedFileCount は変更しない
+             } else {
+                 print("[DEBUG] No files found in import folder. Import record not updated.")
+             }
         }
     }
     

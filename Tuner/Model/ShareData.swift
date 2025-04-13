@@ -38,6 +38,11 @@ class ShareData: ObservableObject {
     /// ユーザーが設定したテキストインポートフォルダへのアクセス権を保持するブックマークデータ
     @Published var importBookmarkData: Data? = nil
     
+    /// 最終インポート日時 (Unixタイムスタンプ)
+    @Published var lastImportDate: TimeInterval? = nil
+    /// 最後にインポートしたファイル数 (-1は未実行)
+    @Published var lastImportedFileCount: Int = -1
+    
     /// 現在実行中のアプリケーションのリスト (これは永続化しない)
     @Published var apps: [String] = []
 
@@ -50,11 +55,19 @@ class ShareData: ObservableObject {
     private let minTextLengthKey = "minTextLength"
     private let importTextPathKey = "importTextPath"
     private let importBookmarkDataKey = "importBookmarkData"
+    private let lastImportDateKey = "lastImportDate"
+    private let lastImportedFileCountKey = "lastImportedFileCount"
 
     // avoidAppsをData <-> [String] 変換するためのComputed Property
     var avoidApps: [String] {
         get { ShareData.decodeAvoidApps(avoidAppsData) }
         set { avoidAppsData = ShareData.encodeAvoidApps(newValue) }
+    }
+
+    /// lastImportDateをDate?型で取得するためのComputed Property
+    var lastImportDateAsDate: Date? {
+        guard let timestamp = lastImportDate else { return nil }
+        return Date(timeIntervalSince1970: timestamp)
     }
 
     // Combineの購読を管理するためのセット
@@ -64,6 +77,12 @@ class ShareData: ObservableObject {
     init() {
         // ブックマークデータをUserDefaultsから読み込む
         self.importBookmarkData = UserDefaults.standard.data(forKey: importBookmarkDataKey)
+        // 最終インポート日時をUserDefaultsから読み込む
+        if UserDefaults.standard.object(forKey: lastImportDateKey) != nil {
+             self.lastImportDate = UserDefaults.standard.double(forKey: lastImportDateKey)
+        }
+        // 最後にインポートしたファイル数をUserDefaultsから読み込む (存在しなければ-1)
+        self.lastImportedFileCount = UserDefaults.standard.object(forKey: lastImportedFileCountKey) as? Int ?? -1
 
         // importBookmarkDataの変更を監視し、UserDefaultsに保存する
         $importBookmarkData
@@ -72,6 +91,28 @@ class ShareData: ObservableObject {
                 guard let self = self else { return }
                 UserDefaults.standard.set(newValue, forKey: self.importBookmarkDataKey)
                 // print("Bookmark data saved to UserDefaults.") // デバッグ用
+            }
+            .store(in: &cancellables)
+        
+        // lastImportDateの変更を監視し、UserDefaultsに保存する
+        $lastImportDate
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .sink { [weak self] newValue in
+                guard let self = self else { return }
+                if let value = newValue {
+                    UserDefaults.standard.set(value, forKey: self.lastImportDateKey)
+                } else {
+                    UserDefaults.standard.removeObject(forKey: self.lastImportDateKey)
+                }
+            }
+            .store(in: &cancellables)
+        
+        // lastImportedFileCountの変更を監視し、UserDefaultsに保存する
+        $lastImportedFileCount
+            .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
+            .sink { [weak self] newValue in
+                guard let self = self else { return }
+                UserDefaults.standard.set(newValue, forKey: self.lastImportedFileCountKey)
             }
             .store(in: &cancellables)
     }
@@ -144,11 +185,15 @@ extension ShareData {
         UserDefaults.standard.removeObject(forKey: minTextLengthKey)
         UserDefaults.standard.removeObject(forKey: importTextPathKey)
         UserDefaults.standard.removeObject(forKey: importBookmarkDataKey)
+        UserDefaults.standard.removeObject(forKey: lastImportDateKey)
+        UserDefaults.standard.removeObject(forKey: lastImportedFileCountKey)
         
         // @Publishedなプロパティは直接初期化
         DispatchQueue.main.async {
             self.apps = []
             self.importBookmarkData = nil // Publishedプロパティもリセット
+            self.lastImportDate = nil
+            self.lastImportedFileCount = -1
         }
     }
     
@@ -163,7 +208,9 @@ extension ShareData {
                minTextLength == 3 &&
                apps.isEmpty &&
                importTextPath == "" &&
-               importBookmarkData == nil
+               importBookmarkData == nil &&
+               lastImportDate == nil &&
+               lastImportedFileCount == -1
     }
 }
 #endif
