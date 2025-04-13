@@ -154,7 +154,7 @@ class TextModel: ObservableObject {
                 // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
                 if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 {
                     Task {
-                        await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilename: "lm")
+                        await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilePattern: "lm")
                     }
                 }
 
@@ -555,7 +555,7 @@ class TextModel: ObservableObject {
     ///   - newEntries: 新規テキストエントリの配列
     ///   - n: N-gramのサイズ
     ///   - baseFilename: ベースとなるファイル名
-    func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilename: String) async {
+    func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilePattern: String) async {
         let lines = newEntries.map { $0.text }
         if lines.isEmpty {
             return
@@ -575,7 +575,7 @@ class TextModel: ObservableObject {
             return
         }
         
-        if baseFilename == "lm" {
+        if baseFilePattern == "lm" {
             let lmCheckURL = URL(fileURLWithPath: outputDir).appendingPathComponent("lm_c_abc.marisa")
             if !fileManager.fileExists(atPath: lmCheckURL.path) {
                 let originalFiles = [
@@ -604,15 +604,15 @@ class TextModel: ObservableObject {
             }
         }
         
-        let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilename).wip")
+        let wipFileURL = URL(fileURLWithPath: outputDir).appendingPathComponent("\(baseFilePattern).wip")
         do {
             try "Training in progress".write(to: wipFileURL, atomically: true, encoding: .utf8)
         } catch {
             print("❌ Failed to create WIP file: \(error)")
         }
         
-        await trainNGram(lines: lines, n: ngramSize, baseFilename: baseFilename, outputDir: outputDir)
-        
+        await trainNGram(lines: lines, n: ngramSize, baseFilePattern: baseFilePattern, outputDir: outputDir, resumeFilePattern: baseFilePattern)
+
         do {
             try fileManager.removeItem(at: wipFileURL)
         } catch {
@@ -626,7 +626,7 @@ class TextModel: ObservableObject {
     ///   - n: N-gramのサイズ
     ///   - baseFilename: ベースとなるファイル名
     ///   - maxEntryCount: 最大エントリ数
-    func trainNGramFromTextEntries(n: Int = 5, baseFilename: String = "original", maxEntryCount: Int = 100_000) async {
+    func trainNGramFromTextEntries(n: Int = 5, baseFilePattern: String = "original", maxEntryCount: Int = 100_000) async {
         let fileManager = FileManager.default
         
         let savedTexts = await loadFromFileAsync()
@@ -664,7 +664,7 @@ class TextModel: ObservableObject {
             return
         }
         
-        if baseFilename == "original" {
+        if baseFilePattern == "original" {
             let lmFiles = [
                 "lm_c_abc.marisa",
                 "lm_u_abx.marisa",
@@ -683,8 +683,8 @@ class TextModel: ObservableObject {
             }
         }
         
-        await trainNGram(lines: lines, n: n, baseFilename: baseFilename, outputDir: outputDir)
-        
+        await trainNGram(lines: lines, n: n, baseFilePattern: baseFilePattern, outputDir: outputDir)
+
         await MainActor.run {
             self.lastNGramTrainingDate = Date()
         }

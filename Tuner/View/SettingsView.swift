@@ -290,7 +290,7 @@ extension SettingsView {
                                 await textModel.trainNGramFromTextEntries()
                             }
                         } label: {
-                            Label("N-gramモデル訓練", systemImage: "wand.and.stars")
+                            Label("N-gramモデル再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle")
                                 .font(.footnote)
                         }
                         .buttonStyle(.bordered)
