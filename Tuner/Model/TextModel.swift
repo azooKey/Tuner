@@ -229,6 +229,13 @@ class TextModel: ObservableObject {
             if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
                 updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
             }
+
+            // 高頻度でMinHashによる重複削除処理を実行
+            if saveCounter % 100 == 0 { // 100エントリごとに実行
+                Task {
+                    await purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {}
+                }
+            }
         }
     }
     

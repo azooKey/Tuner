@@ -236,26 +236,50 @@ extension SettingsView {
             GroupBox(label: Label("データ状態", systemImage: "info.circle").font(.subheadline)) {
                 VStack(alignment: .leading, spacing: 8) {
                     // 最終保存日時
-                    if let lastSavedDate = textModel.lastSavedDate {
-                        HStack {
-                            Image(systemName: "arrow.down.doc")
-                                .foregroundColor(.blue)
-                            Text("最終保存:")
-                                .font(.caption)
+                    HStack {
+                        Image(systemName: "arrow.down.doc")
+                            .foregroundColor(textModel.lastSavedDate == nil ? .gray : .blue)
+                        Text("最終保存:")
+                            .font(.caption)
+                        if let lastSavedDate = textModel.lastSavedDate {
                             Text(lastSavedDate, formatter: dateFormatter)
                                 .font(.caption)
+                        } else {
+                            Text("データなし")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
-                    
-                    // 最終purify日時
-                    if let lastPurifyDate = textModel.lastPurifyDate {
-                        HStack {
-                            Image(systemName: "sparkles")
-                                .foregroundColor(.green)
-                            Text("最終整理:")
+
+                    // 最終N-gram訓練日時
+                    HStack {
+                        Image(systemName: "brain.head.profile")
+                            .foregroundColor(textModel.lastNGramTrainingDate == nil ? .gray : .purple)
+                        Text("最終N-gram訓練:")
+                            .font(.caption)
+                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
+                            Text(lastTrainingDate, formatter: dateFormatter)
                                 .font(.caption)
+                        } else {
+                            Text("未訓練")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+
+                    // 最終purify日時
+                    HStack {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(textModel.lastPurifyDate == nil ? .gray : .orange)
+                        Text("最終データ整理:")
+                            .font(.caption)
+                        if let lastPurifyDate = textModel.lastPurifyDate {
                             Text(lastPurifyDate, formatter: dateFormatter)
                                 .font(.caption)
+                        } else {
+                            Text("未実行")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
                         }
                     }
                 }
@@ -312,6 +336,44 @@ extension SettingsView {
                                 Image(systemName: "clock.arrow.circlepath")
                                     .foregroundColor(.orange)
                                 Text("未訓練")
+                            }
+                           .font(.caption)
+                           .foregroundColor(.secondary)
+                        }
+                    }
+
+                    Divider() // アクション間の区切り線を追加
+
+                    // データ整理ボタン
+                    HStack {
+                        Button {
+                            Task {
+                                // データ整理処理を呼び出す
+                                await textModel.purifyFile(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength) {}
+                            }
+                        } label: {
+                            Label("データ整理を実行", systemImage: "sparkles")
+                                .font(.footnote)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+
+                        Spacer()
+
+                        // 最終整理日時を表示（アクションセクションにも追加）
+                        if let lastPurifyDate = textModel.lastPurifyDate {
+                             HStack(spacing: 4) {
+                                Image(systemName: "checkmark.seal")
+                                    .foregroundColor(.orange)
+                                Text("最終整理: \(lastPurifyDate, formatter: dateFormatter)")
+                            }
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        } else {
+                            HStack(spacing: 4) {
+                                Image(systemName: "clock.arrow.circlepath")
+                                    .foregroundColor(.gray)
+                                Text("未実行")
                             }
                            .font(.caption)
                            .foregroundColor(.secondary)
