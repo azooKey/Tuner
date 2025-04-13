@@ -1,40 +1,51 @@
 #!/bin/bash
+set -e
 
-# バージョン設定
-VERSION="1.0.0"
-APP_NAME="Tuner"
-BUNDLE_ID="com.tuner.app"
+# Paths
+APP_PATH="/Users/takahashinaoki/Downloads/Tuner.app"
+BUILD_DIR="./build"
+PKG_TMP="Tuner-tmp.pkg"
+PKG_FINAL="Tuner-release.pkg"
+PKG_SIGNED="Tuner-release-signed.pkg"
+BUNDLE_ID="dev.ensan.tuner-debug.azooKeyMac"
+VERSION="1.0"
+INSTALL_LOCATION="/Applications"
 
-# ビルドディレクトリの設定
-BUILD_DIR="build"
-PKG_DIR="$BUILD_DIR/pkg"
-TEMP_DIR="$BUILD_DIR/temp"
-APPLICATIONS_DIR="$TEMP_DIR"
+# Clean previous build
+rm -rf "$BUILD_DIR"
+mkdir -p "$BUILD_DIR"
 
-# ディレクトリの作成
-mkdir -p "$BUILD_DIR" "$PKG_DIR" "$TEMP_DIR"
+# Copy app to build dir
+cp -R "$APP_PATH" "$BUILD_DIR/"
 
-# Xcodeビルド（自動署名を有効化）
-xcodebuild -project Tuner.xcodeproj -scheme Tuner -configuration Release CODE_SIGN_IDENTITY="-" CODE_SIGNING_REQUIRED=NO CODE_SIGNING_ALLOWED=NO
+# Create component plist (only needed once, or if app structure changes)
+pkgbuild --analyze --root "$BUILD_DIR" pkg.plist
 
-# アプリケーションバンドルをコピー
-DERIVED_DATA_APP="$HOME/Library/Developer/Xcode/DerivedData/Tuner-ciqmcchfmnbfecalwkclsxhusmkq/Build/Products/Release/$APP_NAME.app"
-cp -R "$DERIVED_DATA_APP" "$APPLICATIONS_DIR/"
-
-# pkgbuildの実行
-pkgbuild --root "$TEMP_DIR" \
+# Create temporary package
+pkgbuild --root "$BUILD_DIR" \
+         --component-plist pkg.plist \
          --identifier "$BUNDLE_ID" \
          --version "$VERSION" \
-         --install-location "/Applications" \
-         "$PKG_DIR/$APP_NAME.pkg"
+         --install-location "$INSTALL_LOCATION" \
+         "$PKG_TMP"
 
-# productbuildの実行
-productbuild --distribution Distribution.xml \
-             --package-path "$PKG_DIR" \
-             --version "$VERSION" \
-             "$BUILD_DIR/$APP_NAME-$VERSION.pkg"
+# Create distribution XML
+productbuild --synthesize --package "$PKG_TMP" distribution.xml
 
-# クリーンアップ
-rm -rf "$TEMP_DIR" "$PKG_DIR"
+# Build final pkg from distribution file
+productbuild --distribution distribution.xml \
+             --package-path . \
+             "$PKG_FINAL"
 
-echo "PKGファイルの作成が完了しました: $BUILD_DIR/$APP_NAME-$VERSION.pkg" 
+# Clean temporary pkg
+rm "$PKG_TMP"
+
+# Sign the final pkg
+productsign --sign "Developer ID Installer" "$PKG_FINAL" "$PKG_SIGNED"
+rm "$PKG_FINAL"
+
+# Notarize (requires "Notarytool" keychain profile setup in advance)
+xcrun notarytool submit "$PKG_SIGNED" --keychain-profile "Notarytool" --wait
+
+# Staple notarization ticket
+xcrun stapler staple "$PKG_SIGNED"

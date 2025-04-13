@@ -1,24 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
-<installer-script minSpecVersion="1.000000">
-    <title>Tuner</title>
-    <options allow-external-scripts="no"/>
-    <domains enable-local="true"/>
-    <installation-check script="pm_install_check();"/>
-    <script>
-        function pm_install_check() {
-            if(!(system.compareVersions(system.version.ProductVersion,'10.10.0') >= 0)) {
-            my.result.message = "Tuner requires Mac OS X 10.10 or later.";
-            my.result.type = 'Fatal';
-            return false;
-            }
-            return true;
-        }
-    </script>
+<installer-gui-script minSpecVersion="1">
+    <pkg-ref id="dev.ensan.tuner-debug.azooKeyMac"/>
+    <options customize="never" require-scripts="false" hostArchitectures="x86_64,arm64"/>
     <choices-outline>
-        <line choice="com.tuner.app"/>
+        <line choice="default">
+            <line choice="dev.ensan.tuner-debug.azooKeyMac"/>
+        </line>
     </choices-outline>
-    <choice id="com.tuner.app" title="Tuner">
-        <pkg-ref id="com.tuner.app.pkg"/>
+    <choice id="default"/>
+    <choice id="dev.ensan.tuner-debug.azooKeyMac" visible="false">
+        <pkg-ref id="dev.ensan.tuner-debug.azooKeyMac"/>
     </choice>
-    <pkg-ref id="com.tuner.app.pkg" auth="Root">Tuner.pkg</pkg-ref>
-</installer-script> 
+    <pkg-ref id="dev.ensan.tuner-debug.azooKeyMac" version="1.0" onConclusion="none">Tuner-tmp.pkg</pkg-ref>
+</installer-gui-script>
