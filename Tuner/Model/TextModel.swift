@@ -44,38 +44,48 @@ class TextModel: ObservableObject {
     // LM (.marisa) ファイルの保存ディレクトリを取得
     private func getLMDirectory() -> URL {
         let fileManager = FileManager.default
-        
-        guard let libraryDirectory = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
-             fatalError("❌ Failed to get Library directory URL.")
+
+        // App Group コンテナの URL を取得
+        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
+             // コンテナURLが取得できない場合のエラー処理（fatalErrorのまま）
+             fatalError("❌ Failed to get App Group container URL.")
         }
-        
-        let lmDirectory = libraryDirectory.appendingPathComponent("Application Support/p13n_v1/lm")
-        
+
+        // 正しい LM ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1/lm)
+        let lmDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1/lm") // "Library" をパスに追加
+
+        // ディレクトリが存在しない場合は作成
         do {
+            // withIntermediateDirectories: true なので、中間のディレクトリも必要に応じて作成される
             try fileManager.createDirectory(at: lmDirectory, withIntermediateDirectories: true)
         } catch {
+            // ディレクトリ作成失敗時のエラーログ
             print("❌ Failed to create LM directory: \(error.localizedDescription)")
+            // ここで fatalError にしないのは、ディレクトリが既に存在する可能性などを考慮
         }
-        
+
         return lmDirectory
     }
     
     // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得
     private func getTextEntryDirectory() -> URL {
         let fileManager = FileManager.default
-        
-        guard let libraryDirectory = fileManager.urls(for: .libraryDirectory, in: .userDomainMask).first else {
-            fatalError("❌ Failed to get Library directory URL.")
+
+        // App Group コンテナの URL を取得
+        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
+             fatalError("❌ Failed to get App Group container URL.") // エラー処理は維持
         }
-        
-        let textEntryDirectory = libraryDirectory.appendingPathComponent("Application Support/p13n_v1/textEntry")
-        
+
+        // 正しい TextEntry ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1/textEntry)
+        let textEntryDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1/textEntry") // "Library" をパスに追加
+
+        // ディレクトリが存在しない場合は作成
         do {
-            try fileManager.createDirectory(at: textEntryDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: textEntryDirectory, withIntermediateDirectories: true) // 中間ディレクトリも作成
         } catch {
-            print("❌ Failed to create TextEntry directory: \(error.localizedDescription)")
+            print("❌ Failed to create TextEntry directory: \(error.localizedDescription)") // エラーログは維持
         }
-        
+
         return textEntryDirectory
     }
     
