@@ -245,38 +245,6 @@ extension SettingsView {
                                 .foregroundColor(.secondary)
                         }
                     }
-
-                    // 最終N-gram訓練日時
-                    HStack {
-                        Image(systemName: "brain.head.profile")
-                            .foregroundColor(textModel.lastNGramTrainingDate == nil ? .gray : .purple)
-                        Text("最終N-gram訓練:")
-                            .font(.caption)
-                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
-                            Text(lastTrainingDate, formatter: dateFormatter)
-                                .font(.caption)
-                        } else {
-                            Text("未訓練")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
-
-                    // 最終purify日時
-                    HStack {
-                        Image(systemName: "sparkles")
-                            .foregroundColor(textModel.lastPurifyDate == nil ? .gray : .orange)
-                        Text("最終データ整理:")
-                            .font(.caption)
-                        if let lastPurifyDate = textModel.lastPurifyDate {
-                            Text(lastPurifyDate, formatter: dateFormatter)
-                                .font(.caption)
-                        } else {
-                            Text("未実行")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                        }
-                    }
                 }
                 .padding(.vertical, 4)
             }
@@ -343,16 +311,32 @@ extension SettingsView {
 
                     // N-gram 訓練ボタンと最終訓練日時
                     HStack {
+                        // 全データ再構築ボタン
                         Button {
                             Task {
-                                await textModel.trainNGramFromTextEntries()
+                                await textModel.trainNGramFromTextEntries() // original モデルを生成
                             }
                         } label: {
-                            Label("N-gramモデル再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle")
+                            Label("N-gram再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle") // ラベルを少し変更
                                 .font(.footnote)
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .help("保存された全データから original モデルと lm モデルの初期状態を再生成します。")
+
+                        // 追加学習ボタン
+                        Button {
+                             Task {
+                                 await textModel.trainIncrementalNGramManually() // 実装済みのメソッドを呼び出す
+                             }
+                        } label: {
+                            Label("N-gram追加学習 (lm)", systemImage: "plus.circle") // アイコン変更
+                                .font(.footnote)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .help("保存されたデータを使用して既存の lm モデルを更新します。")
+                        // TODO: lmモデルが存在しない場合は無効化するなどの制御を追加検討
 
                         Spacer()
 
