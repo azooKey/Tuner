@@ -299,10 +299,17 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if roleResult == .success, let role = roleValue as? String {
                 return role
             } else {
+                // roleResultが .success でない場合、または値のキャストに失敗した場合
+                if roleResult != .success {
+                    os_log("Error getting role attribute: %{public}@", log: OSLog.default, type: .error, String(describing: roleResult))
+                } else {
+                    // キャスト失敗の場合 (通常は起こらないはずだが念のため)
+                    os_log("Failed to cast role value to String.", log: OSLog.default, type: .error)
+                }
                 return nil
             }
-        } catch {
-            print("Error getting role: \(error)")
+        } catch { // この catch ブロックは AXUIElementCopyAttributeValue のエラーを直接キャッチしないため、roleResult のチェックが主になります
+            print("Unexpected error in getRole: \(error)") // 万が一、予期せぬ Swift エラーが発生した場合のログ
             return nil
         }
     }
