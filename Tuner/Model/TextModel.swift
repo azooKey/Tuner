@@ -620,13 +620,14 @@ class TextModel: ObservableObject {
         do {
              // --- テスト用変更を元に戻す ---
              let resumePattern = baseFilePattern // lm の場合は lm を resumePattern として渡す
-             print("    Calling trainNGram with resumeFilePattern = \(resumePattern)") // ログ追加
+             print("    Calling trainNGram with resumeFilePattern = \\(resumePattern)") // ログ追加
+             let resumeFileURL = outputDirURL.appendingPathComponent(resumePattern) // フルパスを生成
              try await trainNGram( // try を追加 (もし trainNGram が throws する場合)
                  lines: lines,
                  n: n,
                  baseFilePattern: baseFilePattern,
                  outputDir: outputDir,
-                 resumeFilePattern: resumePattern // 元のコードに戻す
+                 resumeFilePattern: resumeFileURL.path // フルパスを渡すように変更
              )
              // --- テスト用変更ここまで ---
              print("  trainNGram call finished successfully.")
