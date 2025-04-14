@@ -452,36 +452,81 @@ class TextModel: ObservableObject {
                 return
             }
 
-            let reversedTexts = loadedTexts.reversed()
-
             // MinHashを使用した重複検出と削除
+            let minHash = MinHashOptimized(numHashFunctions: 20)
             let avoidAppsSet = Set(avoidApps)
-            let purifiedResults = self.minHashOptimizer.purifyTextEntriesWithMinHash(
-                Array(reversedTexts),
-                avoidApps: avoidAppsSet,
-                minTextLength: minTextLength,
-                similarityThreshold: self.similarityThreshold
-            )
-
-            let textEntries = purifiedResults.0
-            let duplicatedCount = purifiedResults.1
-
-            // 重複がない、または浄化後のテキストが空になる場合は処理を行わない
-            if duplicatedCount == 0 || textEntries.isEmpty {
-                print("No duplicates found or purified entries would be empty - skipping file update")
+            
+            // バケットベースの重複検出
+            var buckets: [Int: [TextEntry]] = [:]
+            var uniqueEntries: [TextEntry] = []
+            var duplicateCount = 0
+            
+            // バケットを計算する関数
+            func getBucket(signature: [Int]) -> Int {
+                var hasher = Hasher()
+                signature[0..<3].forEach { hasher.combine($0) }
+                return hasher.finalize()
+            }
+            
+            for entry in loadedTexts {
+                // 除外アプリの場合はスキップ
+                if avoidAppsSet.contains(entry.appName) || entry.text.count < minTextLength {
+                    continue
+                }
+                
+                let signature = minHash.computeMinHashSignature(for: entry.text)
+                let bucket = getBucket(signature: signature)
+                
+                var isDuplicate = false
+                
+                // 同じバケット内のエントリとのみ比較
+                if let existingEntries = buckets[bucket] {
+                    for existingEntry in existingEntries {
+                        // 完全一致の場合は必ず重複と判定
+                        if entry.text == existingEntry.text {
+                            isDuplicate = true
+                            duplicateCount += 1
+                            break
+                        }
+                        
+                        // テキストの長さの差が大きい場合は重複と判定しない
+                        let lengthDiff = abs(entry.text.count - existingEntry.text.count)
+                        let maxLength = max(entry.text.count, existingEntry.text.count)
+                        if Double(lengthDiff) / Double(maxLength) > 0.2 {
+                            continue
+                        }
+                        
+                        // 類似度が0.95以上の場合のみ重複とみなす
+                        let existingSignature = minHash.computeMinHashSignature(for: existingEntry.text)
+                        let similarity = minHash.computeJaccardSimilarity(signature1: signature, signature2: existingSignature)
+                        if similarity >= 0.95 {
+                            isDuplicate = true
+                            duplicateCount += 1
+                            break
+                        }
+                    }
+                }
+                
+                if !isDuplicate {
+                    uniqueEntries.append(entry)
+                    buckets[bucket, default: []].append(entry)
+                }
+            }
+            
+            if duplicateCount == 0 {
+                print("No duplicates found - skipping file update")
                 completion()
                 return
             }
 
             self.fileAccessQueue.async {
-                // バックアップファイルの作成 (問題特定用) - TextEntry ディレクトリ内に
+                // バックアップファイルの作成
                 let backupFileURL = self.getTextEntryDirectory().appendingPathComponent("backup_savedTexts_\(Int(Date().timeIntervalSince1970)).jsonl")
                 do {
                     try FileManager.default.copyItem(at: fileURL, to: backupFileURL)
                     print("Backup file created at: \(backupFileURL.path)")
                 } catch {
                     print("Failed to create backup file: \(error.localizedDescription)")
-                    // バックアップ失敗でもプロセスは継続
                 }
 
                 // 新規ファイルとして一時ファイルに保存
@@ -495,11 +540,10 @@ class TextModel: ObservableObject {
                     tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
                     tempFileHandle?.seekToEndOfFile()
 
-                    // 重要: 一度書き込みを確認してからファイルを置き換える
                     var writeSuccess = false
                     var entriesWritten = 0
 
-                    for textEntry in textEntries {
+                    for textEntry in uniqueEntries {
                         let jsonData = try JSONEncoder().encode(textEntry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
                             let jsonLine = jsonString + "\n"
@@ -513,28 +557,21 @@ class TextModel: ObservableObject {
 
                     tempFileHandle?.closeFile()
 
-                    // 書き込みが成功してエントリが少なくとも1つ以上の場合のみファイルを置換
                     if writeSuccess && entriesWritten > 0 {
-                        // 正常に保存できたら既存ファイルを削除
                         try FileManager.default.removeItem(at: fileURL)
-                        // 新規ファイルの名前を変更
                         try FileManager.default.moveItem(at: tempFileURL, to: fileURL)
-                        // 正常に完了した場合、バックアップファイルを削除
                         try? FileManager.default.removeItem(at: backupFileURL)
-                        print("File purify completed. Removed \(duplicatedCount) duplicated entries. Wrote \(entriesWritten) entries. Backup file deleted.")
+                        print("File purify completed. Removed \(duplicateCount) duplicated entries. Wrote \(entriesWritten) entries. Backup file deleted.")
                         
-                        // purify完了時に日時を更新（メインスレッドで実行）
                         DispatchQueue.main.async {
                             self.lastPurifyDate = Date()
                         }
                     } else {
                         print("⚠️ Write was not successful or no entries were written - keeping original file")
-                        // 一時ファイルを削除
                         try? FileManager.default.removeItem(at: tempFileURL)
                     }
                 } catch {
                     print("Failed to clean and update file: \(error.localizedDescription)")
-                    // エラーが発生した場合、一時ファイルを削除する
                     try? FileManager.default.removeItem(at: tempFileURL)
                 }
 
