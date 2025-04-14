@@ -51,20 +51,20 @@ class TextModel: ObservableObject {
              fatalError("❌ Failed to get App Group container URL.")
         }
 
-        // 正しい LM ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1/lm)
-        let lmDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1/lm") // "Library" をパスに追加
+        // 正しい LM ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1)
+        let p13nDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1") // "lm" を削除
 
         // ディレクトリが存在しない場合は作成
         do {
             // withIntermediateDirectories: true なので、中間のディレクトリも必要に応じて作成される
-            try fileManager.createDirectory(at: lmDirectory, withIntermediateDirectories: true)
+            try fileManager.createDirectory(at: p13nDirectory, withIntermediateDirectories: true)
         } catch {
             // ディレクトリ作成失敗時のエラーログ
             print("❌ Failed to create LM directory: \(error.localizedDescription)")
             // ここで fatalError にしないのは、ディレクトリが既に存在する可能性などを考慮
         }
 
-        return lmDirectory
+        return p13nDirectory
     }
     
     // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得
