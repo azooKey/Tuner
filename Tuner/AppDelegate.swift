@@ -131,6 +131,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - 除外アプリのチェック
     /// - テキスト要素の取得
     @objc private func pollActiveAppForText() {
+        // インポートフォルダ選択パネル表示中はポーリングをスキップ
+        guard !shareData.isImportPanelShowing else {
+            os_log("インポートパネル表示中のためポーリングをスキップ", log: OSLog.default, type: .debug)
+            return
+        }
+
         guard shareData.activateAccessibility, hasAccessibilityPermission() else {
             return
         }
@@ -182,6 +188,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - 除外アプリのチェック
     /// - テキスト要素の取得と監視開始
     @objc func activeAppDidChange(_ notification: Notification) {
+        // インポートフォルダ選択パネル表示中は処理をスキップ
+        guard !shareData.isImportPanelShowing else {
+            os_log("インポートパネル表示中のため activeAppDidChange をスキップ", log: OSLog.default, type: .debug)
+            return
+        }
+
         guard shareData.activateAccessibility else {
             return
         }
@@ -348,6 +360,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func handleAXEvent(element: AXUIElement, notification: String) {
+        // インポートフォルダ選択パネル表示中は処理をスキップ
+        guard !shareData.isImportPanelShowing else {
+            os_log("インポートパネル表示中のため handleAXEvent をスキップ", log: OSLog.default, type: .debug)
+            return
+        }
+
         if notification == kAXValueChangedNotification as String || notification == kAXUIElementDestroyedNotification as String {
             if let appName = getAppNameFromAXUIElement(element){
                 fetchTextElements(from: element, appName: appName)
@@ -391,5 +409,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         return nil
+    }
+
+    /// ポーリングタイマーイベント
+    /// - アクセシビリティ有効、除外アプリでない、インポートパネル非表示の場合にテキスト取得を実行
+    @objc func pollingTimerFired() {
+        // インポートフォルダ選択パネル表示中はポーリングをスキップ
+        guard !shareData.isImportPanelShowing else {
+            os_log("インポートパネル表示中のためポーリングをスキップ", log: OSLog.default, type: .debug)
+            return
+        }
+
+        guard shareData.activateAccessibility, shareData.pollingInterval > 0 else {
+            return
+        }
+
+        if !hasAccessibilityPermission() {
+            os_log("アクセシビリティ権限がありません（ポーリング）", log: OSLog.default, type: .error)
+            return
+        }
+
+        if let activeApp = NSWorkspace.shared.frontmostApplication {
+            let activeApplicationName = getAppName(for: activeApp) ?? "Unknown"
+            if shareData.avoidApps.contains(activeApplicationName) {
+                return
+            }
+            if let axApp = getActiveApplicationAXUIElement() {
+                os_log("Polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                fetchTextElements(from: axApp, appName: activeApplicationName)
+            }
+        }
     }
 }

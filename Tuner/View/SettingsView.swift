@@ -266,6 +266,7 @@ extension SettingsView {
                         }
                         .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .disabled(isRefreshing)
 
                         // インポート履歴リセットボタン (インポートフォルダが設定されている場合のみ表示)
                         if shareData.importBookmarkData != nil {
@@ -505,27 +506,48 @@ extension SettingsView {
         openPanel.message = "テキストファイルを含むフォルダを選択してください。"
         openPanel.prompt = "選択"
 
+        // パネル表示前にフラグを立てる
+        shareData.isImportPanelShowing = true
+
         openPanel.begin { response in
-            if response == .OK,
-               let url = openPanel.url {
-                DispatchQueue.main.async {
-                    // パスを保存
-                    shareData.importTextPath = url.path
-                    // ブックマークを生成して保存
+            // パネルが閉じたらフラグを下ろす → ハンドラの最後に移動
+            // 完了ハンドラはメインスレッドで実行されるため、ここで安全に更新できる
+            // shareData.isImportPanelShowing = false
+
+            if response == .OK, let url = openPanel.url {
+                // ブックマーク生成と状態更新をバックグラウンドで行う
+                Task.detached(priority: .userInitiated) {
+                    var newBookmarkData: Data?
+                    var errorMessage: String?
+
                     do {
-                        let bookmarkData = try url.bookmarkData(options: .withSecurityScope,
-                                                                includingResourceValuesForKeys: nil,
-                                                                relativeTo: nil)
-                        shareData.importBookmarkData = bookmarkData
-                        print("ブックマークを保存しました: \(url.path)")
+                        // 時間のかかる可能性のあるブックマーク生成
+                        newBookmarkData = try url.bookmarkData(options: .withSecurityScope,
+                                                               includingResourceValuesForKeys: nil,
+                                                               relativeTo: nil)
+                        print("ブックマークを生成しました: \(url.path)")
                     } catch {
-                        print("ブックマークの作成に失敗しました: \(error.localizedDescription)")
-                        // エラー発生時はパスとブックマークをクリアするなどの処理も検討可能
-                        shareData.importTextPath = ""
-                        shareData.importBookmarkData = nil
+                        errorMessage = "ブックマークの作成に失敗しました: \(error.localizedDescription)"
+                        print(errorMessage ?? "")
+                    }
+
+                    // メインスレッドで状態を更新
+                    await MainActor.run {
+                        if let newBookmarkData = newBookmarkData {
+                            shareData.importTextPath = url.path
+                            shareData.importBookmarkData = newBookmarkData
+                        } else {
+                            // エラー発生時はクリア
+                            shareData.importTextPath = ""
+                            shareData.importBookmarkData = nil
+                            // 必要であればユーザーにエラーを通知する処理を追加
+                        }
                     }
                 }
             }
+
+            // パネルが閉じる処理（完了、キャンセル、エラー）の最後にフラグを下ろす
+            shareData.isImportPanelShowing = false
         }
     }
 
@@ -536,39 +558,62 @@ extension SettingsView {
             return
         }
 
-        var isStale = false
-        do {
-            let url = try URL(resolvingBookmarkData: bookmarkData,
-                            options: [.withSecurityScope], // セキュリティスコープ付きで解決
-                            relativeTo: nil,
-                            bookmarkDataIsStale: &isStale)
-            
-            if isStale {
-                print("ブックマークが古くなっています。再選択が必要です。")
-                // 必要であればここで古いブックマークをクリアする
-                // shareData.importBookmarkData = nil
-                // shareData.importTextPath = ""
-                return
+        // ブックマーク解決とFinder表示をバックグラウンド→メインスレッドで行う
+        Task.detached(priority: .userInitiated) {
+            var resolvedURL: URL?
+            var isStale = false
+            var accessGranted = false
+            var errorMessage: String?
+
+            do {
+                // 時間のかかる可能性のあるブックマーク解決
+                resolvedURL = try URL(resolvingBookmarkData: bookmarkData,
+                                      options: [.withSecurityScope],
+                                      relativeTo: nil,
+                                      bookmarkDataIsStale: &isStale)
+
+                guard let url = resolvedURL else {
+                    throw URLError(.badURL) // 簡略化のため。より具体的なエラーを定義しても良い
+                }
+
+                if isStale {
+                    errorMessage = "ブックマークが古くなっています。再選択が必要です。"
+                    print(errorMessage ?? "")
+                    // 必要であればメインスレッドでブックマークをクリア
+                    // await MainActor.run { ... }
+                    return
+                }
+
+                // 時間のかかる可能性のあるアクセス権取得
+                accessGranted = url.startAccessingSecurityScopedResource()
+                if !accessGranted {
+                    errorMessage = "フォルダへのアクセス権を取得できませんでした: \(url.path)"
+                    print(errorMessage ?? "")
+                    // アクセス権取得失敗時はここで終了
+                    return
+                }
+
+                // アクセス権取得成功後、メインスレッドでFinderを開く
+                await MainActor.run {
+                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+                    print("Finderで開きました: \(url.path)")
+                }
+
+            } catch {
+                errorMessage = "ブックマークからのURL解決またはアクセス権取得に失敗しました: \(error.localizedDescription)"
+                print(errorMessage ?? "")
+                // 必要であればメインスレッドでエラーをユーザーに通知 or ブックマーククリア
+                // await MainActor.run { ... }
             }
 
-            // アクセス権の取得を試みる
-            guard url.startAccessingSecurityScopedResource() else {
-                print("フォルダへのアクセス権を取得できませんでした: \(url.path)")
-                return
+            // アクセス権取得を試みた場合、最後に必ず解放処理を行う
+            // startAccessingSecurityScopedResource が呼ばれた後でのみ stop を呼ぶ
+            if let url = resolvedURL, accessGranted {
+                 // url.stopAccessingSecurityScopedResource() // stopAccessingSecurityScopedResourceは、アクセスが不要になったらすぐに呼び出すべきです。Finderが開いた後すぐに不要になるかはユースケースによりますが、ここではTask終了時に解放します。
+                // startAccessingSecurityScopedResourceと対になるように、Taskのスコープを抜ける際に確実に呼ばれるようにします。
+                // deferブロックをTask.detached内で使用することも検討できますが、ここでは最後に配置します。
+                url.stopAccessingSecurityScopedResource()
             }
-            
-            // アクセス終了処理をdeferで保証
-            defer { url.stopAccessingSecurityScopedResource() }
-            
-            // Finderで開く
-            NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
-            print("Finderで開きました: \(url.path)")
-
-        } catch {
-            print("ブックマークからのURL解決に失敗しました: \(error.localizedDescription)")
-            // エラー発生時はブックマークをクリアするなどの処理も検討可能
-            // shareData.importBookmarkData = nil
-            // shareData.importTextPath = ""
         }
     }
 }
