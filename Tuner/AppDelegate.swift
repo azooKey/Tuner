@@ -246,57 +246,99 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
         let role = self.getRole(of: element)
         
-        // 不要な要素は最小限だけ除外する
-        switch role {
-        case nil:
-            // Roleは常に存在する（kAXRoleAttributeのドキュメントを参照）
-            return
-        case "AXMenu", "AXMenuBar":
-            // メニューバーは除外（フォーカスがないとき）
-            return
-        default:
-            // それ以外の要素は処理を続行
-            break
-        }
-
-        // テキスト取得を試みる属性のリスト
+        // テキスト取得を試みる属性のリストを拡張
         let textAttributes = [
             kAXValueAttribute as CFString,
             kAXTitleAttribute as CFString,
             kAXDescriptionAttribute as CFString,
             kAXHelpAttribute as CFString,
             kAXPlaceholderValueAttribute as CFString,
-            kAXSelectedTextAttribute as CFString
+            kAXSelectedTextAttribute as CFString,
+            kAXMenuItemMarkCharAttribute as CFString,
+            kAXMenuItemCmdCharAttribute as CFString,
+            kAXMenuItemCmdVirtualKeyAttribute as CFString,
+            kAXMenuItemCmdGlyphAttribute as CFString,
+            kAXMenuItemCmdModifiersAttribute as CFString
         ]
+        
+        // グループ要素の場合は子要素を優先的に処理
+        if role == "AXGroup" {
+            var childValue: AnyObject?
+            let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
+            if childResult == .success, let children = childValue as? [AXUIElement] {
+                for child in children {
+                    extractTextFromElement(child, appName: appName)
+                }
+            }
+            return
+        }
+        
+        // リンク要素の場合は特別な処理
+        if role == "AXLink" {
+            var linkText: AnyObject?
+            let linkResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &linkText)
+            if linkResult == .success, let text = linkText as? String, !text.isEmpty {
+                // print("🔗 リンクテキストを取得: [\(appName)] \(text)") // os_logに戻す
+                os_log("リンクテキスト [アプリ: %@] [%@] %@", 
+                       log: OSLog.default, 
+                       type: .debug, 
+                       appName, 
+                       role ?? "Unknown", 
+                       text)
+                DispatchQueue.main.async {
+                    self.textModel.addText(text, appName: appName,
+                                           avoidApps: self.shareData.avoidApps,
+                                           minTextLength: self.shareData.minTextLength)
+                }
+            }
+        }
         
         // 複数の属性からテキスト取得を試みる
         for attribute in textAttributes {
             var value: AnyObject?
             let result = AXUIElementCopyAttributeValue(element, attribute, &value)
-            if result == .success, let text = value as? String, !text.isEmpty {
-                // 取得したテキストをデバッグログに出力
-                // os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
-                //        log: OSLog.default, 
-                //        type: .debug, 
-                //        appName, 
-                //        role ?? "Unknown", 
-                //        String(describing: attribute), 
-                //        text)
-                DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName,
-                                           // saveLineTh と saveIntervalSec のデフォルト値はTextModel側で定義されているものを使用
-                                           avoidApps: self.shareData.avoidApps,
-                                           minTextLength: self.shareData.minTextLength)
+            if result == .success {
+                if let text = value as? String {
+                    // print("📝 テキストを取得: ...") // os_logに戻す
+                    os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
+                           log: OSLog.default, 
+                           type: .debug, 
+                           appName, 
+                           role ?? "Unknown", 
+                           String(describing: attribute), 
+                           text)
+                    DispatchQueue.main.async {
+                        self.textModel.addText(text, appName: appName,
+                                               avoidApps: self.shareData.avoidApps,
+                                               minTextLength: self.shareData.minTextLength)
+                    }
+                } else if let array = value as? [String] {
+                    // 配列形式のテキストも処理
+                    for text in array {
+                        // print("📝 配列テキストを取得: ...") // os_logに戻す
+                        os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
+                               log: OSLog.default, 
+                               type: .debug, 
+                               appName, 
+                               role ?? "Unknown", 
+                               String(describing: attribute), 
+                               text)
+                        DispatchQueue.main.async {
+                            self.textModel.addText(text, appName: appName,
+                                                   avoidApps: self.shareData.avoidApps,
+                                                   minTextLength: self.shareData.minTextLength)
+                        }
+                    }
                 }
-                break  // テキストが見つかったらこの要素の他の属性は確認しない
             }
         }
 
-        // 子要素の探索
+        // 子要素の探索を改善
         var childValue: AnyObject?
         let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
         if childResult == .success, let children = childValue as? [AXUIElement] {
             for child in children {
+                // 再帰的にテキストを取得
                 extractTextFromElement(child, appName: appName)
             }
         }
