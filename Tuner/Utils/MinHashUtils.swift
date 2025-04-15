@@ -33,23 +33,58 @@ struct MinHashOptimized {
     private let numHashFunctions: Int
     /// 各ハッシュ関数で使用するシード値
     private let seeds: [Int]
-    /// N-gramのサイズ
-    private let nGramSize = 3
+    private let similarityThreshold: Double
+    private let sequenceLength: Int
 
-    /// 初期化
-    /// - Parameters:
-    ///   - numHashFunctions: 使用するハッシュ関数の数（デフォルト: 20）
-    init(numHashFunctions: Int = 20) {
+    init(numHashFunctions: Int = 50, similarityThreshold: Double = 0.7, sequenceLength: Int = 5) {
         self.numHashFunctions = numHashFunctions
         self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
+        self.similarityThreshold = similarityThreshold
+        self.sequenceLength = sequenceLength
+    }
+
+    // テキストの前処理を行う
+    internal func preprocessText(_ text: String) -> String {
+        // 空白を除去
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 全角スペースを半角に変換
+        let normalizedSpace = trimmed.replacingOccurrences(of: "　", with: " ")
+        // 連続するスペースを1つに
+        let singleSpace = normalizedSpace.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return singleSpace
+    }
+
+    // テキストを文字列のシーケンスに分割
+    internal func splitText(_ text: String) -> [[Unicode.Scalar]] {
+        let processedText = preprocessText(text)
+        // 文字列を指定された長さのシーケンスに分割
+        var sequences: [[Unicode.Scalar]] = []
+        let scalars = Array(processedText.unicodeScalars)
+
+        // sequenceLength を使うように変更
+        let length = self.sequenceLength
+        guard scalars.count >= length else { // テキストがシーケンス長より短い場合は、テキスト全体を1つのシーケンスとする
+            if !scalars.isEmpty {
+                sequences.append(Array(scalars))
+            }
+            return sequences
+        }
+
+        for index in 0...(scalars.count - length) { // ループ範囲を修正
+            let sequence = Array(scalars[index..<index + length]) // sequenceLength を使うように変更
+            sequences.append(sequence)
+        }
+        // 注意: テキスト末尾のシーケンス長未満の部分は現在含まれていません。必要に応じて追加してください。
+
+        return sequences
     }
 
     func computeMinHashSignature(for text: String) -> [Int] {
-        let words = text.unicodeScalars.split(separator: " ")
+        let sequences = splitText(text)
         return self.seeds.map { seed in
             var minHash = Int.max
-            for word in words {
-                let hash = SimpleHasher.customHash(word, seed: seed)
+            for sequence in sequences {
+                let hash = SimpleHasher.customHash(sequence, seed: seed)
                 if hash < minHash {
                     minHash = hash
                 }
@@ -74,15 +109,21 @@ struct MinHashOptimized {
         }
         return Double(equalCount) / Double(signature1.count)
     }
+
+    // テキストの類似性を判定
+    func isSimilar(_ text1: String, _ text2: String) -> Bool {
+        let signature1 = computeMinHashSignature(for: text1)
+        let signature2 = computeMinHashSignature(for: text2)
+        let similarity = computeJaccardSimilarity(signature1: signature1, signature2: signature2)
+        return similarity >= similarityThreshold
+    }
 }
 
 /// LRUキャッシュを使用した最適化されたテキストモデル
 /// - MinHashを使用したテキストの重複検出
 /// - メモリ使用量を最適化
 struct TextModelOptimizedWithLRU {
-    /// MinHash計算用のインスタンス
-    private let minHash = MinHashOptimized()
-    /// シグネチャのキャッシュ（LRU方式）
+    private let minHash = MinHashOptimized(similarityThreshold: 0.7)
     private var signatureCache: [String: [Int]]
     /// 既に処理済みのテキストエントリ
     private var seenEntries: Set<String> = []
@@ -102,7 +143,7 @@ struct TextModelOptimizedWithLRU {
     /// - Returns: 重複を除去したエントリと重複数
     mutating func purifyTextEntriesWithMinHash(
         _ entries: [TextEntry], avoidApps: Set<String>, minTextLength: Int,
-        similarityThreshold: Double = 0.8
+        similarityThreshold: Double = 0.7
     ) -> ([TextEntry], Int) {
         var uniqueEntries: [TextEntry] = []
         var duplicateCount = 0
@@ -111,33 +152,10 @@ struct TextModelOptimizedWithLRU {
             // 除外アプリと最小テキスト長のチェック
             guard !avoidApps.contains(entry.appName), entry.text.utf8.count >= minTextLength else { continue }
 
-            // キャッシュと既処理エントリのチェック
-            if signatureCache.keys.contains(entry.text) || seenEntries.contains(entry.text) {
-                duplicateCount += 1
-                continue
-            }
-
-            // 新しいエントリのシグネチャを計算
-            let newEntrySignature: [Int]
-            if let cachedSignature = self.signatureCache[entry.text] {
-                newEntrySignature = cachedSignature
-            } else {
-                newEntrySignature = minHash.computeMinHashSignature(for: entry.text)
-                signatureCache[entry.text] = newEntrySignature
-            }
-
-            // 既存エントリとの類似度チェック
+            // 既存のエントリとの類似性チェック
             var isDuplicate = false
             for uniqueEntry in uniqueEntries {
-                let existingSignature: [Int]
-                if let cachedSignature = signatureCache[uniqueEntry.text] {
-                    existingSignature = cachedSignature
-                } else {
-                    existingSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
-                    signatureCache[uniqueEntry.text] = existingSignature
-                }
-
-                if minHash.computeJaccardSimilarity(signature1: newEntrySignature, signature2: existingSignature) >= similarityThreshold {
+                if minHash.isSimilar(entry.text, uniqueEntry.text) {
                     isDuplicate = true
                     duplicateCount += 1
                     break

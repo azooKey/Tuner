@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -35,6 +35,16 @@
 		E9ECFB8E2DA1625600A9B759 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB8D2DA1625600A9B759 /* SwiftUtils */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		E9BB2C152DAE8AF3000EB7B3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E94A73782C2B4B9F0049C3C6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E94A737F2C2B4B9F0049C3C6;
+			remoteInfo = Tuner;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
 		E94A73802C2B4B9F0049C3C6 /* Tuner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tuner.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E94A73832C2B4B9F0049C3C6 /* TunerApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TunerApp.swift; sourceTree = "<group>"; };
@@ -48,12 +58,17 @@
 		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
 		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		E9B51DAB2C33D13100523DB0 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
+		E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TunerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9CE3D882C37CC7100AF12CE /* TextExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextExtension.swift; sourceTree = "<group>"; };
 		E9DB878F2D7C28FD0030CEF4 /* MinHashUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinHashUtils.swift; sourceTree = "<group>"; };
 		E9EB3E992C34002C00EA6395 /* ShareData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareData.swift; sourceTree = "<group>"; };
 		E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E9EB3E9D2C3546DB00EA6395 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		E9BB2C122DAE8AF3000EB7B3 /* TunerTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TunerTests; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		E94A737D2C2B4B9F0049C3C6 /* Frameworks */ = {
@@ -75,6 +90,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9BB2C0E2DAE8AF3000EB7B3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -82,6 +104,7 @@
 			isa = PBXGroup;
 			children = (
 				E94A73822C2B4B9F0049C3C6 /* Tuner */,
+				E9BB2C122DAE8AF3000EB7B3 /* TunerTests */,
 				E94A73812C2B4B9F0049C3C6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +113,7 @@
 			isa = PBXGroup;
 			children = (
 				E94A73802C2B4B9F0049C3C6 /* Tuner.app */,
+				E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -169,6 +193,29 @@
 			productReference = E94A73802C2B4B9F0049C3C6 /* Tuner.app */;
 			productType = "com.apple.product-type.application";
 		};
+		E9BB2C102DAE8AF3000EB7B3 /* TunerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E9BB2C172DAE8AF3000EB7B3 /* Build configuration list for PBXNativeTarget "TunerTests" */;
+			buildPhases = (
+				E9BB2C0D2DAE8AF3000EB7B3 /* Sources */,
+				E9BB2C0E2DAE8AF3000EB7B3 /* Frameworks */,
+				E9BB2C0F2DAE8AF3000EB7B3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E9BB2C162DAE8AF3000EB7B3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E9BB2C122DAE8AF3000EB7B3 /* TunerTests */,
+			);
+			name = TunerTests;
+			packageProductDependencies = (
+			);
+			productName = TunerTests;
+			productReference = E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -176,11 +223,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1540;
+				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					E94A737F2C2B4B9F0049C3C6 = {
 						CreatedOnToolsVersion = 15.4;
+					};
+					E9BB2C102DAE8AF3000EB7B3 = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = E94A737F2C2B4B9F0049C3C6;
 					};
 				};
 			};
@@ -201,6 +252,7 @@
 			projectRoot = "";
 			targets = (
 				E94A737F2C2B4B9F0049C3C6 /* Tuner */,
+				E9BB2C102DAE8AF3000EB7B3 /* TunerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -212,6 +264,13 @@
 			files = (
 				E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */,
 				E94A73882C2B4B9F0049C3C6 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		E9BB2C0F2DAE8AF3000EB7B3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -237,7 +296,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9BB2C0D2DAE8AF3000EB7B3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E9BB2C162DAE8AF3000EB7B3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E94A737F2C2B4B9F0049C3C6 /* Tuner */;
+			targetProxy = E9BB2C152DAE8AF3000EB7B3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		E94A738D2C2B4B9F0049C3C6 /* Debug */ = {
@@ -386,6 +460,7 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
@@ -418,7 +493,48 @@
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E9BB2C182DAE8AF3000EB7B3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CW97U5J24N;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.3;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.TunerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tuner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tuner";
+			};
+			name = Debug;
+		};
+		E9BB2C192DAE8AF3000EB7B3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CW97U5J24N;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.3;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.TunerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tuner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tuner";
 			};
 			name = Release;
 		};
@@ -439,6 +555,15 @@
 			buildConfigurations = (
 				E94A73902C2B4B9F0049C3C6 /* Debug */,
 				E94A73912C2B4B9F0049C3C6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E9BB2C172DAE8AF3000EB7B3 /* Build configuration list for PBXNativeTarget "TunerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9BB2C182DAE8AF3000EB7B3 /* Debug */,
+				E9BB2C192DAE8AF3000EB7B3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
