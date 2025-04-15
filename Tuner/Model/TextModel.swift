@@ -102,20 +102,26 @@ class TextModel: ObservableObject {
     private func updateFile(avoidApps: [String], minTextLength: Int) {
         // ファイル更新中なら早期リターン
         guard !isUpdatingFile else {
+            print("⚠️ ファイル更新中です。処理をスキップします")
             return
         }
-        // ファイル書き込み対象のテキストを取得
-        let textsToSave = self.texts
-        // 書き込み対象がなければメモリをクリアして終了
-        guard !textsToSave.isEmpty else {
-            DispatchQueue.main.async { [weak self] in
-                self?.texts.removeAll()
-                self?.lastSavedDate = Date()
-            }
+        
+        // ★★★ 保存対象のエントリをキャプチャ ★★★
+        let entriesToSave = self.texts
+        
+        // 書き込み対象がなければ終了（キャプチャ後にチェック）
+        guard !entriesToSave.isEmpty else {
+            // print("⚠️ 保存するテキストがありません") // ログレベル調整
             return
         }
-
+        
+        // ★★★ texts配列を直ちにクリア ★★★
+        // これにより、ファイル書き込み中にaddTextで追加されたエントリは保持される
+        self.texts.removeAll()
+        print("🔄 メモリ内テキストをクリアし、\(entriesToSave.count)件の保存処理を開始")
+        
         isUpdatingFile = true
+        // print("💾 ファイル更新を開始: \(entriesToSave.count)件のエントリ") // ログ変更
 
         let fileURL = getFileURL()
         fileAccessQueue.async { [weak self] in
@@ -124,14 +130,18 @@ class TextModel: ObservableObject {
             defer {
                 DispatchQueue.main.async {
                     self.isUpdatingFile = false
+                    // print("🔓 isUpdatingFile を false に設定") // デバッグ用
                 }
             }
+
             // ファイルの有無を確認し、なければ作成
             if !FileManager.default.fileExists(atPath: fileURL.path) {
                 do {
                     try "".write(to: fileURL, atomically: true, encoding: .utf8)
+                    print("📄 新規ファイルを作成: \(fileURL.path)")
                 } catch {
-                    print("❌ Failed to create file: \(error.localizedDescription)")
+                    print("❌ ファイル作成に失敗: \(error.localizedDescription)")
+                    // ★★★ エラー発生時もisUpdatingFileはdeferでfalseになる ★★★
                     return
                 }
             }
@@ -141,9 +151,10 @@ class TextModel: ObservableObject {
             if !FileManager.default.fileExists(atPath: textEntryDir.path) {
                 do {
                     try FileManager.default.createDirectory(at: textEntryDir, withIntermediateDirectories: true)
+                    print("📁 TextEntryディレクトリを作成: \(textEntryDir.path)")
                 } catch {
-                     print("❌ Failed to create TextEntry directory during update: \(error.localizedDescription)")
-                     return
+                    print("❌ TextEntryディレクトリの作成に失敗: \(error.localizedDescription)")
+                    return
                 }
             }
 
@@ -155,6 +166,7 @@ class TextModel: ObservableObject {
 
                 // 末尾に移動
                 fileHandle.seekToEndOfFile()
+                
                 // 最初の追記でなければ改行を追加
                 let currentOffset = fileHandle.offsetInFile
                 if currentOffset > 0 {
@@ -167,42 +179,86 @@ class TextModel: ObservableObject {
                     }
                 }
 
-                // 最低限のフィルタリングのみ実施 (avoidApps, minTextLength, isSymbolOrNumber)
+                // ★★★ キャプチャしたentriesToSaveでフィルタリング ★★★
                 let avoidAppsSet = Set(avoidApps)
-                let filteredEntries = textsToSave.filter {
+                let filteredEntries = entriesToSave.filter {
                     !avoidAppsSet.contains($0.appName) &&
-                    $0.text.count >= minTextLength &&
-                    !$0.text.utf16.isSymbolOrNumber
+                    $0.text.count >= minTextLength
                 }
+                
+                // フィルタリングで除外されたエントリをログ出力
+                let skippedCount = entriesToSave.count - filteredEntries.count
+                if skippedCount > 0 {
+                    // print("🔍 Filtered out \(skippedCount) entries before saving:") // 削除
+                    // 詳細ログループも削除
+                }
+
+                // print("📝 フィルタリング後: \(filteredEntries.count)件のエントリを保存") // 削除
 
                 // 各エントリを jsonl 形式で追記
                 var linesWritten = 0
+                // var encodingErrors = 0 // 削除
+                // var writeErrors = 0 // 削除
                 for textEntry in filteredEntries {
-                    let jsonData = try JSONEncoder().encode(textEntry)
-                    if let jsonString = String(data: jsonData, encoding: .utf8) {
-                        let jsonLine = jsonString + "\n"
-                        if let data = jsonLine.data(using: .utf8) {
-                            fileHandle.write(data)
-                            linesWritten += 1
+                    do {
+                        let jsonData = try JSONEncoder().encode(textEntry)
+                        if let jsonString = String(data: jsonData, encoding: .utf8) {
+                            let jsonLine = jsonString + "\n"
+                            if let data = jsonLine.data(using: .utf8) {
+                                do {
+                                    try fileHandle.write(contentsOf: data)
+                                    linesWritten += 1
+                                } catch {
+                                    // 個別エラーログは抑制（全体のエラーハンドリングで捕捉）
+                                    // print("❌ Write Error for entry...") // 削除
+                                    // writeErrors += 1 // 削除
+                                }
+                            } else {
+                                // print("❌ Encoding Error (data using .utf8)...") // 削除
+                                // encodingErrors += 1 // 削除
+                            }
+                        } else {
+                            // print("❌ Encoding Error (String from data)...") // 削除
+                            // encodingErrors += 1 // 削除
                         }
+                    } catch {
+                        // print("❌ JSON Encoding Error for entry...") // 削除
+                        // encodingErrors += 1 // 削除
                     }
+                }
+                
+                // エラーサマリーログは削除
+                // if encodingErrors > 0 || writeErrors > 0 { ... }
+
+                // print("✅ ファイル更新完了: \(linesWritten)件のエントリを'\(fileURL.lastPathComponent)'に保存") // 元のログに近い形に（必要なら調整）
+                if linesWritten > 0 {
+                    print("💾 Saved \(linesWritten) entries to \(fileURL.lastPathComponent)")
                 }
 
                 // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
                 if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 {
+                    print("🔄 N-gramモデルの学習を開始")
                     Task {
+                        // ここでは self.ngramSize など self のプロパティアクセスが必要
+                        // capture list [self] で self を弱参照ではなく強参照でキャプチャするか、
+                        // または self?.ngramSize のようにオプショナルチェーンを使う必要がある。
+                        // Task内でselfが解放されていない前提で、ここでは self. を使う。
                         await self.trainNGramOnNewEntries(newEntries: filteredEntries, n: self.ngramSize, baseFilePattern: "lm")
                     }
                 }
 
+                // ★★★ 完了ブロックでは lastSavedDate の更新のみ行う ★★★
                 DispatchQueue.main.async {
-                    self.texts.removeAll()
+                    // self.texts.removeAll() // ここではクリアしない！
                     self.lastSavedDate = Date()
+                    // print("✅ lastSavedDate を更新") // デバッグ用
                 }
             } catch {
-                print("❌ Failed to update file: \(error.localizedDescription)")
+                print("❌ ファイル更新処理全体でエラー: \(error.localizedDescription)")
+                // エラーが発生した場合でも、textsは既にクリアされているため、元に戻す処理は難しい
+                // 必要であれば、クリア前にバックアップを取るなどの対策が必要
                 DispatchQueue.main.async {
-                    self.texts.removeAll()
+                    // self.texts.removeAll() // ここでもクリアしない
                 }
             }
         }
@@ -214,12 +270,19 @@ class TextModel: ObservableObject {
     }
     
     private func removeExtraNewlines(from text: String) -> String {
-        // 2連続以上の改行を1つの改行に置き換える正規表現
-        let pattern =  "\n+"
+        // 改行の処理を改善
+        let pattern = "\n+"
         let regex = try? NSRegularExpression(pattern: pattern, options: [])
         let range = NSRange(location: 0, length: text.utf16.count)
         let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
-        return modifiedText ?? text
+        
+        // 特殊文字の処理を追加
+        let cleanedText = modifiedText ?? text
+            .replacingOccurrences(of: "\r", with: " ")
+            .replacingOccurrences(of: "\t", with: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        return cleanedText
     }
     
     /// テキストエントリを追加し、条件に応じてファイルに保存
@@ -232,45 +295,71 @@ class TextModel: ObservableObject {
     ///   - minTextLength: 最小テキスト長
     func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 5, avoidApps: [String], minTextLength: Int) {
         if !isDataSaveEnabled {
+            // print("⚠️ データ保存が無効化されています") // 必要ならコメント解除
             return
         }
-        if !text.isEmpty {
-            if text.count < minTextLength {
-                return
+        
+        // 空のテキストはスキップ
+        if text.isEmpty {
+            return
+        }
+        
+        // 最小テキスト長チェック
+        if text.count < minTextLength {
+            // print("🔍 SKIP(Length): [\(appName)] Length \(text.count) < \(minTextLength). Text: \(text)") // 削除
+            return
+        }
+        
+        // 改行の処理
+        let cleanedText = removeExtraNewlines(from: text)
+        // 変更ログは削除
+        
+        // 直前のテキストとの重複チェック
+        if let lastAdded = texts.last?.text, lastAdded == cleanedText {
+            // print("🔍 SKIP(Duplicate): [\(appName)] Same as last. Text: \(cleanedText)") // 削除
+            return
+        }
+        
+        // 記号や数字のみのテキストのチェック
+        if cleanedText.utf16.isSymbolOrNumber {
+            // print("🔍 SKIP(Symbol/Num): [\(appName)] Symbol/Number only. Text: \(cleanedText)") // 削除
+            return
+        }
+        
+        // 除外アプリのチェック
+        if avoidApps.contains(appName) {
+            // print("🔍 SKIP(AvoidApp): [\(appName)] App is in avoid list. Text: \(cleanedText)") // 削除
+            return
+        }
+
+        
+        let timestamp = Date()
+        let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
+        
+        texts.append(newTextEntry)
+        saveCounter += 1
+        
+        let intervalFlag : Bool = {
+            if let lastSavedDate = lastSavedDate {
+                let interval = Date().timeIntervalSince(lastSavedDate)
+                return interval > Double(saveIntervalSec)
+            } else {
+                return true
             }
-            let cleanedText = removeExtraNewlines(from: text)
-
-            if texts.last?.text == cleanedText {
-                return
-            }
-
-            if cleanedText.utf16.isSymbolOrNumber {
-                return
-            }
-
-            let timestamp = Date()
-            let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
-
-            texts.append(newTextEntry)
-            saveCounter += 1
-
-            let intervalFlag : Bool = {
-                if let lastSavedDate = lastSavedDate {
-                    let interval = Date().timeIntervalSince(lastSavedDate)
-                    return interval > Double(saveIntervalSec)
-                } else {
-                    return true
-                }
-            }()
-
-            if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
-                updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
-            }
-
-            // 高頻度でMinHashによる重複削除処理を実行
-            if saveCounter % 100 == 0 { // 100エントリごとに実行
-                Task {
-                    await purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {}
+        }()
+        
+        if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
+            // print("💾 ファイル保存トリガー: ...") // 必要なら維持・調整
+            updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
+        }
+        
+        // ★★★ purifyFile の呼び出しを元に戻す ★★★
+        // 高頻度でMinHashによる重複削除処理を実行
+        if saveCounter % 100 == 0 { // 100エントリごとに実行
+            // print("🔄 MinHashによる重複削除処理を開始 (saveCounter: \(saveCounter))") // 必要ならコメント解除
+            Task {
+                await purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
+                    // print("✅ MinHashによる重複削除処理が完了") // 必要ならコメント解除
                 }
             }
         }
@@ -441,11 +530,9 @@ class TextModel: ObservableObject {
     ///   - completion: クリーンアップ完了時に実行するコールバック
     func purifyFile(avoidApps: [String], minTextLength: Int, completion: @escaping () -> Void) {
         let fileURL = getFileURL()
-        // 仮の保存先も TextEntry ディレクトリ内に
         let tempFileURL = getTextEntryDirectory().appendingPathComponent("tempSavedTexts.jsonl")
 
         loadFromFile { loadedTexts in
-            // 空のファイルを防止: ロードしたテキストが空の場合は何もせずに終了
             if loadedTexts.isEmpty {
                 print("No texts loaded from file - skipping purify to avoid empty file")
                 completion()
@@ -460,6 +547,7 @@ class TextModel: ObservableObject {
             var buckets: [Int: [TextEntry]] = [:]
             var uniqueEntries: [TextEntry] = []
             var duplicateCount = 0
+            var potentialDuplicates: [(TextEntry, TextEntry, Double)] = [] // デバッグ用
             
             // バケットを計算する関数
             func getBucket(signature: [Int]) -> Int {
@@ -486,22 +574,31 @@ class TextModel: ObservableObject {
                         if entry.text == existingEntry.text {
                             isDuplicate = true
                             duplicateCount += 1
+                            print("🔍 完全一致による重複を検出: [\(entry.appName)] \(entry.text)")
                             break
                         }
                         
                         // テキストの長さの差が大きい場合は重複と判定しない
                         let lengthDiff = abs(entry.text.count - existingEntry.text.count)
                         let maxLength = max(entry.text.count, existingEntry.text.count)
-                        if Double(lengthDiff) / Double(maxLength) > 0.2 {
+                        if Double(lengthDiff) / Double(maxLength) > 0.1 { // 0.2から0.1に変更
                             continue
                         }
                         
-                        // 類似度が0.95以上の場合のみ重複とみなす
+                        // 類似度が0.98以上の場合のみ重複とみなす（0.95から0.98に変更）
                         let existingSignature = minHash.computeMinHashSignature(for: existingEntry.text)
                         let similarity = minHash.computeJaccardSimilarity(signature1: signature, signature2: existingSignature)
-                        if similarity >= 0.95 {
+                        
+                        // デバッグ用に類似度が高いペアを記録
+                        if similarity >= 0.95 { // 0.98未満でも0.95以上の場合は記録
+                            potentialDuplicates.append((entry, existingEntry, similarity))
+                        }
+                        
+                        if similarity >= 0.98 { // 0.95から0.98に変更
                             isDuplicate = true
                             duplicateCount += 1
+                            print("🔍 類似度による重複を検出: [\(entry.appName)] \(entry.text)")
+                            print("  類似度: \(similarity), 既存テキスト: \(existingEntry.text)")
                             break
                         }
                     }
@@ -513,11 +610,24 @@ class TextModel: ObservableObject {
                 }
             }
             
+            // デバッグ情報の出力
+            if !potentialDuplicates.isEmpty {
+                print("\n🔍 高類似度ペアの一覧:")
+                for (entry1, entry2, similarity) in potentialDuplicates {
+                    print("  類似度: \(similarity)")
+                    print("  テキスト1: [\(entry1.appName)] \(entry1.text)")
+                    print("  テキスト2: [\(entry2.appName)] \(entry2.text)")
+                    print("  ---")
+                }
+            }
+            
             if duplicateCount == 0 {
                 print("No duplicates found - skipping file update")
                 completion()
                 return
             }
+
+            print("Found \(duplicateCount) duplicates out of \(loadedTexts.count) entries")
 
             self.fileAccessQueue.async {
                 // バックアップファイルの作成
