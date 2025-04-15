@@ -293,7 +293,7 @@ class TextModel: ObservableObject {
     ///   - saveIntervalSec: 保存をトリガーする時間間隔（秒）
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
-    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 5, avoidApps: [String], minTextLength: Int) {
+    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int) {
         if !isDataSaveEnabled {
             // print("⚠️ データ保存が無効化されています") // 必要ならコメント解除
             return
@@ -348,14 +348,14 @@ class TextModel: ObservableObject {
             }
         }()
         
-        if !texts.isEmpty && (texts.count >= saveLineTh || intervalFlag) {
+        if texts.count >= saveLineTh && intervalFlag && !isUpdatingFile{
             // print("💾 ファイル保存トリガー: ...") // 必要なら維持・調整
             updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
         }
         
         // ★★★ purifyFile の呼び出しを元に戻す ★★★
         // 高頻度でMinHashによる重複削除処理を実行
-        if saveCounter % 100 == 0 { // 100エントリごとに実行
+        if saveCounter % 1000 == 0 { // 1000エントリごとに実行
             // print("🔄 MinHashによる重複削除処理を開始 (saveCounter: \(saveCounter))") // 必要ならコメント解除
             Task {
                 await purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
