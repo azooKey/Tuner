@@ -275,13 +275,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             let result = AXUIElementCopyAttributeValue(element, attribute, &value)
             if result == .success, let text = value as? String, !text.isEmpty {
                 // 取得したテキストをデバッグログに出力
-                os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
-                       log: OSLog.default, 
-                       type: .debug, 
-                       appName, 
-                       role ?? "Unknown", 
-                       String(describing: attribute), 
-                       text)
+                // os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
+                //        log: OSLog.default, 
+                //        type: .debug, 
+                //        appName, 
+                //        role ?? "Unknown", 
+                //        String(describing: attribute), 
+                //        text)
                 DispatchQueue.main.async {
                     self.textModel.addText(text, appName: appName,
                                            // saveLineTh と saveIntervalSec のデフォルト値はTextModel側で定義されているものを使用
@@ -304,26 +304,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// AXUIElementのroleを取得するメソッド
     private func getRole(of element: AXUIElement) -> String? {
-        var roleValue: AnyObject?
-        // Use do-catch for safer error handling
-        do {
-            let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
-            if roleResult == .success, let role = roleValue as? String {
-                return role
-            } else {
-                // roleResultが .success でない場合、または値のキャストに失敗した場合
-                if roleResult != .success {
-                    os_log("Error getting role attribute: %{public}@", log: OSLog.default, type: .error, String(describing: roleResult))
-                } else {
-                    // キャスト失敗の場合 (通常は起こらないはずだが念のため)
-                    os_log("Failed to cast role value to String.", log: OSLog.default, type: .error)
-                }
-                return nil
-            }
-        } catch { // この catch ブロックは AXUIElementCopyAttributeValue のエラーを直接キャッチしないため、roleResult のチェックが主になります
-            print("Unexpected error in getRole: \(error)") // 万が一、予期せぬ Swift エラーが発生した場合のログ
-            return nil
+        var roleValue: CFTypeRef?
+        let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
+        
+        if roleResult == .success, let role = roleValue as? String {
+            return role
         }
+        
+        if roleResult != .success {
+            os_log("Error getting role attribute: %{public}@", log: OSLog.default, type: .error, String(describing: roleResult))
+        } else {
+            os_log("Failed to cast role value to String.", log: OSLog.default, type: .error)
+        }
+        
+        return nil
     }
 
     // アプリケーションの監視を開始するメソッド
@@ -393,7 +387,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 parentElement = currentElement
                 break
             } else {
-                // AXUIElementCopyAttributeValueは常にAXUIElementを返すため、強制キャストを使用
                 currentElement = newParentElement as! AXUIElement
             }
         }
