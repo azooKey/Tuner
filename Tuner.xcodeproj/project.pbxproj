@@ -32,6 +32,9 @@
 		E9ECFB8A2DA1625600A9B759 /* KanaKanjiConverterModule in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB892DA1625600A9B759 /* KanaKanjiConverterModule */; };
 		E9ECFB8C2DA1625600A9B759 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB8B2DA1625600A9B759 /* KanaKanjiConverterModuleWithDefaultDictionary */; };
 		E9ECFB8E2DA1625600A9B759 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB8D2DA1625600A9B759 /* SwiftUtils */; };
+		E9F99F972DAF6F3200EF9D26 /* FileHandleProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */; };
+		E9F99F982DAF6F3200EF9D26 /* DefaultFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */; };
+		E9F99F992DAF6F3200EF9D26 /* FileManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +65,9 @@
 		E9EB3E992C34002C00EA6395 /* ShareData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareData.swift; sourceTree = "<group>"; };
 		E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E9EB3E9D2C3546DB00EA6395 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
+		E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultFileManager.swift; sourceTree = "<group>"; };
+		E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileHandleProtocol.swift; sourceTree = "<group>"; };
+		E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManaging.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
@@ -166,6 +172,9 @@
 		E9CE3D872C37CC6300AF12CE /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */,
+				E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */,
+				E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */,
 				E9DB878F2D7C28FD0030CEF4 /* MinHashUtils.swift */,
 				E9CE3D882C37CC7100AF12CE /* TextExtension.swift */,
 			);
@@ -286,6 +295,9 @@
 				E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */,
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E9DB87902D7C29080030CEF4 /* MinHashUtils.swift in Sources */,
+				E9F99F972DAF6F3200EF9D26 /* FileHandleProtocol.swift in Sources */,
+				E9F99F982DAF6F3200EF9D26 /* DefaultFileManager.swift in Sources */,
+				E9F99F992DAF6F3200EF9D26 /* FileManaging.swift in Sources */,
 				E9EB3E9C2C3546A000EA6395 /* SettingsView.swift in Sources */,
 				E9EB3E9E2C3546DB00EA6395 /* StatisticsView.swift in Sources */,
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,

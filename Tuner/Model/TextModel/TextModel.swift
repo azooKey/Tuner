@@ -31,59 +31,50 @@ class TextModel: ObservableObject {
     private var minHashOptimizer = TextModelOptimizedWithLRU()
     private let similarityThreshold: Double = 0.8
     
-    init() {
+    // ファイル管理のためのプロパティ (追加)
+    private let fileManager: FileManaging
+    private let appGroupIdentifier: String = "group.dev.ensan.inputmethod.azooKeyMac" // App Group ID (定数化)
+    
+    /// イニシャライザ (修正: FileManaging を注入)
+    init(fileManager: FileManaging = DefaultFileManager()) {
+        self.fileManager = fileManager // 注入されたインスタンスを保存
         createAppDirectory()
         printFileURL() // ファイルパスを表示
     }
     
-    private func getDocumentsDirectory() -> URL {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        return paths[0]
-    }
-    
-    // LM (.marisa) ファイルの保存ディレクトリを取得
+    // LM (.marisa) ファイルの保存ディレクトリを取得 (修正: self.fileManager を使用)
     func getLMDirectory() -> URL {
-        let fileManager = FileManager.default
-
-        // App Group コンテナの URL を取得
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
-             // コンテナURLが取得できない場合のエラー処理（fatalErrorのまま）
+        // App Group コンテナの URL を取得 (修正)
+        guard let containerURL = self.fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
              fatalError("❌ Failed to get App Group container URL.")
         }
 
-        // 正しい LM ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1)
-        let p13nDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1") // "lm" を削除
+        let p13nDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1")
 
-        // ディレクトリが存在しない場合は作成
+        // ディレクトリが存在しない場合は作成 (修正)
         do {
-            // withIntermediateDirectories: true なので、中間のディレクトリも必要に応じて作成される
-            try fileManager.createDirectory(at: p13nDirectory, withIntermediateDirectories: true)
+            try self.fileManager.createDirectory(at: p13nDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            // ディレクトリ作成失敗時のエラーログ
             print("❌ Failed to create LM directory: \(error.localizedDescription)")
-            // ここで fatalError にしないのは、ディレクトリが既に存在する可能性などを考慮
         }
 
         return p13nDirectory
     }
     
-    // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得
+    // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得 (修正: self.fileManager を使用)
     func getTextEntryDirectory() -> URL {
-        let fileManager = FileManager.default
-
-        // App Group コンテナの URL を取得
-        guard let containerURL = fileManager.containerURL(forSecurityApplicationGroupIdentifier: "group.dev.ensan.inputmethod.azooKeyMac") else {
-             fatalError("❌ Failed to get App Group container URL.") // エラー処理は維持
+        // App Group コンテナの URL を取得 (修正)
+        guard let containerURL = self.fileManager.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) else {
+             fatalError("❌ Failed to get App Group container URL.")
         }
 
-        // 正しい TextEntry ディレクトリのパスを構築 (コンテナURL + Library/Application Support/p13n_v1/textEntry)
-        let textEntryDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1/textEntry") // "Library" をパスに追加
+        let textEntryDirectory = containerURL.appendingPathComponent("Library/Application Support/p13n_v1/textEntry")
 
-        // ディレクトリが存在しない場合は作成
+        // ディレクトリが存在しない場合は作成 (修正)
         do {
-            try fileManager.createDirectory(at: textEntryDirectory, withIntermediateDirectories: true) // 中間ディレクトリも作成
+            try self.fileManager.createDirectory(at: textEntryDirectory, withIntermediateDirectories: true, attributes: nil)
         } catch {
-            print("❌ Failed to create TextEntry directory: \(error.localizedDescription)") // エラーログは維持
+            print("❌ Failed to create TextEntry directory: \(error.localizedDescription)")
         }
 
         return textEntryDirectory
@@ -134,10 +125,11 @@ class TextModel: ObservableObject {
                 }
             }
 
-            // ファイルの有無を確認し、なければ作成
-            if !FileManager.default.fileExists(atPath: fileURL.path) {
+            // ファイルの有無を確認し、なければ作成 (修正: self.fileManager を使用)
+            if !self.fileManager.fileExists(atPath: fileURL.path) {
                 do {
-                    try "".write(to: fileURL, atomically: true, encoding: .utf8)
+                    // write メソッドを使用 (修正)
+                    try self.fileManager.write("", to: fileURL, atomically: true, encoding: .utf8)
                     print("📄 新規ファイルを作成: \(fileURL.path)")
                 } catch {
                     print("❌ ファイル作成に失敗: \(error.localizedDescription)")
@@ -146,11 +138,12 @@ class TextModel: ObservableObject {
                 }
             }
 
-            // 書き込む前に、TextEntry ディレクトリの存在を確認（念のため）
-            let textEntryDir = self.getTextEntryDirectory()
-            if !FileManager.default.fileExists(atPath: textEntryDir.path) {
+            // 書き込む前に、TextEntry ディレクトリの存在を確認（念のため）(修正: self.fileManager を使用)
+            let textEntryDir = self.getTextEntryDirectory() // これは内部で self.fileManager を使う
+            if !self.fileManager.fileExists(atPath: textEntryDir.path) {
                 do {
-                    try FileManager.default.createDirectory(at: textEntryDir, withIntermediateDirectories: true)
+                    // createDirectory を使用 (修正)
+                    try self.fileManager.createDirectory(at: textEntryDir, withIntermediateDirectories: true, attributes: nil)
                     print("📁 TextEntryディレクトリを作成: \(textEntryDir.path)")
                 } catch {
                     print("❌ TextEntryディレクトリの作成に失敗: \(error.localizedDescription)")
@@ -159,27 +152,39 @@ class TextModel: ObservableObject {
             }
 
             do {
-                let fileHandle = try FileHandle(forUpdating: fileURL)
+                // fileHandleForUpdating の呼び出しは既に self.fileManager を使うように修正済み
+                let fileHandle = try self.fileManager.fileHandleForUpdating(from: fileURL)
                 defer {
-                    fileHandle.closeFile()
-                }
-
-                // 末尾に移動
-                fileHandle.seekToEndOfFile()
-                
-                // 最初の追記でなければ改行を追加
-                let currentOffset = fileHandle.offsetInFile
-                if currentOffset > 0 {
-                    fileHandle.seek(toFileOffset: currentOffset - 1)
-                    if let lastByte = try fileHandle.read(upToCount: 1), lastByte != "\n".data(using: .utf8) {
-                        fileHandle.seekToEndOfFile()
-                        fileHandle.write("\n".data(using: .utf8)!)
-                    } else {
-                        fileHandle.seekToEndOfFile()
+                    // close() is now throwing, handle potential error
+                    do {
+                        try fileHandle.close()
+                    } catch {
+                        print("❌ Error closing file handle: \(error.localizedDescription)")
+                        // Consider additional error handling if needed
                     }
                 }
 
-                // ★★★ キャプチャしたentriesToSaveでフィルタリング ★★★
+                // seekToEnd is now throwing
+                _ = try fileHandle.seekToEnd() // Ignore returned offset
+
+                // offsetInFile access remains the same
+                let currentOffset = fileHandle.offsetInFile
+                if currentOffset > 0 {
+                    // seek(toOffset:) is now throwing
+                    try fileHandle.seek(toOffset: currentOffset - 1)
+                    // read(upToCount:) is now throwing
+                    if let lastByteData = try fileHandle.read(upToCount: 1),
+                       lastByteData != "\n".data(using: .utf8) {
+                        // seekToEnd is now throwing
+                        _ = try fileHandle.seekToEnd()
+                        // write(contentsOf:) remains throwing
+                        try fileHandle.write(contentsOf: "\n".data(using: .utf8)!)
+                    } else {
+                         // seekToEnd is now throwing
+                         _ = try fileHandle.seekToEnd()
+                    }
+                }
+
                 let avoidAppsSet = Set(avoidApps)
                 let filteredEntries = entriesToSave.filter {
                     !avoidAppsSet.contains($0.appName) &&
@@ -206,6 +211,7 @@ class TextModel: ObservableObject {
                             let jsonLine = jsonString + "\n"
                             if let data = jsonLine.data(using: .utf8) {
                                 do {
+                                    // write(contentsOf:) は fileHandle のメソッド
                                     try fileHandle.write(contentsOf: data)
                                     linesWritten += 1
                                 } catch {
@@ -373,20 +379,27 @@ class TextModel: ObservableObject {
     /// - Parameter completion: 読み込み完了時に実行するコールバック
     func loadFromFile(completion: @escaping ([TextEntry]) -> Void) {
         let fileURL = getFileURL()
-        fileAccessQueue.async {
+        fileAccessQueue.async { [weak self] in
+            guard let self = self else {
+                DispatchQueue.main.async { completion([]) }
+                return
+            }
+
             var loadedTexts: [TextEntry] = []
             var unreadableLines: [String] = []
-            
-            if !FileManager.default.fileExists(atPath: fileURL.path) {
+
+            // Check file existence using fileManager (修正)
+            if !self.fileManager.fileExists(atPath: fileURL.path) {
                 DispatchQueue.main.async {
                     completion(loadedTexts)
                 }
                 return
             }
-            
+
             var fileContents = ""
             do {
-                fileContents = try String(contentsOf: fileURL, encoding: .utf8)
+                // Read file contents using fileManager (修正)
+                fileContents = try self.fileManager.contentsOfFile(at: fileURL, encoding: .utf8)
             } catch {
                 print("❌ Failed to load from file: \(error.localizedDescription)")
                 DispatchQueue.main.async {
@@ -420,7 +433,9 @@ class TextModel: ObservableObject {
                 let unreadableText = unreadableLines.joined(separator
                                                             : "\n")
                 do {
-                    try unreadableText.write(to: unreadableFileURL, atomically: true, encoding: .utf8)
+                    // write メソッドを使用 (修正)
+                    try self.fileManager.write(unreadableText, to: unreadableFileURL, atomically: true, encoding: .utf8)
+                    print("📝 Saved \(unreadableLines.count) unreadable lines to \(unreadableFileURL.lastPathComponent)")
                 } catch {
                     print("❌ Failed to save unreadable lines: \(error.localizedDescription)")
                 }
