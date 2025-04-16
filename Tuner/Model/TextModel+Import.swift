@@ -8,164 +8,191 @@ extension TextModel {
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
     func importTextFiles(shareData: ShareData, avoidApps: [String], minTextLength: Int) async {
-        let fileManager = FileManager.default
         
-        // 1. ブックマークデータが存在するか確認
+        // 1. インポートフォルダURLの解決とアクセス権取得
+        guard let importFolderURL = await resolveImportFolderURL(shareData: shareData) else {
+            return // エラーメッセージは resolveImportFolderURL 内で表示
+        }
+        defer { importFolderURL.stopAccessingSecurityScopedResource() }
+        
+        // 2. フォルダ内のファイルを処理
+        await processFilesInFolder(importFolderURL, shareData: shareData, avoidApps: avoidApps, minTextLength: minTextLength)
+        
+        print("[DEBUG] Finished import process.")
+    }
+    
+    /// インポートフォルダのURLを解決し、アクセス権を取得する
+    private func resolveImportFolderURL(shareData: ShareData) async -> URL? {
         guard let bookmarkData = shareData.importBookmarkData else {
             print("インポートフォルダが設定されていません。Settings -> データ管理でフォルダを選択してください。")
-            return
+            return nil
         }
         
         var isStale = false
-        var importFolderURL: URL?
-        
         do {
-            // 2. ブックマークデータからURLを解決し、アクセス権を取得
             let url = try URL(resolvingBookmarkData: bookmarkData,
-                            options: [.withSecurityScope],
+                            options: [.withSecurityScope], // Security scope を要求
                             relativeTo: nil,
                             bookmarkDataIsStale: &isStale)
             
             if isStale {
                 print("インポートフォルダのブックマークが古くなっています。Settings -> データ管理で再選択してください。")
-                return
+                // 必要であれば shareData.importBookmarkData = nil などでリセット
+                return nil
             }
             
             guard url.startAccessingSecurityScopedResource() else {
                 print("インポートフォルダへのアクセス権を取得できませんでした: \(url.path)")
-                return
+                // ここでアクセス権が失われている可能性。ユーザーに再選択を促す。
+                return nil
             }
             
-            defer { url.stopAccessingSecurityScopedResource() }
-            
             print("インポートフォルダへのアクセス権を取得: \(url.path)")
-            importFolderURL = url
-
+            return url
         } catch {
             print("インポートフォルダのブックマーク解決またはアクセス権取得に失敗しました: \(error.localizedDescription)")
-            return
+            return nil
         }
-        
-        guard let importFolder = importFolderURL else {
-            print("エラー: アクセス可能なインポートフォルダURLがありません。")
-            return
-        }
-        
+    }
+    
+    /// 指定されたフォルダ内のテキストファイルを処理する
+    private func processFilesInFolder(_ folderURL: URL, shareData: ShareData, avoidApps: [String], minTextLength: Int) async {
+        let fileManager = FileManager.default
         var importedFileCount = 0
-        let fileURLs: [URL]
+        var newEntries: [TextEntry] = []
         
         do {
-            fileURLs = try fileManager.contentsOfDirectory(at: importFolder, includingPropertiesForKeys: nil, options: [])
-        } catch {
-            print("❌ Failed to list import folder contents: \(error.localizedDescription)")
-            return
-        }
+            let fileURLs = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil, options: [])
             
-        if fileURLs.isEmpty {
-            print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(importFolder.path)")
-        } else {
-            print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(importFolder.path)")
-        }
+            if fileURLs.isEmpty {
+                print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(folderURL.path)")
+            } else {
+                print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(folderURL.path)")
+            }
             
-        do {
             let existingEntries = await loadFromFileAsync()
             var existingKeys = Set(existingEntries.map { "\($0.appName)-\($0.text)" })
-            
-            var newEntries: [TextEntry] = []
             
             for fileURL in fileURLs {
                 let fileName = fileURL.lastPathComponent
                 print("[DEBUG] Processing file: \(fileName)")
                 
-                // インポート状態を確認
+                if fileURL.pathExtension.lowercased() != "txt" {
+                    print("[DEBUG] Skipping non-txt file: \(fileName)")
+                    continue
+                }
+                
                 if isFileImported(fileName) {
                     print("[DEBUG] Skipping already imported file: \(fileName)")
                     continue
                 }
                 
-                if fileURL.pathExtension.lowercased() != "txt" {
-                    continue
-                }
-                
-                do {
-                    let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
-                    let lines = fileContent.components(separatedBy: .newlines)
-                    let fileAppName = fileURL.deletingPathExtension().lastPathComponent
-                    
-                    var localKeys = existingKeys
-                    
-                    for line in lines {
-                        let cleanedLine = removeExtraNewlines(from: line)
-                        
-                        if cleanedLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cleanedLine.count < minTextLength {
-                            continue
-                        }
-                        
-                        let key = "\(fileAppName)-\(cleanedLine)"
-                        if localKeys.contains(key) {
-                            continue
-                        }
-                        
-                        localKeys.insert(key)
-                        existingKeys.insert(key)
-                        
-                        let newEntry = TextEntry(appName: fileAppName, text: cleanedLine, timestamp: Date())
-                        newEntries.append(newEntry)
-                    }
-                    
-                    // ファイルをインポート済みとしてマーク
-                    markFileAsImported(fileName, jsonlFileName: generateJsonlFileName(for: fileName), lastModifiedDate: Date())
+                if let processedEntries = await processSingleFile(fileURL, existingKeys: &existingKeys, minTextLength: minTextLength) {
+                    newEntries.append(contentsOf: processedEntries)
+                    // ファイルをインポート済みとしてマーク (成功時のみ)
+                    markFileAsImported(fileName, jsonlFileName: generateJsonlFileName(for: fileName), lastModifiedDate: Date()) // TODO: Use actual modification date?
                     importedFileCount += 1
-                    print("[DEBUG] Successfully imported: \(fileName)")
-                    
-                } catch {
-                    print("❌ Error processing file \(fileName): \(error.localizedDescription)")
+                    print("[DEBUG] Successfully processed and marked as imported: \(fileName)")
+                } else {
+                     print("❌ Error or no new entries found in file \(fileName)")
                 }
             }
             
-            if !newEntries.isEmpty {
-                let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
+        } catch {
+            print("❌ Failed to list import folder contents: \(error.localizedDescription)")
+            // フォルダ内容取得失敗時は ShareData を更新しない
+            return
+        }
+        
+        // 新規エントリがあれば import.jsonl に追記
+        if !newEntries.isEmpty {
+            await appendNewEntriesToJsonl(newEntries)
+        }
+        
+        // ShareData を更新
+        await updateImportShareData(shareData: shareData, importedCount: importedFileCount, folderWasChecked: true)
+    }
+    
+    /// 単一のテキストファイルを処理し、新規エントリを返す
+    private func processSingleFile(_ fileURL: URL, existingKeys: inout Set<String>, minTextLength: Int) async -> [TextEntry]? {
+        var newEntriesForFile: [TextEntry] = []
+        let fileAppName = fileURL.deletingPathExtension().lastPathComponent
+        
+        do {
+            let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+            let lines = fileContent.components(separatedBy: .newlines)
+            
+            for line in lines {
+                let cleanedLine = removeExtraNewlines(from: line)
                 
-                do {
-                    var currentContent = ""
-                    if fileManager.fileExists(atPath: importFileURL.path) {
-                        currentContent = try String(contentsOf: importFileURL, encoding: .utf8)
-                        if !currentContent.isEmpty && !currentContent.hasSuffix("\n") {
-                             currentContent += "\n"
-                        }
-                    }
-                    
-                    var newContent = ""
-                    for entry in newEntries {
-                        let jsonData = try JSONEncoder().encode(entry)
-                        if let jsonString = String(data: jsonData, encoding: .utf8) {
-                            newContent.append(jsonString + "\n")
-                        }
-                    }
-                    try (currentContent + newContent).write(to: importFileURL, atomically: true, encoding: .utf8)
-                    print("\(newEntries.count) 件の新規エントリを import.jsonl に追記しました。")
-                } catch {
-                    print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
+                if cleanedLine.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || cleanedLine.count < minTextLength {
+                    continue
                 }
+                
+                let key = "\(fileAppName)-\(cleanedLine)"
+                if !existingKeys.contains(key) {
+                    existingKeys.insert(key)
+                    let newEntry = TextEntry(appName: fileAppName, text: cleanedLine, timestamp: Date())
+                    newEntriesForFile.append(newEntry)
+                }
+            }
+            return newEntriesForFile // 成功時はエントリ配列を返す (空の場合も含む)
+        } catch {
+            print("❌ Error processing file content for \(fileURL.lastPathComponent): \(error.localizedDescription)")
+            return nil // エラー時は nil を返す
+        }
+    }
+    
+    /// 新規エントリを import.jsonl に追記する
+    private func appendNewEntriesToJsonl(_ newEntries: [TextEntry]) async {
+        let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl")
+        let fileManager = FileManager.default
+        
+        do {
+            var currentContent = ""
+            // 既存ファイルの内容を読み込み、末尾に改行がなければ追加
+            if fileManager.fileExists(atPath: importFileURL.path) {
+                currentContent = try String(contentsOf: importFileURL, encoding: .utf8)
+                if !currentContent.isEmpty && !currentContent.hasSuffix("\n") {
+                    currentContent += "\n"
+                }
+            }
+            
+            // 新規エントリをJSONL形式で文字列に追加
+            var newContent = ""
+            for entry in newEntries {
+                if let jsonData = try? JSONEncoder().encode(entry),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    newContent.append(jsonString + "\n")
+                }
+            }
+            
+            // ファイルに書き込み
+            if !newContent.isEmpty {
+                try (currentContent + newContent).write(to: importFileURL, atomically: true, encoding: .utf8)
+                print("\(newEntries.count) 件の新規エントリを import.jsonl に追記しました。")
             }
             
         } catch {
             print("❌ Failed to write import.jsonl: \(error.localizedDescription)")
         }
-        
-        print("[DEBUG] Finished file processing loop.")
-        await MainActor.run {
-            print("[DEBUG] Updating ShareData. Imported count: \(importedFileCount)")
-            if importedFileCount > 0 {
-                shareData.lastImportedFileCount = importedFileCount
-                shareData.lastImportDate = Date().timeIntervalSince1970
-                print("[DEBUG] Import record updated: \(importedFileCount) files, Date: \(shareData.lastImportDateAsDate?.description ?? "nil")")
-            } else if !fileURLs.isEmpty {
-                print("[DEBUG] No new files were imported, but folder was checked. Updating check date.")
-                shareData.lastImportDate = Date().timeIntervalSince1970
-            } else {
-                print("[DEBUG] No files found in import folder. Import record not updated.")
-            }
+    }
+    
+    /// ShareDataのインポート関連情報を更新する
+    @MainActor // ShareDataのプロパティはMainActor上で更新する必要がある
+    private func updateImportShareData(shareData: ShareData, importedCount: Int, folderWasChecked: Bool) {
+        print("[DEBUG] Updating ShareData. Imported count: \(importedCount)")
+        if importedCount > 0 {
+            shareData.lastImportedFileCount = importedCount
+            shareData.lastImportDate = Date().timeIntervalSince1970
+            print("[DEBUG] Import record updated: \(importedCount) files, Date: \(shareData.lastImportDateAsDate?.description ?? "nil")")
+        } else if folderWasChecked {
+            // ファイルはチェックしたが新規インポートはなかった場合も、最終チェック日時を更新
+            print("[DEBUG] No new files were imported, but folder was checked. Updating check date.")
+            shareData.lastImportDate = Date().timeIntervalSince1970
+        } else {
+            // フォルダ自体が見つからない、アクセスできない等の場合は更新しない
+            print("[DEBUG] Import folder could not be accessed or was empty. Import record not updated.")
         }
     }
 }

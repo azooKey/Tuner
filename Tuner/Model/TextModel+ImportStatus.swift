@@ -3,7 +3,7 @@ import Foundation
 // MARK: - インポート状態管理
 extension TextModel {
     /// インポート状態を管理する構造体
-    private struct ImportStatus: Codable {
+    struct ImportStatus: Codable {
         struct FileInfo: Codable {
             var importDate: Date
             var jsonlFileName: String
@@ -13,12 +13,12 @@ extension TextModel {
     }
     
     /// インポート状態ファイルのURLを取得
-    private func getImportStatusFileURL() -> URL {
+    func getImportStatusFileURL() -> URL {
         return getTextEntryDirectory().appendingPathComponent("import_status.json") // Use TextEntry directory
     }
     
     /// インポート状態を読み込む
-    private func loadImportStatus() -> ImportStatus {
+    func loadImportStatus() -> ImportStatus {
         let fileURL = getImportStatusFileURL()
         guard FileManager.default.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL),
@@ -29,7 +29,7 @@ extension TextModel {
     }
     
     /// インポート状態を保存する
-    private func saveImportStatus(_ status: ImportStatus) {
+    func saveImportStatus(_ status: ImportStatus) {
         let fileURL = getImportStatusFileURL()
         if let data = try? JSONEncoder().encode(status) {
             try? data.write(to: fileURL)
@@ -37,25 +37,25 @@ extension TextModel {
     }
     
     /// インポート状態をリセットする
-    private func resetImportStatus() {
+    func resetImportStatus() {
         let fileURL = getImportStatusFileURL()
         try? FileManager.default.removeItem(at: fileURL)
     }
     
     /// ファイルがインポート済みかどうかを確認
-    private func isFileImported(_ fileName: String) -> Bool {
+    func isFileImported(_ fileName: String) -> Bool {
         let status = loadImportStatus()
         return status.importedFiles[fileName] != nil
     }
     
     /// ファイルのJSONLファイル名を生成
-    private func generateJsonlFileName(for fileName: String) -> String {
+    func generateJsonlFileName(for fileName: String) -> String {
         let timestamp = Int(Date().timeIntervalSince1970)
         return "imported_\(fileName)_\(timestamp).jsonl"
     }
     
     /// ファイルをインポート済みとしてマーク
-    private func markFileAsImported(_ fileName: String, jsonlFileName: String, lastModifiedDate: Date) {
+    func markFileAsImported(_ fileName: String, jsonlFileName: String, lastModifiedDate: Date) {
         var status = loadImportStatus()
         status.importedFiles[fileName] = ImportStatus.FileInfo(
             importDate: Date(),
@@ -66,7 +66,7 @@ extension TextModel {
     }
     
     /// ファイルの最終更新日時を取得
-    private func getFileLastModifiedDate(_ fileURL: URL) -> Date? {
+    func getFileLastModifiedDate(_ fileURL: URL) -> Date? {
         do {
             let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
             return attributes[.modificationDate] as? Date
@@ -77,7 +77,7 @@ extension TextModel {
     }
     
     /// ファイルが更新されているかどうかを確認
-    private func isFileUpdated(_ fileName: String, currentModifiedDate: Date) -> Bool {
+    func isFileUpdated(_ fileName: String, currentModifiedDate: Date) -> Bool {
         let status = loadImportStatus()
         guard let fileInfo = status.importedFiles[fileName] else {
             return false

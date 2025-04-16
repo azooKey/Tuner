@@ -1,6 +1,24 @@
 import Foundation
 
 // MARK: - Statistics
+
+/// 統計情報の計算結果を保持する構造体
+struct StatisticsResult {
+    let sortedAppNameCounts: [(key: String, value: Int)]
+    let sortedAppNameTextCounts: [(key: String, value: Int)]
+    let totalEntries: Int
+    let totalTextLength: Int
+    let summaryStats: String // 複数行の統計サマリー
+    let sortedLangTextCounts: [(key: String, value: Int)]
+}
+
+/// 複数のデータソースからの統計情報を保持する構造体
+struct SeparatedStatisticsResult {
+    let combined: StatisticsResult
+    let savedTexts: StatisticsResult
+    let importTexts: StatisticsResult
+}
+
 extension TextModel {
     /// アプリケーション名ごとのエントリ数を集計
     /// - Parameter completion: 集計完了時に実行するコールバック
@@ -16,12 +34,16 @@ extension TextModel {
         }
     }
 
-    /// 統計情報を生成する
+    /// 統計情報を生成する (単一データソース用)
     /// - Parameters:
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
-    ///   - completion: 生成完了時に実行するコールバック
-    func generateStatisticsParameter(avoidApps: [String], minTextLength: Int, completion: @escaping (([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)])) -> Void) {
+    ///   - completion: 生成完了時に実行するコールバック (StatisticsResult を返す)
+    func generateStatisticsParameter(
+        avoidApps: [String],
+        minTextLength: Int,
+        completion: @escaping (StatisticsResult) -> Void
+    ) {
         // データのクリーンアップ
         purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
             self.loadFromFile { loadedTexts in
@@ -74,33 +96,38 @@ extension TextModel {
                 var stats = ""
                 stats += "Total Text Entries: \(totalEntries)\n"
                 stats += "Total Text Length: \(totalTextLength) characters\n"
+                // 必要に応じて他の統計情報も stats に追加
 
                 let sortedAppNameCounts = appNameCounts.sorted { $0.value > $1.value }
                 let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
                 let sortedLangTextCounts = langText.sorted { $0.value > $1.value } + [("Other", langOther)]
 
-                completion((sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats, sortedLangTextCounts))
+                let result = StatisticsResult(
+                    sortedAppNameCounts: sortedAppNameCounts,
+                    sortedAppNameTextCounts: sortedAppNameTextCounts,
+                    totalEntries: totalEntries,
+                    totalTextLength: totalTextLength,
+                    summaryStats: stats,
+                    sortedLangTextCounts: sortedLangTextCounts
+                )
+                completion(result)
             }
         }
     }
 
-    /// 統計情報を個別に生成
+    /// 統計情報を個別に生成 (複数データソース用)
     /// - Parameters:
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
     ///   - progressCallback: 進捗状況を通知するコールバック
     ///   - statusCallback: ステータス情報を通知するコールバック
-    /// - Returns: 結合データ、savedTexts、importTextsの統計情報
+    /// - Returns: SeparatedStatisticsResult
     func generateSeparatedStatisticsAsync(
         avoidApps: [String],
         minTextLength: Int,
         progressCallback: @escaping (Double) -> Void,
         statusCallback: @escaping (String, String) -> Void = { _, _ in }
-    ) async -> (
-        combined: ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)]),
-        savedTexts: ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)]),
-        importTexts: ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)])
-    ) {
+    ) async -> SeparatedStatisticsResult { // 戻り値の型を変更
         // 進捗状況の初期化
         progressCallback(0.0)
         statusCallback("処理を開始しています...", "データを読み込み中...")
@@ -159,7 +186,12 @@ extension TextModel {
         progressCallback(1.0)
         statusCallback("処理完了!", "統計情報の生成が完了しました")
 
-        return (combinedStats, savedTextStats, importTextStats)
+        // SeparatedStatisticsResult を返す
+        return SeparatedStatisticsResult(
+            combined: combinedStats,
+            savedTexts: savedTextStats,
+            importTexts: importTextStats
+        )
     }
 
     /// 統計情報を処理するヘルパーメソッド
@@ -171,7 +203,7 @@ extension TextModel {
     ///   - progressRange: 進捗状況の範囲
     ///   - progressCallback: 進捗状況を通知するコールバック
     ///   - statusCallback: ステータス情報を通知するコールバック
-    /// - Returns: 統計情報のタプル
+    /// - Returns: StatisticsResult
     private func processStatistics(
         entries: [TextEntry],
         avoidApps: [String],
@@ -180,7 +212,7 @@ extension TextModel {
         progressRange: (Double, Double),
         progressCallback: @escaping (Double) -> Void,
         statusCallback: @escaping (String, String) -> Void
-    ) async -> ([(key: String, value: Int)], [(key: String, value: Int)], Int, Int, String, [(key: String, value: Int)]) {
+    ) async -> StatisticsResult { // 戻り値の型を変更
         let (startProgress, endProgress) = progressRange
         let avoidAppsSet = Set(avoidApps)
 
@@ -283,6 +315,14 @@ extension TextModel {
         let sortedAppNameTextCounts = appNameTextCounts.sorted { $0.value > $1.value }
         let sortedLangTextCounts = langText.sorted { $0.value > $1.value } + [("Other", langOther)]
 
-        return (sortedAppNameCounts, sortedAppNameTextCounts, totalEntries, totalTextLength, stats, sortedLangTextCounts)
+        // StatisticsResult を返す
+        return StatisticsResult(
+            sortedAppNameCounts: sortedAppNameCounts,
+            sortedAppNameTextCounts: sortedAppNameTextCounts,
+            totalEntries: totalEntries,
+            totalTextLength: totalTextLength,
+            summaryStats: stats,
+            sortedLangTextCounts: sortedLangTextCounts
+        )
     }
 } 

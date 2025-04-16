@@ -303,26 +303,26 @@ extension StatisticsView {
         )
 
         await MainActor.run {
-            self.combinedStats.appNameCounts = result.combined.0
-            self.combinedStats.appTexts = result.combined.1
-            self.combinedStats.totalEntries = result.combined.2
-            self.combinedStats.totalTextLength = result.combined.3
-            self.combinedStats.details = result.combined.4
-            self.combinedStats.langTexts = result.combined.5
+            self.combinedStats.appNameCounts = result.combined.sortedAppNameCounts
+            self.combinedStats.appTexts = result.combined.sortedAppNameTextCounts
+            self.combinedStats.totalEntries = result.combined.totalEntries
+            self.combinedStats.totalTextLength = result.combined.totalTextLength
+            self.combinedStats.details = result.combined.summaryStats
+            self.combinedStats.langTexts = result.combined.sortedLangTextCounts
 
-            self.savedTextStats.appNameCounts = result.savedTexts.0
-            self.savedTextStats.appTexts = result.savedTexts.1
-            self.savedTextStats.totalEntries = result.savedTexts.2
-            self.savedTextStats.totalTextLength = result.savedTexts.3
-            self.savedTextStats.details = result.savedTexts.4
-            self.savedTextStats.langTexts = result.savedTexts.5
+            self.savedTextStats.appNameCounts = result.savedTexts.sortedAppNameCounts
+            self.savedTextStats.appTexts = result.savedTexts.sortedAppNameTextCounts
+            self.savedTextStats.totalEntries = result.savedTexts.totalEntries
+            self.savedTextStats.totalTextLength = result.savedTexts.totalTextLength
+            self.savedTextStats.details = result.savedTexts.summaryStats
+            self.savedTextStats.langTexts = result.savedTexts.sortedLangTextCounts
 
-            self.importTextStats.appNameCounts = result.importTexts.0
-            self.importTextStats.appTexts = result.importTexts.1
-            self.importTextStats.totalEntries = result.importTexts.2
-            self.importTextStats.totalTextLength = result.importTexts.3
-            self.importTextStats.details = result.importTexts.4
-            self.importTextStats.langTexts = result.importTexts.5
+            self.importTextStats.appNameCounts = result.importTexts.sortedAppNameCounts
+            self.importTextStats.appTexts = result.importTexts.sortedAppNameTextCounts
+            self.importTextStats.totalEntries = result.importTexts.totalEntries
+            self.importTextStats.totalTextLength = result.importTexts.totalTextLength
+            self.importTextStats.details = result.importTexts.summaryStats
+            self.importTextStats.langTexts = result.importTexts.sortedLangTextCounts
 
             withAnimation(.easeOut(duration: 0.3)) {
                 isLoading = false

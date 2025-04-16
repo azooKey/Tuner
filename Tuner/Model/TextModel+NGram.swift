@@ -6,9 +6,9 @@ extension TextModel {
     /// 新規エントリを使用してN-gramモデルを追加学習
     /// - Parameters:
     ///   - newEntries: 新規テキストエントリの配列
-    ///   - n: N-gramのサイズ
+    ///   - ngramSize: N-gramのサイズ
     ///   - baseFilename: ベースとなるファイル名
-    func trainNGramOnNewEntries(newEntries: [TextEntry], n: Int, baseFilePattern: String) async {
+    func trainNGramOnNewEntries(newEntries: [TextEntry], ngramSize: Int, baseFilePattern: String) async {
         let lines = newEntries.map { $0.text }
         if lines.isEmpty {
             return
@@ -40,7 +40,7 @@ extension TextModel {
              let resumeFileURL = outputDirURL.appendingPathComponent(resumePattern) // フルパスを生成
              try await trainNGram( // try を追加 (もし trainNGram が throws する場合)
                  lines: lines,
-                 n: n,
+                 n: ngramSize,
                  baseFilePattern: baseFilePattern,
                  outputDir: outputDir,
                  resumeFilePattern: resumeFileURL.path // フルパスを渡すように変更
@@ -64,10 +64,10 @@ extension TextModel {
     
     /// 保存されたテキストエントリからN-gramモデルを学習
     /// - Parameters:
-    ///   - n: N-gramのサイズ
+    ///   - ngramSize: N-gramのサイズ
     ///   - baseFilename: ベースとなるファイル名
     ///   - maxEntryCount: 最大エントリ数
-    func trainNGramFromTextEntries(n: Int = 5, baseFilePattern: String = "original", maxEntryCount: Int = 100_000) async {
+    func trainNGramFromTextEntries(ngramSize: Int = 5, baseFilePattern: String = "original", maxEntryCount: Int = 100_000) async {
         let fileManager = FileManager.default
         
         let savedTexts = await loadFromFileAsync()
@@ -121,7 +121,7 @@ extension TextModel {
             }
         }
         
-        await trainNGram(lines: lines, n: n, baseFilePattern: baseFilePattern, outputDir: outputDir)
+        await trainNGram(lines: lines, n: ngramSize, baseFilePattern: baseFilePattern, outputDir: outputDir)
 
         // オリジナルモデル生成後、追加学習用のlmモデルをコピーして準備 (baseFilePattern == "original" の場合のみ)
         if baseFilePattern == "original" {
@@ -233,7 +233,7 @@ extension TextModel {
         // trainNGramOnNewEntries を lm モードで呼び出す
         // trainNGramOnNewEntries は内部で trainNGram を呼び出し、
         // resumeFilePattern="lm" により既存の lm モデルに追記学習する
-        await trainNGramOnNewEntries(newEntries: combinedEntries, n: self.ngramSize, baseFilePattern: "lm")
+        await trainNGramOnNewEntries(newEntries: combinedEntries, ngramSize: self.ngramSize, baseFilePattern: "lm")
         
         // 最終訓練日時を更新
         await MainActor.run {
