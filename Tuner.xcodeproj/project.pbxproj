@@ -22,12 +22,6 @@
 		E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */; };
 		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
 		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
-		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
-		E99FE8CF2DAF4C15007017FC /* TextModel+ImportStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99FE8C92DAF4C15007017FC /* TextModel+ImportStatus.swift */; };
-		E99FE8D02DAF4C15007017FC /* TextModel+Purification.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99FE8CB2DAF4C15007017FC /* TextModel+Purification.swift */; };
-		E99FE8D12DAF4C15007017FC /* TextModel+Statistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99FE8CC2DAF4C15007017FC /* TextModel+Statistics.swift */; };
-		E99FE8D22DAF4C15007017FC /* TextModel+Import.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99FE8C82DAF4C15007017FC /* TextModel+Import.swift */; };
-		E99FE8D32DAF4C15007017FC /* TextModel+NGram.swift in Sources */ = {isa = PBXBuildFile; fileRef = E99FE8CA2DAF4C15007017FC /* TextModel+NGram.swift */; };
 		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
 		E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DAB2C33D13100523DB0 /* MenuView.swift */; };
 		E9CE3D892C37CC7100AF12CE /* TextExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9CE3D882C37CC7100AF12CE /* TextExtension.swift */; };
@@ -60,12 +54,6 @@
 		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
-		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
-		E99FE8C82DAF4C15007017FC /* TextModel+Import.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextModel+Import.swift"; sourceTree = "<group>"; };
-		E99FE8C92DAF4C15007017FC /* TextModel+ImportStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextModel+ImportStatus.swift"; sourceTree = "<group>"; };
-		E99FE8CA2DAF4C15007017FC /* TextModel+NGram.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextModel+NGram.swift"; sourceTree = "<group>"; };
-		E99FE8CB2DAF4C15007017FC /* TextModel+Purification.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextModel+Purification.swift"; sourceTree = "<group>"; };
-		E99FE8CC2DAF4C15007017FC /* TextModel+Statistics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "TextModel+Statistics.swift"; sourceTree = "<group>"; };
 		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		E9B51DAB2C33D13100523DB0 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
 		E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TunerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -78,6 +66,7 @@
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		E9BB2C122DAE8AF3000EB7B3 /* TunerTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TunerTests; sourceTree = "<group>"; };
+		E9F99F8C2DAF6D1D00EF9D26 /* TextModel */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TextModel; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -155,13 +144,8 @@
 		E952E83E2C318D1700EBF642 /* Model */ = {
 			isa = PBXGroup;
 			children = (
-				E99FE8C82DAF4C15007017FC /* TextModel+Import.swift */,
-				E99FE8C92DAF4C15007017FC /* TextModel+ImportStatus.swift */,
-				E99FE8CA2DAF4C15007017FC /* TextModel+NGram.swift */,
-				E99FE8CB2DAF4C15007017FC /* TextModel+Purification.swift */,
-				E99FE8CC2DAF4C15007017FC /* TextModel+Statistics.swift */,
+				E9F99F8C2DAF6D1D00EF9D26 /* TextModel */,
 				E952E83C2C318D1000EBF642 /* TextEntry.swift */,
-				E952E8402C318D5C00EBF642 /* TextModel.swift */,
 				E9EB3E992C34002C00EA6395 /* ShareData.swift */,
 			);
 			path = Model;
@@ -202,6 +186,9 @@
 			buildRules = (
 			);
 			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				E9F99F8C2DAF6D1D00EF9D26 /* TextModel */,
 			);
 			name = Tuner;
 			productName = Tuner;
@@ -299,16 +286,10 @@
 				E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */,
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E9DB87902D7C29080030CEF4 /* MinHashUtils.swift in Sources */,
-				E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */,
 				E9EB3E9C2C3546A000EA6395 /* SettingsView.swift in Sources */,
 				E9EB3E9E2C3546DB00EA6395 /* StatisticsView.swift in Sources */,
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
 				E94A73862C2B4B9F0049C3C6 /* ContentView.swift in Sources */,
-				E99FE8CF2DAF4C15007017FC /* TextModel+ImportStatus.swift in Sources */,
-				E99FE8D02DAF4C15007017FC /* TextModel+Purification.swift in Sources */,
-				E99FE8D12DAF4C15007017FC /* TextModel+Statistics.swift in Sources */,
-				E99FE8D22DAF4C15007017FC /* TextModel+Import.swift in Sources */,
-				E99FE8D32DAF4C15007017FC /* TextModel+NGram.swift in Sources */,
 				E9CE3D892C37CC7100AF12CE /* TextExtension.swift in Sources */,
 				E94A73842C2B4B9F0049C3C6 /* TunerApp.swift in Sources */,
 				E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */,
