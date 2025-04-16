@@ -27,6 +27,8 @@ class MockFileManager: FileManaging {
     private(set) var fileHandleForUpdatingCalledURLs: [URL] = []
     // Track created MockFileHandles to inspect their state
     private(set) var createdMockFileHandles: [URL: MockFileHandle] = [:]
+    // Track removed item paths
+    private(set) var removeItemCalledPaths: [String] = []
 
     // MARK: - Initialization
 
@@ -132,6 +134,17 @@ class MockFileManager: FileManaging {
         return mockHandle
     }
 
+    func removeItem(atPath path: String) throws {
+        removeItemCalledPaths.append(path)
+        if files.removeValue(forKey: path) == nil && !createdDirectories.contains(path) {
+             // Mimic FileManager behavior: throw if item doesn't exist
+             // Using CocoaError.fileNoSuchFileError is appropriate here.
+             throw NSError(domain: NSCocoaErrorDomain, code: CocoaError.fileNoSuchFile.rawValue, userInfo: [NSFilePathErrorKey: path])
+        }
+        // Also remove if it was tracked as a created directory
+        createdDirectories.remove(path)
+    }
+
     // MARK: - Utility Methods for Tests
 
     func reset() {
@@ -145,6 +158,7 @@ class MockFileManager: FileManaging {
         writeDataCalledURLs.removeAll()
         fileHandleForUpdatingCalledURLs.removeAll()
         createdMockFileHandles.removeAll()
+        removeItemCalledPaths.removeAll() // Reset the new tracking array
         shouldThrowOnFileHandleCreation = false
         shouldThrowOnWrite = false
         shouldThrowOnRead = false

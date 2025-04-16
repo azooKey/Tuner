@@ -124,6 +124,7 @@ class TextModel: ObservableObject {
                 return
             }
 
+            // Defer the state reset, ensuring it runs even on errors
             defer {
                 DispatchQueue.main.async {
                     self.isUpdatingFile = false
@@ -131,44 +132,46 @@ class TextModel: ObservableObject {
                 }
             }
 
-            // ファイルの有無を確認し、なければ作成 (修正: self.fileManager を使用)
-            if !self.fileManager.fileExists(atPath: fileURL.path) {
-                do {
-                    // write メソッドを使用 (修正)
-                    try self.fileManager.write("", to: fileURL, atomically: true, encoding: .utf8)
-                    print("📄 新規ファイルを作成: \(fileURL.path)")
-                } catch {
-                    print("❌ ファイル作成に失敗: \(error.localizedDescription)")
-                    // ★★★ エラー発生時もisUpdatingFileはdeferでfalseになる ★★★
-                    return
-                }
-            }
-
-            // 書き込む前に、TextEntry ディレクトリの存在を確認（念のため）(修正: self.fileManager を使用)
-            let textEntryDir = self.getTextEntryDirectory() // これは内部で self.fileManager を使う
-            if !self.fileManager.fileExists(atPath: textEntryDir.path) {
-                do {
-                    // createDirectory を使用 (修正)
-                    try self.fileManager.createDirectory(at: textEntryDir, withIntermediateDirectories: true, attributes: nil)
-                    print("📁 TextEntryディレクトリを作成: \(textEntryDir.path)")
-                } catch {
-                    print("❌ TextEntryディレクトリの作成に失敗: \(error.localizedDescription)")
-                    return
-                }
-            } else {
-                 print("🐛 [TextModel] updateFile: Directory already exists.") // Debug print
-            }
-
+            // Wrap the entire file operation logic in a do-catch block
             do {
-                // fileHandleForUpdating の呼び出しは既に self.fileManager を使うように修正済み
+                // ファイルの有無を確認し、なければ作成 (修正: self.fileManager を使用)
+                if !self.fileManager.fileExists(atPath: fileURL.path) {
+                    do {
+                        // write メソッドを使用 (修正)
+                        try self.fileManager.write("", to: fileURL, atomically: true, encoding: .utf8)
+                        print("📄 新規ファイルを作成: \(fileURL.path)")
+                    } catch {
+                        // Re-throw or handle specific file creation error if needed,
+                        // but for now, let the outer catch handle it.
+                        print("❌ ファイル作成に失敗 (will be caught by outer block): \(error.localizedDescription)")
+                        throw error // Propagate the error to the outer catch
+                    }
+                }
+
+                // 書き込む前に、TextEntry ディレクトリの存在を確認（念のため）(修正: self.fileManager を使用)
+                let textEntryDir = self.getTextEntryDirectory() // これは内部で self.fileManager を使う
+                if !self.fileManager.fileExists(atPath: textEntryDir.path) {
+                    do {
+                        // createDirectory を使用 (修正)
+                        try self.fileManager.createDirectory(at: textEntryDir, withIntermediateDirectories: true, attributes: nil)
+                        print("📁 TextEntryディレクトリを作成: \(textEntryDir.path)")
+                    } catch {
+                         print("❌ TextEntryディレクトリの作成に失敗 (will be caught by outer block): \(error.localizedDescription)")
+                        throw error // Propagate the error to the outer catch
+                    }
+                } else {
+                    print("🐛 [TextModel] updateFile: Directory already exists.") // Debug print
+                }
+
+                // Moved file handle operations inside the main do-catch
                 let fileHandle = try self.fileManager.fileHandleForUpdating(from: fileURL)
                 defer {
                     // close() is now throwing, handle potential error
                     do {
                         try fileHandle.close()
                     } catch {
+                        // Log closing error, but don't let it mask the primary error
                         print("❌ Error closing file handle: \(error.localizedDescription)")
-                        // Consider additional error handling if needed
                     }
                 }
 
@@ -187,12 +190,9 @@ class TextModel: ObservableObject {
                         _ = try fileHandle.seekToEnd()
                         // write(contentsOf:) remains throwing
                         try fileHandle.write(contentsOf: "\n".data(using: .utf8)!)
-                    } else {
-                         // seekToEnd is now throwing
-                         _ = try fileHandle.seekToEnd()
                     }
                 } else {
-                     print("🐛 [TextModel] updateFile: File is empty.") // Debug print
+                    print("🐛 [TextModel] updateFile: File is empty.") // Debug print
                 }
 
                 let avoidAppsSet = Set(avoidApps)
@@ -200,21 +200,22 @@ class TextModel: ObservableObject {
                     !avoidAppsSet.contains($0.appName) &&
                     $0.text.count >= minTextLength
                 }
-                 print("🐛 [TextModel] updateFile: Filtered entries (\(filteredEntries.count) remaining). Attempting to write...") // Debug print
+                print("🐛 [TextModel] updateFile: Filtered entries (\(filteredEntries.count) remaining). Attempting to write...") // Debug print
 
                 var linesWritten = 0
                 for (idx, textEntry) in filteredEntries.enumerated() {
-                     // print("🐛 [TextModel] updateFile: Writing entry \(idx+1)/\(filteredEntries.count)...") // Potentially too verbose
                     do {
                         let jsonData = try JSONEncoder().encode(textEntry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
                             let jsonLine = jsonString + "\n"
                             if let data = jsonLine.data(using: .utf8) {
+                                // Inner do-catch for individual line write error
                                 do {
                                     try fileHandle.write(contentsOf: data)
                                     linesWritten += 1
                                 } catch {
-                                     print("❌ [TextModel] updateFile: Error writing entry \(idx+1): \(error.localizedDescription)") // Log specific write error
+                                    print("❌ [TextModel] updateFile: Error writing entry \(idx+1) ('\(textEntry.text.prefix(20))...'): \(error.localizedDescription)") // Log specific write error
+                                    // Optionally decide whether to continue or re-throw
                                 }
                             } else {
                                 print("❌ [TextModel] updateFile: Error encoding jsonLine to data for entry \(idx+1)")
@@ -223,36 +224,37 @@ class TextModel: ObservableObject {
                             print("❌ [TextModel] updateFile: Error encoding jsonData to string for entry \(idx+1)")
                         }
                     } catch {
-                         print("❌ [TextModel] updateFile: Error JSONEncoding entry \(idx+1): \(error.localizedDescription)")
+                        print("❌ [TextModel] updateFile: Error JSONEncoding entry \(idx+1): \(error.localizedDescription)")
                     }
                 }
 
                 print("🐛 [TextModel] updateFile: Finished writing loop (\(linesWritten) lines written).") // Debug print
 
-                // エラーサマリーログは削除
-                // if encodingErrors > 0 || writeErrors > 0 { ... }
-
-                // print("✅ ファイル更新完了: \(linesWritten)件のエントリを'\(fileURL.lastPathComponent)'に保存") // 元のログに近い形に（必要なら調整）
                 if linesWritten > 0 {
                     print("💾 Saved \(linesWritten) entries to \(fileURL.lastPathComponent)")
+                    // Only update lastSavedDate if writing was successful
+                    DispatchQueue.main.async {
+                        self.lastSavedDate = Date()
+                        print("🐛 [TextModel] updateFile: Updated lastSavedDate.") // Debug print
+                    }
                 }
 
-                // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
-                if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 {
-                     print("🔄 N-gramモデルの学習を開始") // Original log
-                     Task {
-                         await self.trainNGramOnNewEntries(newEntries: filteredEntries, ngramSize: self.ngramSize, baseFilePattern: "lm")
-                     }
-                 }
-
-                print("🐛 [TextModel] updateFile: Updating lastSavedDate.") // Debug print
-                DispatchQueue.main.async {
-                    self.lastSavedDate = Date()
+                // Trigger N-gram training only if writes were successful
+                if !filteredEntries.isEmpty && linesWritten > 0 && saveCounter % (saveThreshold * 5) == 0 {
+                    print("🔄 N-gramモデルの学習を開始") // Original log
+                    Task {
+                        await self.trainNGramOnNewEntries(newEntries: filteredEntries, ngramSize: self.ngramSize, baseFilePattern: "lm")
+                    }
                 }
+
             } catch {
-                print("❌ [TextModel] updateFile: Error during file handle operations or writing: \(error.localizedDescription)") // Debug print
+                // Catch any error from the file operations within the main do block
+                print("❌❌❌ [TextModel] updateFile: CRITICAL ERROR during file operations or writing: \(error.localizedDescription)")
+                // Consider how to handle failed writes. Maybe re-queue entriesToSave?
+                // For now, just log the error.
             }
-            print("🐛 [TextModel] updateFile async block END") // Debug print
+
+            print("�� [TextModel] updateFile async block END") // Debug print
         }
     }
     
