@@ -42,7 +42,7 @@ class TextModel: ObservableObject {
     }
     
     // LM (.marisa) ファイルの保存ディレクトリを取得
-    private func getLMDirectory() -> URL {
+    func getLMDirectory() -> URL {
         let fileManager = FileManager.default
 
         // App Group コンテナの URL を取得
@@ -68,7 +68,7 @@ class TextModel: ObservableObject {
     }
     
     // TextEntry (.jsonl など) ファイルの保存ディレクトリを取得
-    private func getTextEntryDirectory() -> URL {
+    func getTextEntryDirectory() -> URL {
         let fileManager = FileManager.default
 
         // App Group コンテナの URL を取得
