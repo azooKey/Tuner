@@ -26,6 +26,7 @@ class TextModel: ObservableObject {
     private var textHashes: Set<TextEntry> = []
     let fileAccessQueue = DispatchQueue(label: "com.contextdatabaseapp.fileAccessQueue")
     private var isUpdatingFile = false
+    private var lastAddedEntryText: String? = nil
     
     // MinHash関連のプロパティ
     private var minHashOptimizer = TextModelOptimizedWithLRU()
@@ -90,7 +91,8 @@ class TextModel: ObservableObject {
         _ = getTextEntryDirectory()
     }
     
-    private func updateFile(avoidApps: [String], minTextLength: Int) {
+    // Change access level from private to internal to allow testing
+    internal func updateFile(avoidApps: [String], minTextLength: Int) {
         // ファイル更新中なら早期リターン
         guard !isUpdatingFile else {
             print("⚠️ ファイル更新中です。処理をスキップします")
@@ -116,7 +118,11 @@ class TextModel: ObservableObject {
 
         let fileURL = getFileURL()
         fileAccessQueue.async { [weak self] in
-            guard let self = self else { return }
+            print("🐛 [TextModel] updateFile async block START") // Debug print
+            guard let self = self else {
+                print("⚠️ [TextModel] updateFile async block: self is nil") // Debug print
+                return
+            }
 
             defer {
                 DispatchQueue.main.async {
@@ -149,6 +155,8 @@ class TextModel: ObservableObject {
                     print("❌ TextEntryディレクトリの作成に失敗: \(error.localizedDescription)")
                     return
                 }
+            } else {
+                 print("🐛 [TextModel] updateFile: Directory already exists.") // Debug print
             }
 
             do {
@@ -183,6 +191,8 @@ class TextModel: ObservableObject {
                          // seekToEnd is now throwing
                          _ = try fileHandle.seekToEnd()
                     }
+                } else {
+                     print("🐛 [TextModel] updateFile: File is empty.") // Debug print
                 }
 
                 let avoidAppsSet = Set(avoidApps)
@@ -190,49 +200,35 @@ class TextModel: ObservableObject {
                     !avoidAppsSet.contains($0.appName) &&
                     $0.text.count >= minTextLength
                 }
-                
-                // フィルタリングで除外されたエントリをログ出力
-                let skippedCount = entriesToSave.count - filteredEntries.count
-                if skippedCount > 0 {
-                    // print("🔍 Filtered out \(skippedCount) entries before saving:") // 削除
-                    // 詳細ログループも削除
-                }
+                 print("🐛 [TextModel] updateFile: Filtered entries (\(filteredEntries.count) remaining). Attempting to write...") // Debug print
 
-                // print("📝 フィルタリング後: \(filteredEntries.count)件のエントリを保存") // 削除
-
-                // 各エントリを jsonl 形式で追記
                 var linesWritten = 0
-                // var encodingErrors = 0 // 削除
-                // var writeErrors = 0 // 削除
-                for textEntry in filteredEntries {
+                for (idx, textEntry) in filteredEntries.enumerated() {
+                     // print("🐛 [TextModel] updateFile: Writing entry \(idx+1)/\(filteredEntries.count)...") // Potentially too verbose
                     do {
                         let jsonData = try JSONEncoder().encode(textEntry)
                         if let jsonString = String(data: jsonData, encoding: .utf8) {
                             let jsonLine = jsonString + "\n"
                             if let data = jsonLine.data(using: .utf8) {
                                 do {
-                                    // write(contentsOf:) は fileHandle のメソッド
                                     try fileHandle.write(contentsOf: data)
                                     linesWritten += 1
                                 } catch {
-                                    // 個別エラーログは抑制（全体のエラーハンドリングで捕捉）
-                                    // print("❌ Write Error for entry...") // 削除
-                                    // writeErrors += 1 // 削除
+                                     print("❌ [TextModel] updateFile: Error writing entry \(idx+1): \(error.localizedDescription)") // Log specific write error
                                 }
                             } else {
-                                // print("❌ Encoding Error (data using .utf8)...") // 削除
-                                // encodingErrors += 1 // 削除
+                                print("❌ [TextModel] updateFile: Error encoding jsonLine to data for entry \(idx+1)")
                             }
                         } else {
-                            // print("❌ Encoding Error (String from data)...") // 削除
-                            // encodingErrors += 1 // 削除
+                            print("❌ [TextModel] updateFile: Error encoding jsonData to string for entry \(idx+1)")
                         }
                     } catch {
-                        // print("❌ JSON Encoding Error for entry...") // 削除
-                        // encodingErrors += 1 // 削除
+                         print("❌ [TextModel] updateFile: Error JSONEncoding entry \(idx+1): \(error.localizedDescription)")
                     }
                 }
-                
+
+                print("🐛 [TextModel] updateFile: Finished writing loop (\(linesWritten) lines written).") // Debug print
+
                 // エラーサマリーログは削除
                 // if encodingErrors > 0 || writeErrors > 0 { ... }
 
@@ -243,30 +239,20 @@ class TextModel: ObservableObject {
 
                 // 定期的に追加されたエントリを使って学習 (lmモデルのみ)
                 if !filteredEntries.isEmpty && saveCounter % (saveThreshold * 5) == 0 {
-                    print("🔄 N-gramモデルの学習を開始")
-                    Task {
-                        // ここでは self.ngramSize など self のプロパティアクセスが必要
-                        // capture list [self] で self を弱参照ではなく強参照でキャプチャするか、
-                        // または self?.ngramSize のようにオプショナルチェーンを使う必要がある。
-                        // Task内でselfが解放されていない前提で、ここでは self. を使う。
-                        await self.trainNGramOnNewEntries(newEntries: filteredEntries, ngramSize: self.ngramSize, baseFilePattern: "lm")
-                    }
-                }
+                     print("🔄 N-gramモデルの学習を開始") // Original log
+                     Task {
+                         await self.trainNGramOnNewEntries(newEntries: filteredEntries, ngramSize: self.ngramSize, baseFilePattern: "lm")
+                     }
+                 }
 
-                // ★★★ 完了ブロックでは lastSavedDate の更新のみ行う ★★★
+                print("🐛 [TextModel] updateFile: Updating lastSavedDate.") // Debug print
                 DispatchQueue.main.async {
-                    // self.texts.removeAll() // ここではクリアしない！
                     self.lastSavedDate = Date()
-                    // print("✅ lastSavedDate を更新") // デバッグ用
                 }
             } catch {
-                print("❌ ファイル更新処理全体でエラー: \(error.localizedDescription)")
-                // エラーが発生した場合でも、textsは既にクリアされているため、元に戻す処理は難しい
-                // 必要であれば、クリア前にバックアップを取るなどの対策が必要
-                DispatchQueue.main.async {
-                    // self.texts.removeAll() // ここでもクリアしない
-                }
+                print("❌ [TextModel] updateFile: Error during file handle operations or writing: \(error.localizedDescription)") // Debug print
             }
+            print("🐛 [TextModel] updateFile async block END") // Debug print
         }
     }
     
@@ -305,44 +291,35 @@ class TextModel: ObservableObject {
             return
         }
         
-        // 空のテキストはスキップ
         if text.isEmpty {
             return
         }
         
-        // 最小テキスト長チェック
         if text.count < minTextLength {
-            // print("🔍 SKIP(Length): [\(appName)] Length \(text.count) < \(minTextLength). Text: \(text)") // 削除
             return
         }
         
-        // 改行の処理
         let cleanedText = removeExtraNewlines(from: text)
-        // 変更ログは削除
         
-        // 直前のテキストとの重複チェック
-        if let lastAdded = texts.last?.text, lastAdded == cleanedText {
-            // print("🔍 SKIP(Duplicate): [\(appName)] Same as last. Text: \(cleanedText)") // 削除
+        // 直前の "正常に追加された" テキストとの重複チェック (修正)
+        if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
+            // print("🔍 SKIP(Duplicate): [\(appName)] Same as last successfully added. Text: \(cleanedText)")
             return
         }
         
-        // 記号や数字のみのテキストのチェック
         if cleanedText.utf16.isSymbolOrNumber {
-            // print("🔍 SKIP(Symbol/Num): [\(appName)] Symbol/Number only. Text: \(cleanedText)") // 削除
             return
         }
         
-        // 除外アプリのチェック
         if avoidApps.contains(appName) {
-            // print("🔍 SKIP(AvoidApp): [\(appName)] App is in avoid list. Text: \(cleanedText)") // 削除
             return
         }
-
         
         let timestamp = Date()
         let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
         
         texts.append(newTextEntry)
+        lastAddedEntryText = cleanedText // 正常に追加されたので更新
         saveCounter += 1
         
         let intervalFlag : Bool = {
@@ -354,7 +331,7 @@ class TextModel: ObservableObject {
             }
         }()
         
-        if texts.count >= saveLineTh && intervalFlag && !isUpdatingFile{
+        if (texts.count >= saveLineTh || intervalFlag) && !isUpdatingFile {
             // print("💾 ファイル保存トリガー: ...") // 必要なら維持・調整
             updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
         }
