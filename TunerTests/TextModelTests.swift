@@ -322,6 +322,22 @@ class TextModelTests: XCTestCase {
         XCTAssertEqual(result, expected)
     }
 
+    func testRemoveExtraNewlines_HandlesLongText() {
+        let baseText = "This is a long line of text. "
+        let longText = String(repeating: baseText, count: 5)  // テスト用に5回に減らす
+        let input = "\(longText)\n\n\(longText)"
+        let expected = "\(longText)\(longText)".trimmingCharacters(in: .whitespacesAndNewlines)  // 期待値もトリミング
+        let result = textModel.removeExtraNewlines(from: input)
+        
+        // デバッグ用の出力
+        print("Input length: \(input.count)")
+        print("Expected length: \(expected.count)")
+        print("Result length: \(result.count)")
+        print("Expected: [\(expected)]")  // 角括弧で囲んで可視化
+        print("Result: [\(result)]")      // 角括弧で囲んで可視化
+        
+        XCTAssertEqual(result, expected)
+    }
 
     func testRemoveExtraNewlines_HandlesEmptyText() {
         let input = ""
