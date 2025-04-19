@@ -298,4 +298,57 @@ class TextModelTests: XCTestCase {
         XCTAssertTrue(loadedEntries.isEmpty)
         XCTAssertTrue(mockFileManager.contentsOfFileCalledURLs.contains(savedTextsFileURL))
     }
+
+    // MARK: - Accessibility API Data Parsing Tests
+
+    func testRemoveExtraNewlines_HandlesMultipleNewlines() {
+        let input = "Line 1\n\n\nLine 2\n\nLine 3"
+        let expected = "Line 1 Line 2 Line 3"
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
+
+    func testRemoveExtraNewlines_HandlesSpecialCharacters() {
+        let input = "Text with \r carriage return \t tab \n newline"
+        let expected = "Text with carriage return tab newline"
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
+
+    func testRemoveExtraNewlines_HandlesEmoji() {
+        let input = "Text with emoji 😊\n\nMore text 🎉"
+        let expected = "Text with emoji 😊 More text 🎉"
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
+
+
+    func testRemoveExtraNewlines_HandlesEmptyText() {
+        let input = ""
+        let expected = ""
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
+
+    func testRemoveExtraNewlines_HandlesWhitespaceOnly() {
+        let input = "   \t\n   "
+        let expected = ""
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
+
+    func testRemoveExtraNewlines_HandlesMixedContent() {
+        let input = """
+        First line with emoji 😊
+        
+        Second line with special chars \t\r
+        
+        Third line with numbers 123
+        
+        Fourth line with symbols !@#
+        """
+        let expected = "First line with emoji 😊 Second line with special chars Third line with numbers 123 Fourth line with symbols !@#"
+        let result = textModel.removeExtraNewlines(from: input)
+        XCTAssertEqual(result, expected)
+    }
 } 

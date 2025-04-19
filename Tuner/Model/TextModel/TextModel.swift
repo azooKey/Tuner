@@ -254,7 +254,7 @@ class TextModel: ObservableObject {
                 // For now, just log the error.
             }
 
-            print("�� [TextModel] updateFile async block END") // Debug print
+            print("🐛 [TextModel] updateFile async block END") // Debug print
         }
     }
     
@@ -264,19 +264,12 @@ class TextModel: ObservableObject {
     }
     
     func removeExtraNewlines(from text: String) -> String {
-        // 改行の処理を改善
-        let pattern = "\n+"
-        let regex = try? NSRegularExpression(pattern: pattern, options: [])
-        let range = NSRange(location: 0, length: text.utf16.count)
-        let modifiedText = regex?.stringByReplacingMatches(in: text, options: [], range: range, withTemplate: " ")
-        
-        // 特殊文字の処理を追加
-        let cleanedText = modifiedText ?? text
-            .replacingOccurrences(of: "\r", with: " ")
+        return text
+            .replacingOccurrences(of: "\r", with: "")
+            .replacingOccurrences(of: "\n", with: "  ")
             .replacingOccurrences(of: "\t", with: " ")
+            .replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        return cleanedText
     }
     
     /// テキストエントリを追加し、条件に応じてファイルに保存
