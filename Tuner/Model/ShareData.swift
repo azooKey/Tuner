@@ -45,6 +45,8 @@ class ShareData: ObservableObject {
     
     /// 現在実行中のアプリケーションのリスト (これは永続化しない)
     @Published var apps: [String] = []
+    /// インポートフォルダ選択パネルが表示中かどうか (UI制御用、永続化しない)
+    @Published var isImportPanelShowing: Bool = false
 
     // UserDefaultsのキー定義
     private let activateAccessibilityKey = "activateAccessibility"

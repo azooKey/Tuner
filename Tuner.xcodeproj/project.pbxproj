@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 56;
+	objectVersion = 70;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -22,7 +22,6 @@
 		E94A738B2C2B4B9F0049C3C6 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E94A738A2C2B4B9F0049C3C6 /* Preview Assets.xcassets */; };
 		E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */; };
 		E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E83C2C318D1000EBF642 /* TextEntry.swift */; };
-		E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E952E8402C318D5C00EBF642 /* TextModel.swift */; };
 		E9B51DAA2C33B39000523DB0 /* ChartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DA92C33B39000523DB0 /* ChartView.swift */; };
 		E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9B51DAB2C33D13100523DB0 /* MenuView.swift */; };
 		E9CE3D892C37CC7100AF12CE /* TextExtension.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9CE3D882C37CC7100AF12CE /* TextExtension.swift */; };
@@ -33,7 +32,20 @@
 		E9ECFB8A2DA1625600A9B759 /* KanaKanjiConverterModule in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB892DA1625600A9B759 /* KanaKanjiConverterModule */; };
 		E9ECFB8C2DA1625600A9B759 /* KanaKanjiConverterModuleWithDefaultDictionary in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB8B2DA1625600A9B759 /* KanaKanjiConverterModuleWithDefaultDictionary */; };
 		E9ECFB8E2DA1625600A9B759 /* SwiftUtils in Frameworks */ = {isa = PBXBuildFile; productRef = E9ECFB8D2DA1625600A9B759 /* SwiftUtils */; };
+		E9F99F972DAF6F3200EF9D26 /* FileHandleProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */; };
+		E9F99F982DAF6F3200EF9D26 /* DefaultFileManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */; };
+		E9F99F992DAF6F3200EF9D26 /* FileManaging.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		E9BB2C152DAE8AF3000EB7B3 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = E94A73782C2B4B9F0049C3C6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = E94A737F2C2B4B9F0049C3C6;
+			remoteInfo = Tuner;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		E94A73802C2B4B9F0049C3C6 /* Tuner.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Tuner.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -45,15 +57,23 @@
 		E94A73922C2B4CF90049C3C6 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		E94A73942C2BE6180049C3C6 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		E952E83C2C318D1000EBF642 /* TextEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextEntry.swift; sourceTree = "<group>"; };
-		E952E8402C318D5C00EBF642 /* TextModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextModel.swift; sourceTree = "<group>"; };
 		E9B51DA92C33B39000523DB0 /* ChartView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChartView.swift; sourceTree = "<group>"; };
 		E9B51DAB2C33D13100523DB0 /* MenuView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuView.swift; sourceTree = "<group>"; };
+		E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TunerTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		E9CE3D882C37CC7100AF12CE /* TextExtension.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextExtension.swift; sourceTree = "<group>"; };
 		E9DB878F2D7C28FD0030CEF4 /* MinHashUtils.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinHashUtils.swift; sourceTree = "<group>"; };
 		E9EB3E992C34002C00EA6395 /* ShareData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareData.swift; sourceTree = "<group>"; };
 		E9EB3E9B2C3546A000EA6395 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		E9EB3E9D2C3546DB00EA6395 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
+		E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DefaultFileManager.swift; sourceTree = "<group>"; };
+		E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileHandleProtocol.swift; sourceTree = "<group>"; };
+		E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileManaging.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedRootGroup section */
+		E9BB2C122DAE8AF3000EB7B3 /* TunerTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TunerTests; sourceTree = "<group>"; };
+		E9F99F8C2DAF6D1D00EF9D26 /* TextModel */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = TextModel; sourceTree = "<group>"; };
+/* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		E94A737D2C2B4B9F0049C3C6 /* Frameworks */ = {
@@ -75,6 +95,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9BB2C0E2DAE8AF3000EB7B3 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -82,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				E94A73822C2B4B9F0049C3C6 /* Tuner */,
+				E9BB2C122DAE8AF3000EB7B3 /* TunerTests */,
 				E94A73812C2B4B9F0049C3C6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -90,6 +118,7 @@
 			isa = PBXGroup;
 			children = (
 				E94A73802C2B4B9F0049C3C6 /* Tuner.app */,
+				E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -121,8 +150,8 @@
 		E952E83E2C318D1700EBF642 /* Model */ = {
 			isa = PBXGroup;
 			children = (
+				E9F99F8C2DAF6D1D00EF9D26 /* TextModel */,
 				E952E83C2C318D1000EBF642 /* TextEntry.swift */,
-				E952E8402C318D5C00EBF642 /* TextModel.swift */,
 				E9EB3E992C34002C00EA6395 /* ShareData.swift */,
 			);
 			path = Model;
@@ -143,6 +172,9 @@
 		E9CE3D872C37CC6300AF12CE /* Utils */ = {
 			isa = PBXGroup;
 			children = (
+				E9F99F942DAF6F3200EF9D26 /* DefaultFileManager.swift */,
+				E9F99F952DAF6F3200EF9D26 /* FileHandleProtocol.swift */,
+				E9F99F962DAF6F3200EF9D26 /* FileManaging.swift */,
 				E9DB878F2D7C28FD0030CEF4 /* MinHashUtils.swift */,
 				E9CE3D882C37CC7100AF12CE /* TextExtension.swift */,
 			);
@@ -164,10 +196,36 @@
 			);
 			dependencies = (
 			);
+			fileSystemSynchronizedGroups = (
+				E9F99F8C2DAF6D1D00EF9D26 /* TextModel */,
+			);
 			name = Tuner;
 			productName = Tuner;
 			productReference = E94A73802C2B4B9F0049C3C6 /* Tuner.app */;
 			productType = "com.apple.product-type.application";
+		};
+		E9BB2C102DAE8AF3000EB7B3 /* TunerTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = E9BB2C172DAE8AF3000EB7B3 /* Build configuration list for PBXNativeTarget "TunerTests" */;
+			buildPhases = (
+				E9BB2C0D2DAE8AF3000EB7B3 /* Sources */,
+				E9BB2C0E2DAE8AF3000EB7B3 /* Frameworks */,
+				E9BB2C0F2DAE8AF3000EB7B3 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				E9BB2C162DAE8AF3000EB7B3 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				E9BB2C122DAE8AF3000EB7B3 /* TunerTests */,
+			);
+			name = TunerTests;
+			packageProductDependencies = (
+			);
+			productName = TunerTests;
+			productReference = E9BB2C112DAE8AF3000EB7B3 /* TunerTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
 		};
 /* End PBXNativeTarget section */
 
@@ -176,11 +234,15 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 1540;
+				LastSwiftUpdateCheck = 1630;
 				LastUpgradeCheck = 1540;
 				TargetAttributes = {
 					E94A737F2C2B4B9F0049C3C6 = {
 						CreatedOnToolsVersion = 15.4;
+					};
+					E9BB2C102DAE8AF3000EB7B3 = {
+						CreatedOnToolsVersion = 16.3;
+						TestTargetID = E94A737F2C2B4B9F0049C3C6;
 					};
 				};
 			};
@@ -201,6 +263,7 @@
 			projectRoot = "";
 			targets = (
 				E94A737F2C2B4B9F0049C3C6 /* Tuner */,
+				E9BB2C102DAE8AF3000EB7B3 /* TunerTests */,
 			);
 		};
 /* End PBXProject section */
@@ -215,6 +278,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9BB2C0F2DAE8AF3000EB7B3 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -225,7 +295,9 @@
 				E9B51DAC2C33D13100523DB0 /* MenuView.swift in Sources */,
 				E94A73932C2B4CF90049C3C6 /* AppDelegate.swift in Sources */,
 				E9DB87902D7C29080030CEF4 /* MinHashUtils.swift in Sources */,
-				E952E8412C318D5C00EBF642 /* TextModel.swift in Sources */,
+				E9F99F972DAF6F3200EF9D26 /* FileHandleProtocol.swift in Sources */,
+				E9F99F982DAF6F3200EF9D26 /* DefaultFileManager.swift in Sources */,
+				E9F99F992DAF6F3200EF9D26 /* FileManaging.swift in Sources */,
 				E9EB3E9C2C3546A000EA6395 /* SettingsView.swift in Sources */,
 				E9EB3E9E2C3546DB00EA6395 /* StatisticsView.swift in Sources */,
 				E952E83D2C318D1000EBF642 /* TextEntry.swift in Sources */,
@@ -237,7 +309,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		E9BB2C0D2DAE8AF3000EB7B3 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		E9BB2C162DAE8AF3000EB7B3 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = E94A737F2C2B4B9F0049C3C6 /* Tuner */;
+			targetProxy = E9BB2C152DAE8AF3000EB7B3 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		E94A738D2C2B4B9F0049C3C6 /* Debug */ = {
@@ -384,6 +471,7 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
@@ -416,9 +504,50 @@
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.ensan.tuner.azooKeyMac;
 				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_INTEROP_MODE = objcxx;
 				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		E9BB2C182DAE8AF3000EB7B3 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CW97U5J24N;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.3;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.TunerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tuner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tuner";
+			};
+			name = Debug;
+		};
+		E9BB2C192DAE8AF3000EB7B3 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = CW97U5J24N;
+				GENERATE_INFOPLIST_FILE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 15.3;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.nya3neko2.TunerTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_CXX_INTEROPERABILITY_MODE = "c++";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_OBJC_INTEROP_MODE = objcxx;
+				SWIFT_VERSION = 5.0;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Tuner.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Tuner";
 			};
 			name = Release;
 		};
@@ -439,6 +568,15 @@
 			buildConfigurations = (
 				E94A73902C2B4B9F0049C3C6 /* Debug */,
 				E94A73912C2B4B9F0049C3C6 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		E9BB2C172DAE8AF3000EB7B3 /* Build configuration list for PBXNativeTarget "TunerTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				E9BB2C182DAE8AF3000EB7B3 /* Debug */,
+				E9BB2C192DAE8AF3000EB7B3 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

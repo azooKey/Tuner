@@ -33,51 +33,58 @@ struct MinHashOptimized {
     private let numHashFunctions: Int
     /// 各ハッシュ関数で使用するシード値
     private let seeds: [Int]
-    /// N-gramのサイズ
-    private let nGramSize = 3
+    private let similarityThreshold: Double
+    private let sequenceLength: Int
 
-    /// 初期化
-    /// - Parameters:
-    ///   - numHashFunctions: 使用するハッシュ関数の数（デフォルト: 20）
-    init(numHashFunctions: Int = 20) {
+    init(numHashFunctions: Int = 50, similarityThreshold: Double = 0.7, sequenceLength: Int = 5) {
         self.numHashFunctions = numHashFunctions
         self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
+        self.similarityThreshold = similarityThreshold
+        self.sequenceLength = sequenceLength
     }
 
-    /// 文字列から文字ベースのN-gramを生成
-    private func generateCharacterNGrams(for text: String) -> [String] {
-        guard text.count >= nGramSize else { return [text] } // N-gramサイズ未満の場合はテキスト全体を返す
+    // テキストの前処理を行う
+    internal func preprocessText(_ text: String) -> String {
+        // 空白を除去
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 全角スペースを半角に変換
+        let normalizedSpace = trimmed.replacingOccurrences(of: "　", with: " ")
+        // 連続するスペースを1つに
+        let singleSpace = normalizedSpace.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+        return singleSpace
+    }
 
-        var ngrams: [String] = []
-        let characters = Array(text) // 文字の配列に変換
+    // テキストを文字列のシーケンスに分割
+    internal func splitText(_ text: String) -> [[Unicode.Scalar]] {
+        let processedText = preprocessText(text)
+        // 文字列を指定された長さのシーケンスに分割
+        var sequences: [[Unicode.Scalar]] = []
+        let scalars = Array(processedText.unicodeScalars)
 
-        for index in 0...(characters.count - nGramSize) {
-            let ngram = String(characters[index..<(index + nGramSize)])
-            ngrams.append(ngram)
+        // sequenceLength を使うように変更
+        let length = self.sequenceLength
+        guard scalars.count >= length else { // テキストがシーケンス長より短い場合は、テキスト全体を1つのシーケンスとする
+            if !scalars.isEmpty {
+                sequences.append(Array(scalars))
+            }
+            return sequences
         }
-        return ngrams
+
+        for index in 0...(scalars.count - length) { // ループ範囲を修正
+            let sequence = Array(scalars[index..<index + length]) // sequenceLength を使うように変更
+            sequences.append(sequence)
+        }
+        // 注意: テキスト末尾のシーケンス長未満の部分は現在含まれていません。必要に応じて追加してください。
+
+        return sequences
     }
 
-    /// テキストのMinHashシグネチャを計算 (文字ベースN-gramを使用)
-    /// - Parameters:
-    ///   - text: シグネチャを計算するテキスト
-    /// - Returns: 計算されたMinHashシグネチャ
     func computeMinHashSignature(for text: String) -> [Int] {
-        // 文字ベースのN-gramを生成
-        let ngrams = generateCharacterNGrams(for: text)
-
-        // N-gramがない場合は空のシグネチャを返す（またはエラー処理）
-        guard !ngrams.isEmpty else {
-            // すべてのハッシュ関数に対して最大値を返すことで、他のテキストとの類似度を0にする
-            return Array(repeating: Int.max, count: numHashFunctions)
-        }
-
+        let sequences = splitText(text)
         return self.seeds.map { seed in
             var minHash = Int.max
-            // 各N-gramに対してハッシュを計算し、最小値を見つける
-            for ngram in ngrams {
-                // SimpleHasher.customHashはCollection<Unicode.Scalar>を期待するため、Stringを変換
-                let hash = SimpleHasher.customHash(ngram.unicodeScalars, seed: seed)
+            for sequence in sequences {
+                let hash = SimpleHasher.customHash(sequence, seed: seed)
                 if hash < minHash {
                     minHash = hash
                 }
@@ -102,15 +109,21 @@ struct MinHashOptimized {
         }
         return Double(equalCount) / Double(signature1.count)
     }
+
+    // テキストの類似性を判定
+    func isSimilar(_ text1: String, _ text2: String) -> Bool {
+        let signature1 = computeMinHashSignature(for: text1)
+        let signature2 = computeMinHashSignature(for: text2)
+        let similarity = computeJaccardSimilarity(signature1: signature1, signature2: signature2)
+        return similarity >= similarityThreshold
+    }
 }
 
 /// LRUキャッシュを使用した最適化されたテキストモデル
 /// - MinHashを使用したテキストの重複検出
 /// - メモリ使用量を最適化
 struct TextModelOptimizedWithLRU {
-    /// MinHash計算用のインスタンス
-    private let minHash = MinHashOptimized()
-    /// シグネチャのキャッシュ（LRU方式）
+    private let minHash = MinHashOptimized(similarityThreshold: 0.7)
     private var signatureCache: [String: [Int]]
     /// 既に処理済みのテキストエントリ
     private var seenEntries: Set<String> = []
@@ -139,33 +152,10 @@ struct TextModelOptimizedWithLRU {
             // 除外アプリと最小テキスト長のチェック
             guard !avoidApps.contains(entry.appName), entry.text.utf8.count >= minTextLength else { continue }
 
-            // キャッシュと既処理エントリのチェック
-            if signatureCache.keys.contains(entry.text) || seenEntries.contains(entry.text) {
-                duplicateCount += 1
-                continue
-            }
-
-            // 新しいエントリのシグネチャを計算
-            let newEntrySignature: [Int]
-            if let cachedSignature = self.signatureCache[entry.text] {
-                newEntrySignature = cachedSignature
-            } else {
-                newEntrySignature = minHash.computeMinHashSignature(for: entry.text)
-                signatureCache[entry.text] = newEntrySignature
-            }
-
-            // 既存エントリとの類似度チェック
+            // 既存のエントリとの類似性チェック
             var isDuplicate = false
             for uniqueEntry in uniqueEntries {
-                let existingSignature: [Int]
-                if let cachedSignature = signatureCache[uniqueEntry.text] {
-                    existingSignature = cachedSignature
-                } else {
-                    existingSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
-                    signatureCache[uniqueEntry.text] = existingSignature
-                }
-
-                if minHash.computeJaccardSimilarity(signature1: newEntrySignature, signature2: existingSignature) >= similarityThreshold {
+                if minHash.isSimilar(entry.text, uniqueEntry.text) {
                     isDuplicate = true
                     duplicateCount += 1
                     break
