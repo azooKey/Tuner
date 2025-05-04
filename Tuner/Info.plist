@@ -2,7 +2,7 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>NSAccessibilityUsageDescription</key>
-	<string>画面上のテキストを取得するためにアクセシビリティ機能へのアクセスが必要です。</string>
+    <key>NSAccessibilityUsageDescription</key>
+    <string>画面上のテキストを取得するためにアクセシビリティ機能へのアクセスが必要です。</string>
 </dict>
 </plist>

@@ -109,7 +109,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func startPurifyTimer() {
         // 既存のタイマーがあれば停止
         purifyTimer?.invalidate()
-
+        
         // 設定された間隔でタイマーを開始
         purifyTimer = Timer.scheduledTimer(timeInterval: purifyInterval, target: self, selector: #selector(runPeriodicPurify), userInfo: nil, repeats: true)
         print("Purify timer started with interval: \(purifyInterval) seconds")
