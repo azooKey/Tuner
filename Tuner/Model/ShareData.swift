@@ -19,7 +19,7 @@ class ShareData: ObservableObject {
     @AppStorage("activateAccessibility") var activateAccessibility: Bool = true
     
     /// テキスト取得を除外するアプリケーション名のリスト
-    @AppStorage("avoidApps") var avoidAppsData: Data = ShareData.encodeAvoidApps(["Finder", "ContextDatabaseApp"])
+    @AppStorage("avoidApps") var avoidAppsData: Data = ShareData.encodeAvoidApps(["Finder", "Tuner"])
     
     /// テキスト取得のポーリング間隔（秒）
     @AppStorage("pollingInterval") var pollingInterval: Int = 5
@@ -203,7 +203,7 @@ extension ShareData {
     /// - Returns: すべての値がデフォルト値と一致する場合はtrue
     func verifyDefaultValues() -> Bool {
         return activateAccessibility == true &&
-               self.avoidApps == ["Finder", "ContextDatabaseApp"] && // Computed Propertyで比較 (selfを明示)
+               self.avoidApps == ["Finder", "Tuner"] && // Computed Propertyで比較 (selfを明示)
                pollingInterval == 5 &&
                saveLineTh == 10 &&
                saveIntervalSec == 5 &&
