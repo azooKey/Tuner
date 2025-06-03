@@ -1,0 +1,32 @@
+#!/bin/bash
+
+# エラーが発生したら即座に終了
+set -e
+
+# 作業ディレクトリの設定
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
+
+# 必要なディレクトリの作成
+mkdir -p data
+mkdir -p models
+
+# 学習データの準備
+echo "学習データを準備中..."
+cat savedTexts.jsonl import.jsonl 2>/dev/null | head -n 100000 > data/training_data.jsonl
+
+# N-gramモデルの学習
+echo "N-gramモデルを学習中..."
+# ここにN-gramモデルの学習コマンドを追加
+# 例: ngram-count -text data/training_data.jsonl -order 3 -lm models/original.lm
+
+# MARISAトライの構築
+echo "MARISAトライを構築中..."
+# ここにMARISAトライの構築コマンドを追加
+# 例: marisa-build models/original.lm models/original.marisa
+
+# 学習済みモデルのコピー
+echo "学習済みモデルをコピー中..."
+cp models/original.* models/lm_*
+
+echo "処理が完了しました" 
