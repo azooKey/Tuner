@@ -161,14 +161,17 @@ class ShareData: ObservableObject {
     /// - 通常のアプリケーションのみをフィルタリング
     /// - アプリケーション名をアルファベット順にソート
     func updateRunningApps() {
-        let workspace = NSWorkspace.shared
-        let apps = workspace.runningApplications
-            .filter { $0.activationPolicy == .regular }
-            .compactMap { $0.localizedName }
-            .sorted()
-        
-        DispatchQueue.main.async {
-            self.apps = apps
+        // NSWorkspace操作を非同期で実行
+        Task.detached(priority: .userInitiated) {
+            let workspace = NSWorkspace.shared
+            let apps = workspace.runningApplications
+                .filter { $0.activationPolicy == .regular }
+                .compactMap { $0.localizedName }
+                .sorted()
+            
+            await MainActor.run {
+                self.apps = apps
+            }
         }
     }
 

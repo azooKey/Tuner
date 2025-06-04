@@ -106,8 +106,12 @@ struct SettingsView: View {
     /// - Parameters:
     ///   - url: 開くフォルダのURL
     private func openFolderInFinder(url: URL) {
-        let folderURL = url.deletingLastPathComponent()
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+        Task.detached(priority: .userInitiated) {
+            let folderURL = url.deletingLastPathComponent()
+            await MainActor.run {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+            }
+        }
     }
 }
 
@@ -536,12 +540,16 @@ extension SettingsView {
 
             // Finderで開くボタン
             Button {
-                if isDirectory {
-                    // ディレクトリを開く
-                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.path)
-                } else {
-                    // ファイルを含むフォルダを開く
-                    openFolderInFinder(url: path)
+                Task.detached(priority: .userInitiated) {
+                    await MainActor.run {
+                        if isDirectory {
+                            // ディレクトリを開く
+                             NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.path)
+                        } else {
+                            // ファイルを含むフォルダを開く
+                            self.openFolderInFinder(url: path)
+                        }
+                    }
                 }
             } label: {
                 Image(systemName: "folder")
@@ -589,7 +597,9 @@ extension SettingsView {
 
             // Finderで開くボタン (TextFieldのクリックと機能重複するが、視認性のために残す)
             Button {
-                 openImportFolderInFinder()
+                Task.detached(priority: .userInitiated) {
+                    await self.openImportFolderInFinderAsync()
+                }
             } label: {
                 Image(systemName: "folder")
                     .font(.footnote)
@@ -656,69 +666,64 @@ extension SettingsView {
         }
     }
 
-    // 設定されたインポートフォルダをFinderで開く
+    // 設定されたインポートフォルダをFinderで開く（同期版、下位互換性のため）
     private func openImportFolderInFinder() {
+        Task.detached(priority: .userInitiated) {
+            await self.openImportFolderInFinderAsync()
+        }
+    }
+    
+    // 設定されたインポートフォルダをFinderで開く（非同期版）
+    private func openImportFolderInFinderAsync() async {
         guard let bookmarkData = shareData.importBookmarkData else {
             print("ブックマークデータが見つかりません。")
             return
         }
 
-        // ブックマーク解決とFinder表示をバックグラウンド→メインスレッドで行う
-        Task.detached(priority: .userInitiated) {
-            var resolvedURL: URL?
-            var isStale = false
-            var accessGranted = false
-            var errorMessage: String?
+        var resolvedURL: URL?
+        var isStale = false
+        var accessGranted = false
+        var errorMessage: String?
 
-            do {
-                // 時間のかかる可能性のあるブックマーク解決
-                resolvedURL = try URL(resolvingBookmarkData: bookmarkData,
-                                      options: [.withSecurityScope],
-                                      relativeTo: nil,
-                                      bookmarkDataIsStale: &isStale)
+        do {
+            // 時間のかかる可能性のあるブックマーク解決
+            resolvedURL = try URL(resolvingBookmarkData: bookmarkData,
+                                  options: [.withSecurityScope],
+                                  relativeTo: nil,
+                                  bookmarkDataIsStale: &isStale)
 
-                guard let url = resolvedURL else {
-                    throw URLError(.badURL) // 簡略化のため。より具体的なエラーを定義しても良い
-                }
+            guard let url = resolvedURL else {
+                throw URLError(.badURL)
+            }
 
-                if isStale {
-                    errorMessage = "ブックマークが古くなっています。再選択が必要です。"
-                    print(errorMessage ?? "")
-                    // 必要であればメインスレッドでブックマークをクリア
-                    // await MainActor.run { ... }
-                    return
-                }
-
-                // 時間のかかる可能性のあるアクセス権取得
-                accessGranted = url.startAccessingSecurityScopedResource()
-                if !accessGranted {
-                    errorMessage = "フォルダへのアクセス権を取得できませんでした: \(url.path)"
-                    print(errorMessage ?? "")
-                    // アクセス権取得失敗時はここで終了
-                    return
-                }
-
-                // アクセス権取得成功後、メインスレッドでFinderを開く
-                await MainActor.run {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
-                    print("Finderで開きました: \(url.path)")
-                }
-
-            } catch {
-                errorMessage = "ブックマークからのURL解決またはアクセス権取得に失敗しました: \(error.localizedDescription)"
+            if isStale {
+                errorMessage = "ブックマークが古くなっています。再選択が必要です。"
                 print(errorMessage ?? "")
-                // 必要であればメインスレッドでエラーをユーザーに通知 or ブックマーククリア
-                // await MainActor.run { ... }
+                return
             }
 
-            // アクセス権取得を試みた場合、最後に必ず解放処理を行う
-            // startAccessingSecurityScopedResource が呼ばれた後でのみ stop を呼ぶ
-            if let url = resolvedURL, accessGranted {
-                 // url.stopAccessingSecurityScopedResource() // stopAccessingSecurityScopedResourceは、アクセスが不要になったらすぐに呼び出すべきです。Finderが開いた後すぐに不要になるかはユースケースによりますが、ここではTask終了時に解放します。
-                // startAccessingSecurityScopedResourceと対になるように、Taskのスコープを抜ける際に確実に呼ばれるようにします。
-                // deferブロックをTask.detached内で使用することも検討できますが、ここでは最後に配置します。
-                url.stopAccessingSecurityScopedResource()
+            // 時間のかかる可能性のあるアクセス権取得
+            accessGranted = url.startAccessingSecurityScopedResource()
+            if !accessGranted {
+                errorMessage = "フォルダへのアクセス権を取得できませんでした: \(url.path)"
+                print(errorMessage ?? "")
+                return
             }
+
+            // アクセス権取得成功後、メインスレッドでFinderを開く
+            await MainActor.run {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+                print("Finderで開きました: \(url.path)")
+            }
+
+        } catch {
+            errorMessage = "ブックマークからのURL解決またはアクセス権取得に失敗しました: \(error.localizedDescription)"
+            print(errorMessage ?? "")
+        }
+
+        // アクセス権取得を試みた場合、最後に必ず解放処理を行う
+        if let url = resolvedURL, accessGranted {
+            url.stopAccessingSecurityScopedResource()
         }
     }
 }
@@ -979,63 +984,83 @@ extension SettingsView {
         
         // 次にバックグラウンドスレッドでアイコンを読み込む
         Task.detached(priority: .background) {
-            await loadAppIconsAsync()
+            await self.loadAppIconsAsync()
         }
     }
     
-    // 非同期でアプリアイコンを取得
-    @MainActor
+    // 非同期でアプリアイコンを取得（メインスレッドをブロックしないように最適化）
     func loadAppIconsAsync() async {
-        // アイコンをクリア
-        appIcons.removeAll()
-        
-        loadingMessage = "アプリアイコン読み込み中..."
-        
-        // 各アプリのアイコンを取得
-        let workspace = NSWorkspace.shared
-        
-        // まず実行中のアプリアイコンを取得
-        for appName in shareData.apps {
-            await loadIconForAppAsync(appName, workspace: workspace)
-            
-            // UIの反応性を保つために少し待機
-            try? await Task.sleep(nanoseconds: 1_000_000) // 1ミリ秒
+        await MainActor.run {
+            self.loadingMessage = "アプリアイコン読み込み中..."
+            // アイコンを一旦クリアしない（既存のアイコンを保持してちらつきを防ぐ）
         }
         
-        // 次に除外アプリのアイコンを取得（現在実行中でない可能性がある）
-        for appName in shareData.avoidApps where appIcons[appName] == nil {
-            await loadIconForAppAsync(appName, workspace: workspace)
+        // バックグラウンドで並列処理を使用してアイコンを高速取得
+        let allApps = Array(Set(shareData.apps + shareData.avoidApps)) // 重複を除去
+        var processedIcons: [String: NSImage] = [:]
+        
+        // 並列処理でアイコンを取得
+        await withTaskGroup(of: (String, NSImage?).self) { group in
+            for appName in allApps {
+                group.addTask {
+                    let icon = await self.loadIconForApp(appName)
+                    return (appName, icon)
+                }
+            }
             
-            // UIの反応性を保つために少し待機
-            try? await Task.sleep(nanoseconds: 1_000_000) // 1ミリ秒
+            // 結果を収集
+            for await (appName, icon) in group {
+                if let icon = icon {
+                    processedIcons[appName] = icon
+                }
+                
+                // 10個ずつUIを更新してプログレッシブローディング
+                if processedIcons.count % 10 == 0 {
+                    let currentBatch = processedIcons
+                    await MainActor.run {
+                        self.appIcons.merge(currentBatch) { _, new in new }
+                    }
+                    processedIcons.removeAll()
+                }
+            }
+        }
+        
+        // 残りのアイコンを更新
+        if !processedIcons.isEmpty {
+            await MainActor.run {
+                self.appIcons.merge(processedIcons) { _, new in new }
+            }
         }
         
         // 完了
-        isRefreshing = false
+        await MainActor.run {
+            self.isRefreshing = false
+        }
     }
     
-    // 非同期で単一アプリのアイコンを取得
-    @MainActor
-    private func loadIconForAppAsync(_ appName: String, workspace: NSWorkspace) async {
-        var icon: NSImage?
-        
-        // 公開された非同期コンテキストに移動してファイル操作を行う
-        await Task.detached(priority: .background) {
-            // バンドルIDからアプリURLを取得
-            if let bundleId = getBundleIdentifierForApp(appName),
-               let appURL = workspace.urlForApplication(withBundleIdentifier: bundleId) {
+    // 非同期で単一アプリのアイコンを取得（完全にバックグラウンドで実行）
+    private func loadIconForApp(_ appName: String) async -> NSImage? {
+        return await Task.detached(priority: .background) {
+            let workspace = NSWorkspace.shared
+            var icon: NSImage?
+            
+            // まず高速なバンドルIDベースの検索を試行
+            if let bundleId = self.getBundleIdentifierForApp(appName) {
+                if let appURL = workspace.urlForApplication(withBundleIdentifier: bundleId) {
+                    icon = workspace.icon(forFile: appURL.path)
+                    if icon != nil {
+                        return icon
+                    }
+                }
+            }
+            
+            // バンドルIDで見つからない場合のみファイルシステム検索
+            if let appURL = await self.findAppPathAsync(for: appName) {
                 icon = workspace.icon(forFile: appURL.path)
             }
-            // パスからアプリを検索
-            else if let appURL = await findAppPathAsync(for: appName) {
-                icon = workspace.icon(forFile: appURL.path)
-            }
+            
+            return icon
         }.value
-        
-        // アイコンが見つかれば設定
-        if let icon = icon {
-            self.appIcons[appName] = icon
-        }
     }
     
     // アプリ名からバンドルIDを推測

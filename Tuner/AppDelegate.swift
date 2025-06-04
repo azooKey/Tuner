@@ -178,19 +178,40 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - 権限がない場合は説明付きのアラートを表示
     /// - ユーザーが許可した場合はシステムの権限ダイアログを表示
     private func checkAndRequestAccessibilityPermission() {
-        if !hasAccessibilityPermission() {
-            // 権限がない場合は説明付きのアラートを表示
-            let alert = NSAlert()
-            alert.messageText = "アクセシビリティ権限が必要です"
-            alert.informativeText = "このアプリケーションは画面上のテキストを取得するためにアクセシビリティ権限が必要です。続行するには「OK」を押して、次の画面で「アクセシビリティ」のチェックボックスをオンにしてください。\n\n一度許可すると、アプリを再起動しても再度許可する必要はありません。"
-            alert.addButton(withTitle: "OK")
-            alert.addButton(withTitle: "キャンセル")
+        // 権限チェックを非同期で実行
+        Task.detached(priority: .userInitiated) {
+            let hasPermission = await Task.detached {
+                return self.hasAccessibilityPermission()
+            }.value
             
-            let response = alert.runModal()
-            if response == .alertFirstButtonReturn {
-                // OKが押された場合、システムの権限ダイアログを表示
-                let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: true]
-                AXIsProcessTrustedWithOptions(options as CFDictionary)
+            if !hasPermission {
+                // アラート表示をメインスレッドで実行
+                await MainActor.run {
+                    self.showAccessibilityPermissionAlert()
+                }
+            }
+        }
+    }
+    
+    /// アクセシビリティ権限要求のアラートを表示
+    private func showAccessibilityPermissionAlert() {
+        let alert = NSAlert()
+        alert.messageText = "アクセシビリティ権限が必要です"
+        alert.informativeText = "このアプリケーションは画面上のテキストを取得するためにアクセシビリティ権限が必要です。続行するには「OK」を押して、次の画面で「アクセシビリティ」のチェックボックスをオンにしてください。\n\n一度許可すると、アプリを再起動しても再度許可する必要はありません。"
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "キャンセル")
+        
+        // アラートを非同期で表示（メインスレッドをブロックしない）
+        Task.detached(priority: .userInitiated) {
+            await MainActor.run {
+                let response = alert.runModal()
+                if response == .alertFirstButtonReturn {
+                    // システムの権限ダイアログを表示
+                    Task.detached(priority: .userInitiated) {
+                        let options: NSDictionary = [kAXTrustedCheckOptionPrompt.takeRetainedValue() as NSString: true]
+                        AXIsProcessTrustedWithOptions(options as CFDictionary)
+                    }
+                }
             }
         }
     }

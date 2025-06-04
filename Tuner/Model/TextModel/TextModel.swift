@@ -468,35 +468,51 @@ class TextModel: ObservableObject {
         guard let shareData = shareData else { return }
         guard shareData.autoLearningEnabled else { return }
         
-        let now = Date()
-        let calendar = Calendar.current
-        
-        // 今日の指定時刻を計算
-        var components = calendar.dateComponents([.year, .month, .day], from: now)
-        components.hour = shareData.autoLearningHour
-        components.minute = shareData.autoLearningMinute
-        components.second = 0
-        
-        guard let todayScheduledTime = calendar.date(from: components) else { return }
-        
-        // 実行予定時刻を決定（今日の時刻が過ぎていれば明日に設定）
-        let scheduledTime: Date
-        if todayScheduledTime > now {
-            scheduledTime = todayScheduledTime
-        } else {
-            // 明日の同じ時刻に設定
-            scheduledTime = calendar.date(byAdding: .day, value: 1, to: todayScheduledTime) ?? todayScheduledTime
-        }
-        
-        let timeInterval = scheduledTime.timeIntervalSince(now)
-        
-        print("🕐 Next automatic original_marisa training scheduled at: \(scheduledTime)")
-        
-        autoLearningTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
-            Task {
-                await self?.performAutomaticLearning()
+        // Calendar計算を非同期で実行
+        Task.detached(priority: .utility) {
+            let scheduledTime = await self.calculateNextScheduledTime(
+                hour: shareData.autoLearningHour,
+                minute: shareData.autoLearningMinute
+            )
+            
+            let timeInterval = scheduledTime.timeIntervalSince(Date())
+            
+            print("🕐 Next automatic original_marisa training scheduled at: \(scheduledTime)")
+            
+            await MainActor.run {
+                self.autoLearningTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+                    Task {
+                        await self?.performAutomaticLearning()
+                    }
+                }
             }
         }
+    }
+    
+    /// 次回スケジュール時刻を計算（バックグラウンドで実行）
+    private func calculateNextScheduledTime(hour: Int, minute: Int) async -> Date {
+        return await Task.detached(priority: .utility) {
+            let now = Date()
+            let calendar = Calendar.current
+            
+            // 今日の指定時刻を計算
+            var components = calendar.dateComponents([.year, .month, .day], from: now)
+            components.hour = hour
+            components.minute = minute
+            components.second = 0
+            
+            guard let todayScheduledTime = calendar.date(from: components) else {
+                return now.addingTimeInterval(86400) // 24時間後をフォールバック
+            }
+            
+            // 実行予定時刻を決定（今日の時刻が過ぎていれば明日に設定）
+            if todayScheduledTime > now {
+                return todayScheduledTime
+            } else {
+                // 明日の同じ時刻に設定
+                return calendar.date(byAdding: .day, value: 1, to: todayScheduledTime) ?? todayScheduledTime
+            }
+        }.value
     }
     
     /// 自動学習を実行
