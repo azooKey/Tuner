@@ -226,18 +226,6 @@ extension TextModel {
             print("❌ Failed to reset import history: \(error.localizedDescription)")
         }
     }
-}
-
-// TextModel.swift に追加する拡張
-extension TextModel {
-    // import.jsonlからテキストエントリを読み込む関数
-    func loadFromImportFileAsync() async -> [TextEntry] {
-        return await withCheckedContinuation { continuation in
-            self.loadFromImportFile { loadedTexts in
-                continuation.resume(returning: loadedTexts)
-            }
-        }
-    }
     
     // import.jsonlファイルから読み込むメソッド
     func loadFromImportFile(completion: @escaping ([TextEntry]) -> Void) {
@@ -281,6 +269,15 @@ extension TextModel {
             
             DispatchQueue.main.async {
                 completion(loadedTexts)
+            }
+        }
+    }
+    
+    // loadFromImportFile を async/await でラップした関数
+    func loadFromImportFileAsync() async -> [TextEntry] {
+        await withCheckedContinuation { continuation in
+            self.loadFromImportFile { loadedTexts in
+                continuation.resume(returning: loadedTexts)
             }
         }
     }

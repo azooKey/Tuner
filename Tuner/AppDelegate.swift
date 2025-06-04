@@ -14,10 +14,10 @@ import os.log
 /// - テキスト要素の取得と保存
 /// - 定期的なデータの浄化
 class AppDelegate: NSObject, NSApplicationDelegate {
-    var textModel = TextModel()
+    var shareData = ShareData()
+    var textModel: TextModel
     var isDataSaveEnabled = true
     var observer: AXObserver?
-    var shareData = ShareData()
     var pollingTimer: Timer?
     // 定期的な浄化処理用タイマー
     var purifyTimer: Timer?
@@ -25,6 +25,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var lastPurifyTime: Date?
     // 浄化処理の実行間隔（秒）例: 1時間ごと
     let purifyInterval: TimeInterval = 3600
+    
+    override init() {
+        // TextModelの初期化をsuperの前に行う
+        textModel = TextModel(shareData: shareData)
+        super.init()
+    }
 
     /// アプリケーション起動時の初期化処理
     /// - アクセシビリティ権限の確認
@@ -32,32 +38,45 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - テキスト取得用のポーリングタイマー開始
     /// - 定期的な浄化処理タイマー開始
     func applicationDidFinishLaunching(_ aNotification: Notification) {
-        // アクセシビリティ権限を確認（初回起動時のみ）
-        checkAndRequestAccessibilityPermission()
-        
-        // アプリケーション切り替えの監視を設定
-        if shareData.activateAccessibility {
-            NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(activeAppDidChange(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
-            
-            // 最初のアプリ情報を取得
-            if let frontApp = NSWorkspace.shared.frontmostApplication {
-                let frontAppName = getAppName(for: frontApp) ?? "Unknown"
-                os_log("初期アプリケーション: %@", log: OSLog.default, type: .debug, frontAppName)
-                
-                if !shareData.avoidApps.contains(frontAppName), hasAccessibilityPermission() {
-                    if let axApp = getActiveApplicationAXUIElement() {
-                        fetchTextElements(from: axApp, appName: frontAppName)
-                        startMonitoringApp(axApp, appName: frontAppName)
-                    }
-                }
+        // 重い初期化処理を非同期で実行してメインスレッドをブロックしないようにする
+        DispatchQueue.global(qos: .userInitiated).async {
+            // アクセシビリティ権限を確認（初回起動時のみ）
+            DispatchQueue.main.async {
+                self.checkAndRequestAccessibilityPermission()
             }
             
-            // テキスト取得用のポーリングタイマーを開始
-            startTextPollingTimer()
+            // アプリケーション切り替えの監視を設定
+            if self.shareData.activateAccessibility {
+                DispatchQueue.main.async {
+                    NSWorkspace.shared.notificationCenter.addObserver(self, selector: #selector(self.activeAppDidChange(_:)), name: NSWorkspace.didActivateApplicationNotification, object: nil)
+                }
+                
+                // 最初のアプリ情報を取得
+                if let frontApp = NSWorkspace.shared.frontmostApplication {
+                    let frontAppName = self.getAppName(for: frontApp) ?? "Unknown"
+                    os_log("初期アプリケーション: %@", log: OSLog.default, type: .debug, frontAppName)
+                    
+                    if !self.shareData.avoidApps.contains(frontAppName), self.hasAccessibilityPermission() {
+                        if let axApp = self.getActiveApplicationAXUIElement() {
+                            self.fetchTextElements(from: axApp, appName: frontAppName)
+                            DispatchQueue.main.async {
+                                self.startMonitoringApp(axApp, appName: frontAppName)
+                            }
+                        }
+                    }
+                }
+                
+                // テキスト取得用のポーリングタイマーを開始
+                DispatchQueue.main.async {
+                    self.startTextPollingTimer()
+                }
 
-            // 定期的な浄化処理タイマーを開始
-            startPurifyTimer()
-            lastPurifyTime = Date() // 開始時刻を記録
+                // 定期的な浄化処理タイマーを開始
+                DispatchQueue.main.async {
+                    self.startPurifyTimer()
+                    self.lastPurifyTime = Date() // 開始時刻を記録
+                }
+            }
         }
     }
 

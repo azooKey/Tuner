@@ -19,6 +19,7 @@ class TextModel: ObservableObject {
     @Published var isDataSaveEnabled: Bool = true
     @Published var lastNGramTrainingDate: Date? = nil
     @Published var lastPurifyDate: Date? = nil
+    @Published var lastOriginalModelTrainingDate: Date? = nil
     
     let ngramSize: Int = 5
     private var saveCounter = 0
@@ -32,15 +33,29 @@ class TextModel: ObservableObject {
     private var minHashOptimizer = TextModelOptimizedWithLRU()
     private let similarityThreshold: Double = 0.8
     
+    // 自動学習関連のプロパティ
+    private var autoLearningTimer: Timer?
+    private var shareData: ShareData?
+    
     // ファイル管理のためのプロパティ (追加)
     private let fileManager: FileManaging
     private let appGroupIdentifier: String = "group.dev.ensan.inputmethod.azooKeyMac" // App Group ID (定数化)
     
     /// イニシャライザ (修正: FileManaging を注入)
-    init(fileManager: FileManaging = DefaultFileManager()) {
+    init(fileManager: FileManaging = DefaultFileManager(), shareData: ShareData? = nil) {
         self.fileManager = fileManager // 注入されたインスタンスを保存
-        createAppDirectory()
-        printFileURL() // ファイルパスを表示
+        self.shareData = shareData
+        
+        // ディレクトリ作成とファイルアクセスを非同期で実行
+        DispatchQueue.global(qos: .utility).async {
+            self.createAppDirectory()
+            self.printFileURL() // ファイルパスを表示
+            
+            // 自動学習のセットアップもバックグラウンドで実行
+            DispatchQueue.main.async {
+                self.setupAutoLearning()
+            }
+        }
     }
     
     // LM (.marisa) ファイルの保存ディレクトリを取得 (修正: self.fileManager を使用)
@@ -426,5 +441,100 @@ class TextModel: ObservableObject {
                 continuation.resume(returning: loadedTexts)
             }
         }
+    }
+    
+    // MARK: - Automatic Learning
+    
+    /// 自動学習機能のセットアップ
+    private func setupAutoLearning() {
+        guard let shareData = shareData else { return }
+        
+        // 現在のタイマーを停止
+        autoLearningTimer?.invalidate()
+        
+        // 自動学習が有効でない場合は終了
+        guard shareData.autoLearningEnabled else { return }
+        
+        // 毎日指定時刻に実行するタイマーを設定（バックグラウンドで実行）
+        DispatchQueue.global(qos: .utility).async {
+            DispatchQueue.main.async {
+                self.scheduleNextAutoLearning()
+            }
+        }
+    }
+    
+    /// 次回の自動学習をスケジュール
+    private func scheduleNextAutoLearning() {
+        guard let shareData = shareData else { return }
+        guard shareData.autoLearningEnabled else { return }
+        
+        let now = Date()
+        let calendar = Calendar.current
+        
+        // 今日の指定時刻を計算
+        var components = calendar.dateComponents([.year, .month, .day], from: now)
+        components.hour = shareData.autoLearningHour
+        components.minute = shareData.autoLearningMinute
+        components.second = 0
+        
+        guard let todayScheduledTime = calendar.date(from: components) else { return }
+        
+        // 実行予定時刻を決定（今日の時刻が過ぎていれば明日に設定）
+        let scheduledTime: Date
+        if todayScheduledTime > now {
+            scheduledTime = todayScheduledTime
+        } else {
+            // 明日の同じ時刻に設定
+            scheduledTime = calendar.date(byAdding: .day, value: 1, to: todayScheduledTime) ?? todayScheduledTime
+        }
+        
+        let timeInterval = scheduledTime.timeIntervalSince(now)
+        
+        print("🕐 Next automatic original_marisa training scheduled at: \(scheduledTime)")
+        
+        autoLearningTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+            Task {
+                await self?.performAutomaticLearning()
+            }
+        }
+    }
+    
+    /// 自動学習を実行
+    private func performAutomaticLearning() async {
+        print("🚀 Starting automatic original_marisa training...")
+        
+        // original_marisaの再構築を実行
+        await trainNGramFromTextEntries(ngramSize: ngramSize, baseFilePattern: "original")
+        
+        // 最後の自動学習日時を更新
+        await MainActor.run {
+            self.lastOriginalModelTrainingDate = Date()
+            print("✅ Automatic original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+        }
+        
+        // 次回の学習をスケジュール
+        scheduleNextAutoLearning()
+    }
+    
+    /// 自動学習設定を更新（外部から呼び出される）
+    func updateAutoLearningSettings() {
+        // メインスレッドをブロックしないように非同期で実行
+        DispatchQueue.main.async {
+            self.setupAutoLearning()
+        }
+    }
+    
+    /// 手動でoriginal_marisaの再構築を実行
+    func trainOriginalModelManually() async {
+        print("Starting manual original_marisa training...")
+        await trainNGramFromTextEntries(ngramSize: ngramSize, baseFilePattern: "original")
+        await MainActor.run {
+            self.lastOriginalModelTrainingDate = Date()
+            print("Manual original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+        }
+    }
+    
+    deinit {
+        autoLearningTimer?.invalidate()
     }
 }

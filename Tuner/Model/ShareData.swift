@@ -33,6 +33,15 @@ class ShareData: ObservableObject {
     /// 保存するテキストの最小文字数
     @AppStorage("minTextLength") var minTextLength: Int = 3
     
+    /// 自動学習機能を有効にするか
+    @AppStorage("autoLearningEnabled") var autoLearningEnabled: Bool = true
+    
+    /// 自動学習を実行する時刻（時）
+    @AppStorage("autoLearningHour") var autoLearningHour: Int = 3
+    
+    /// 自動学習を実行する時刻（分）
+    @AppStorage("autoLearningMinute") var autoLearningMinute: Int = 0
+    
     /// ユーザーが設定したテキストインポートフォルダのパス (表示用)
     @AppStorage("importTextPath") var importTextPath: String = ""
     /// ユーザーが設定したテキストインポートフォルダへのアクセス権を保持するブックマークデータ
@@ -55,6 +64,9 @@ class ShareData: ObservableObject {
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
     private let minTextLengthKey = "minTextLength"
+    private let autoLearningEnabledKey = "autoLearningEnabled"
+    private let autoLearningHourKey = "autoLearningHour"
+    private let autoLearningMinuteKey = "autoLearningMinute"
     private let importTextPathKey = "importTextPath"
     private let importBookmarkDataKey = "importBookmarkData"
     private let lastImportDateKey = "lastImportDate"
@@ -77,21 +89,35 @@ class ShareData: ObservableObject {
 
     /// 初期化時に保存された設定を読み込み、変更を監視
     init() {
-        // ブックマークデータをUserDefaultsから読み込む
-        self.importBookmarkData = UserDefaults.standard.data(forKey: importBookmarkDataKey)
-        // 最終インポート日時をUserDefaultsから読み込む
-        if UserDefaults.standard.object(forKey: lastImportDateKey) != nil {
-             self.lastImportDate = UserDefaults.standard.double(forKey: lastImportDateKey)
+        // 重いUserDefaults操作を非同期で実行
+        DispatchQueue.global(qos: .utility).async {
+            // ブックマークデータをUserDefaultsから読み込む
+            let bookmarkData = UserDefaults.standard.data(forKey: self.importBookmarkDataKey)
+            // 最終インポート日時をUserDefaultsから読み込む
+            let lastImportDateValue: TimeInterval? = {
+                if UserDefaults.standard.object(forKey: self.lastImportDateKey) != nil {
+                    return UserDefaults.standard.double(forKey: self.lastImportDateKey)
+                }
+                return nil
+            }()
+            // 最後にインポートしたファイル数をUserDefaultsから読み込む (存在しなければ-1)
+            let lastImportedFileCountValue = UserDefaults.standard.object(forKey: self.lastImportedFileCountKey) as? Int ?? -1
+            
+            DispatchQueue.main.async {
+                self.importBookmarkData = bookmarkData
+                self.lastImportDate = lastImportDateValue
+                self.lastImportedFileCount = lastImportedFileCountValue
+            }
         }
-        // 最後にインポートしたファイル数をUserDefaultsから読み込む (存在しなければ-1)
-        self.lastImportedFileCount = UserDefaults.standard.object(forKey: lastImportedFileCountKey) as? Int ?? -1
 
         // importBookmarkDataの変更を監視し、UserDefaultsに保存する
         $importBookmarkData
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main) // 短期間の連続変更をまとめる
             .sink { [weak self] newValue in
                 guard let self = self else { return }
-                UserDefaults.standard.set(newValue, forKey: self.importBookmarkDataKey)
+                DispatchQueue.global(qos: .utility).async {
+                    UserDefaults.standard.set(newValue, forKey: self.importBookmarkDataKey)
+                }
                 // print("Bookmark data saved to UserDefaults.") // デバッグ用
             }
             .store(in: &cancellables)
@@ -101,10 +127,12 @@ class ShareData: ObservableObject {
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .sink { [weak self] newValue in
                 guard let self = self else { return }
-                if let value = newValue {
-                    UserDefaults.standard.set(value, forKey: self.lastImportDateKey)
-                } else {
-                    UserDefaults.standard.removeObject(forKey: self.lastImportDateKey)
+                DispatchQueue.global(qos: .utility).async {
+                    if let value = newValue {
+                        UserDefaults.standard.set(value, forKey: self.lastImportDateKey)
+                    } else {
+                        UserDefaults.standard.removeObject(forKey: self.lastImportDateKey)
+                    }
                 }
             }
             .store(in: &cancellables)
@@ -114,7 +142,9 @@ class ShareData: ObservableObject {
             .debounce(for: .milliseconds(500), scheduler: RunLoop.main)
             .sink { [weak self] newValue in
                 guard let self = self else { return }
-                UserDefaults.standard.set(newValue, forKey: self.lastImportedFileCountKey)
+                DispatchQueue.global(qos: .utility).async {
+                    UserDefaults.standard.set(newValue, forKey: self.lastImportedFileCountKey)
+                }
             }
             .store(in: &cancellables)
     }
@@ -185,6 +215,9 @@ extension ShareData {
         UserDefaults.standard.removeObject(forKey: saveLineThKey)
         UserDefaults.standard.removeObject(forKey: saveIntervalSecKey)
         UserDefaults.standard.removeObject(forKey: minTextLengthKey)
+        UserDefaults.standard.removeObject(forKey: autoLearningEnabledKey)
+        UserDefaults.standard.removeObject(forKey: autoLearningHourKey)
+        UserDefaults.standard.removeObject(forKey: autoLearningMinuteKey)
         UserDefaults.standard.removeObject(forKey: importTextPathKey)
         UserDefaults.standard.removeObject(forKey: importBookmarkDataKey)
         UserDefaults.standard.removeObject(forKey: lastImportDateKey)
@@ -208,6 +241,9 @@ extension ShareData {
                saveLineTh == 10 &&
                saveIntervalSec == 5 &&
                minTextLength == 3 &&
+               autoLearningEnabled == true &&
+               autoLearningHour == 3 &&
+               autoLearningMinute == 0 &&
                apps.isEmpty &&
                importTextPath == "" &&
                importBookmarkData == nil &&

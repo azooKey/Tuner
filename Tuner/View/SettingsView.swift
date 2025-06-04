@@ -195,6 +195,73 @@ extension SettingsView {
             }
             .padding(.vertical, 4)
             
+            // 自動学習設定セクション
+            GroupBox(label: Label("自動学習", systemImage: "clock.arrow.circlepath").font(.subheadline)) {
+                VStack(alignment: .leading, spacing: 8) {
+                    Toggle("毎日自動でoriginal_marisaを更新", isOn: $shareData.autoLearningEnabled)
+                        .toggleStyle(.switch)
+                        .onChange(of: shareData.autoLearningEnabled) { _, newValue in
+                            textModel.updateAutoLearningSettings()
+                        }
+                    
+                    if shareData.autoLearningEnabled {
+                        Divider()
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("実行時刻:")
+                                .font(.footnote)
+                                .fontWeight(.medium)
+                            
+                            HStack(spacing: 8) {
+                                // 時間選択
+                                Picker("時", selection: $shareData.autoLearningHour) {
+                                    ForEach(0..<24, id: \.self) { hour in
+                                        Text("\(hour)時").tag(hour)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 80)
+                                .onChange(of: shareData.autoLearningHour) { _, _ in
+                                    textModel.updateAutoLearningSettings()
+                                }
+                                
+                                // 分選択
+                                Picker("分", selection: $shareData.autoLearningMinute) {
+                                    ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                        Text("\(minute)分").tag(minute)
+                                    }
+                                }
+                                .pickerStyle(.menu)
+                                .frame(width: 80)
+                                .onChange(of: shareData.autoLearningMinute) { _, _ in
+                                    textModel.updateAutoLearningSettings()
+                                }
+                                
+                                Spacer()
+                            }
+                            
+                            // 次回実行予定時刻の表示（軽量計算）
+                            Text("次回実行予定: 毎日 \(shareData.autoLearningHour):\(String(format: "%02d", shareData.autoLearningMinute))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // 最終自動学習日時の表示
+                    if let lastAutoLearningDate = textModel.lastOriginalModelTrainingDate {
+                        Divider()
+                        HStack {
+                            Image(systemName: "checkmark.circle")
+                                .foregroundColor(.green)
+                            Text("最終自動学習: \(lastAutoLearningDate, formatter: dateFormatter)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+            
             // 保存ステータス
             if let lastSavedDate = textModel.lastSavedDate {
                 GroupBox(label: Label("最終保存", systemImage: "info.circle").font(.subheadline)) {
@@ -311,53 +378,91 @@ extension SettingsView {
                     Divider()
 
                     // N-gram 訓練ボタンと最終訓練日時
-                    HStack {
-                        // 全データ再構築ボタン
-                        Button {
-                            Task {
-                                await textModel.trainNGramFromTextEntries() // original モデルを生成
+                    VStack(spacing: 8) {
+                        // 上段: original_marisa手動再構築
+                        HStack {
+                            Button {
+                                Task {
+                                    await textModel.trainOriginalModelManually() // 手動でoriginal_marisaを再構築
+                                }
+                            } label: {
+                                Label("original_marisa手動再構築", systemImage: "arrow.triangle.2.circlepath.circle")
+                                    .font(.footnote)
                             }
-                        } label: {
-                            Label("N-gram再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle") // ラベルを少し変更
-                                .font(.footnote)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("保存された全データからoriginal_marisaモデルを手動で再構築します。")
+
+                            Spacer()
+
+                            // 最終original_marisa訓練日時を表示
+                            if let lastOriginalTrainingDate = textModel.lastOriginalModelTrainingDate {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle")
+                                        .foregroundColor(.blue)
+                                    Text("最終original訓練: \(lastOriginalTrainingDate, formatter: dateFormatter)")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            } else {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .foregroundColor(.orange)
+                                    Text("original未訓練")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            }
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("保存された全データから original モデルと lm モデルの初期状態を再生成します。")
-
-                        // 追加学習ボタン
-                        Button {
-                             Task {
-                                 await textModel.trainIncrementalNGramManually() // 実装済みのメソッドを呼び出す
-                             }
-                        } label: {
-                            Label("N-gram追加学習 (lm)", systemImage: "plus.circle") // アイコン変更
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("保存されたデータを使用して既存の lm モデルを更新します。")
-                        // TODO: lmモデルが存在しない場合は無効化するなどの制御を追加検討
-
-                        Spacer()
-
-                        // 最終訓練日時を表示
-                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
-                             HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle")
-                                    .foregroundColor(.green)
-                                Text("最終訓練: \(lastTrainingDate, formatter: dateFormatter)")
+                        
+                        // 下段: 従来のlm関連ボタン
+                        HStack {
+                            // 全データ再構築ボタン (lm初期化用)
+                            Button {
+                                Task {
+                                    await textModel.trainNGramFromTextEntries() // original モデルを生成
+                                }
+                            } label: {
+                                Label("N-gram再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle")
+                                    .font(.footnote)
                             }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundColor(.orange)
-                                Text("未訓練")
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("保存された全データから original モデルと lm モデルの初期状態を再生成します。")
+
+                            // 追加学習ボタン
+                            Button {
+                                Task {
+                                    await textModel.trainIncrementalNGramManually() // 実装済みのメソッドを呼び出す
+                                }
+                            } label: {
+                                Label("N-gram追加学習 (lm)", systemImage: "plus.circle")
+                                    .font(.footnote)
                             }
-                           .font(.caption)
-                           .foregroundColor(.secondary)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .help("保存されたデータを使用して既存の lm モデルを更新します。")
+
+                            Spacer()
+
+                            // 最終lm訓練日時を表示
+                            if let lastTrainingDate = textModel.lastNGramTrainingDate {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle")
+                                        .foregroundColor(.green)
+                                    Text("最終lm訓練: \(lastTrainingDate, formatter: dateFormatter)")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            } else {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "clock.arrow.circlepath")
+                                        .foregroundColor(.orange)
+                                    Text("lm未訓練")
+                                }
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            }
                         }
                     }
 
