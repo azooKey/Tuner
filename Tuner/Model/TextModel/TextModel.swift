@@ -38,7 +38,7 @@ class TextModel: ObservableObject {
     private var shareData: ShareData?
     
     // ファイル管理のためのプロパティ (追加)
-    private let fileManager: FileManaging
+    internal let fileManager: FileManaging
     private let appGroupIdentifier: String = "group.dev.ensan.inputmethod.azooKeyMac" // App Group ID (定数化)
     
     /// イニシャライザ (修正: FileManaging を注入)

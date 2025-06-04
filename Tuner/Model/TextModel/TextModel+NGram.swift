@@ -13,7 +13,7 @@ extension TextModel {
         if lines.isEmpty {
             return
         }
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         let outputDirURL = getLMDirectory() // Use the LM directory function
         let outputDir = outputDirURL.path
         
@@ -68,7 +68,7 @@ extension TextModel {
     ///   - baseFilename: ベースとなるファイル名
     ///   - maxEntryCount: 最大エントリ数
     func trainNGramFromTextEntries(ngramSize: Int = 5, baseFilePattern: String = "original", maxEntryCount: Int = 100_000) async {
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         
         let savedTexts = await loadFromFileAsync()
         
@@ -95,7 +95,7 @@ extension TextModel {
         let outputDir = outputDirURL.path
         
         do {
-            try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true)
+            try fileManager.createDirectory(atPath: outputDir, withIntermediateDirectories: true, attributes: nil)
         } catch {
             print("❌ Failed to create directory: \(error)")
             return
@@ -158,7 +158,7 @@ extension TextModel {
                 // original ファイルが存在すればコピー
                 if fileManager.fileExists(atPath: origPath) {
                     do {
-                        try fileManager.copyItem(atPath: origPath, toPath: lmPath)
+                        try fileManager.copyItem(at: URL(fileURLWithPath: origPath), to: URL(fileURLWithPath: lmPath))
                         print("  Copied \(origFile) to \(lmFile)")
                     } catch {
                         print("❌ Error duplicating \(origFile) to \(lmFile): \(error)")
@@ -182,7 +182,7 @@ extension TextModel {
         print("Starting manual incremental N-gram training (lm)...")
         
         // --- 事前チェック: 必要な lm ファイルが存在するか確認 ---
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         let lmDirURL = getLMDirectory()
         let expectedLmFiles = [
             "lm_c_abc.marisa",

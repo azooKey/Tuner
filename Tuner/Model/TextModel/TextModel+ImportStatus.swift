@@ -20,7 +20,7 @@ extension TextModel {
     /// インポート状態を読み込む
     func loadImportStatus() -> ImportStatus {
         let fileURL = getImportStatusFileURL()
-        guard FileManager.default.fileExists(atPath: fileURL.path),
+        guard self.fileManager.fileExists(atPath: fileURL.path),
               let data = try? Data(contentsOf: fileURL),
               let status = try? JSONDecoder().decode(ImportStatus.self, from: data) else {
             return ImportStatus(importedFiles: [:])
@@ -39,7 +39,7 @@ extension TextModel {
     /// インポート状態をリセットする
     func resetImportStatus() {
         let fileURL = getImportStatusFileURL()
-        try? FileManager.default.removeItem(at: fileURL)
+        try? self.fileManager.removeItem(at: fileURL)
     }
     
     /// ファイルがインポート済みかどうかを確認
@@ -68,8 +68,8 @@ extension TextModel {
     /// ファイルの最終更新日時を取得
     func getFileLastModifiedDate(_ fileURL: URL) -> Date? {
         do {
-            let attributes = try FileManager.default.attributesOfItem(atPath: fileURL.path)
-            return attributes[.modificationDate] as? Date
+            let attributes = try self.fileManager.attributesOfItem(atPath: fileURL.path)
+            return attributes[FileAttributeKey.modificationDate] as? Date
         } catch {
             print("❌ Failed to get file modification date: \(error.localizedDescription)")
             return nil

@@ -124,7 +124,7 @@ extension TextModel {
         fileAccessQueue.async {
             // バックアップ作成
             do {
-                try FileManager.default.copyItem(at: originalFileURL, to: backupFileURL)
+                try self.fileManager.copyItem(at: originalFileURL, to: backupFileURL)
                 print("Backup file created at: \(backupFileURL.path)")
             } catch {
                 print("Failed to create backup file: \(error.localizedDescription)")
@@ -134,8 +134,8 @@ extension TextModel {
             // 一時ファイルへの書き込み
             do {
                 var tempFileHandle: FileHandle?
-                if !FileManager.default.fileExists(atPath: tempFileURL.path) {
-                    FileManager.default.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
+                if !self.fileManager.fileExists(atPath: tempFileURL.path) {
+                    self.fileManager.createFile(atPath: tempFileURL.path, contents: nil, attributes: nil)
                 }
                 tempFileHandle = try FileHandle(forWritingTo: tempFileURL)
                 defer { tempFileHandle?.closeFile() }
@@ -154,9 +154,9 @@ extension TextModel {
                 
                 // ファイルの置き換え
                 if entriesWritten > 0 {
-                    try FileManager.default.removeItem(at: originalFileURL)
-                    try FileManager.default.moveItem(at: tempFileURL, to: originalFileURL)
-                    try? FileManager.default.removeItem(at: backupFileURL) // 成功したらバックアップ削除
+                    try self.fileManager.removeItem(at: originalFileURL)
+                    try self.fileManager.moveItem(at: tempFileURL, to: originalFileURL)
+                    try? self.fileManager.removeItem(at: backupFileURL) // 成功したらバックアップ削除
                     print("File purify completed. Removed \(duplicateCount) duplicated entries. Wrote \(entriesWritten) entries. Backup file deleted.")
                     
                     DispatchQueue.main.async {
@@ -165,21 +165,21 @@ extension TextModel {
                     }
                 } else {
                     print("⚠️ No entries were written - keeping original file")
-                    try? FileManager.default.removeItem(at: tempFileURL) // 不要な一時ファイルを削除
+                    try? self.fileManager.removeItem(at: tempFileURL) // 不要な一時ファイルを削除
                     DispatchQueue.main.async {
                         completion()
                     }
                 }
             } catch {
                 print("Failed to clean and update file: \(error.localizedDescription)")
-                try? FileManager.default.removeItem(at: tempFileURL) // エラー時も一時ファイルを削除
+                try? self.fileManager.removeItem(at: tempFileURL) // エラー時も一時ファイルを削除
                 // 元のファイルを復元する試み (バックアップがあれば)
-                if FileManager.default.fileExists(atPath: backupFileURL.path) {
+                if self.fileManager.fileExists(atPath: backupFileURL.path) {
                     do {
-                        if FileManager.default.fileExists(atPath: originalFileURL.path) {
-                             try FileManager.default.removeItem(at: originalFileURL)
+                        if self.fileManager.fileExists(atPath: originalFileURL.path) {
+                             try self.fileManager.removeItem(at: originalFileURL)
                         }
-                        try FileManager.default.copyItem(at: backupFileURL, to: originalFileURL)
+                        try self.fileManager.copyItem(at: backupFileURL, to: originalFileURL)
                         print("Restored original file from backup.")
                     } catch { // 復元失敗
                         print("❌ Failed to restore original file from backup: \(error.localizedDescription)")
