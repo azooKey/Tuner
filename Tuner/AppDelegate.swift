@@ -302,23 +302,35 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             kAXSelectedTextAttribute as CFString
         ]
         
-        // role別の属性許可リスト
+        // role別の属性許可リスト（ウェブアプリケーション対応を拡張）
         let roleSpecificAttributes: [CFString]
         switch role {
         case "AXTextField", "AXTextArea", "AXStaticText":
             roleSpecificAttributes = [kAXValueAttribute as CFString, kAXSelectedTextAttribute as CFString]
         case "AXLink":
-            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString]
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString, kAXDescriptionAttribute as CFString]
         case "AXWebArea", "AXScrollArea":
             roleSpecificAttributes = [kAXValueAttribute as CFString, kAXSelectedTextAttribute as CFString]
+        case "AXButton":
+            roleSpecificAttributes = [kAXTitleAttribute as CFString, kAXValueAttribute as CFString, kAXDescriptionAttribute as CFString]
+        case "AXText":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXSelectedTextAttribute as CFString]
+        case "AXMessage":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXDescriptionAttribute as CFString]
+        case "AXTabPanel":
+            roleSpecificAttributes = [kAXTitleAttribute as CFString, kAXValueAttribute as CFString]
+        case "AXList", "AXContentList":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXDescriptionAttribute as CFString]
         default:
-            roleSpecificAttributes = [kAXValueAttribute as CFString]
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString, kAXDescriptionAttribute as CFString]
         }
         
         let textAttributes = Array(Set(contentAttributes + roleSpecificAttributes))
         
-        // グループ要素の場合は子要素を優先的に処理
-        if role == "AXGroup" {
+        // 特定のroleに対する優先的処理
+        switch role {
+        case "AXGroup":
+            // グループ要素は子要素を優先的に処理
             if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
                let children = childValue as? [AXUIElement] {
                 for child in children {
@@ -326,6 +338,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 }
             }
             return
+            
+        case "AXMessage":
+            // メッセージ要素の特別処理
+            handleMessageElement(element, appName: appName, role: role)
+            return
+            
+        case "AXTabPanel":
+            // タブパネルのテキストを取得してから子要素も処理
+            extractAttributesFromElement(element, appName: appName, role: role, attributes: roleSpecificAttributes)
+            if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+               let children = childValue as? [AXUIElement] {
+                for child in children {
+                    extractTextFromElement(child, appName: appName)
+                }
+            }
+            return
+            
+        case "AXList", "AXContentList":
+            // リスト要素は直接の値と子要素の両方を処理
+            extractAttributesFromElement(element, appName: appName, role: role, attributes: roleSpecificAttributes)
+            if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+               let children = childValue as? [AXUIElement] {
+                for child in children {
+                    extractTextFromElement(child, appName: appName)
+                }
+            }
+            return
+            
+        default:
+            break
         }
         
         // リンク要素の場合は特別な処理
@@ -594,9 +636,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func shouldSkipElement(role: String?, element: AXUIElement) -> Bool {
         guard let role = role else { return true }
         
-        // 除外するroleのリスト（ツールバーのみ）
+        // 除外するroleのリスト（最小限に抑制）
         let excludedRoles = [
-            "AXToolbar"
+            "AXToolbar",
+            "AXMenuBar",
+            "AXScrollBar"
         ]
         
         if excludedRoles.contains(role) {
@@ -688,6 +732,82 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         return title
     }
     
+    /// メッセージ要素の特別処理
+    private func handleMessageElement(_ element: AXUIElement, appName: String, role: String?) {
+        // メッセージ要素は複数の属性からテキストを収集
+        let messageAttributes = [
+            kAXValueAttribute as CFString,
+            kAXDescriptionAttribute as CFString,
+            kAXTitleAttribute as CFString
+        ]
+        
+        var collectedTexts: [String] = []
+        
+        // 各属性からテキストを収集
+        for attribute in messageAttributes {
+            if let value = safeGetAttributeValue(from: element, attribute: attribute),
+               let text = value as? String,
+               !text.isEmpty,
+               isQualityContent(text: text, role: role) {
+                collectedTexts.append(text)
+            }
+        }
+        
+        // 収集したテキストを追加
+        for text in collectedTexts {
+            print("📩 [AccessibilityAPI] メッセージテキスト取得: [\(appName)] [\(role ?? "Unknown")]")
+            print("   📄 メッセージ内容: \"\(text)\"")
+            DispatchQueue.main.async {
+                self.textModel.addText(text, appName: appName,
+                                       avoidApps: self.shareData.avoidApps,
+                                       minTextLength: self.shareData.minTextLength,
+                                       maxTextLength: self.shareData.maxTextLength)
+            }
+        }
+        
+        // 子要素も処理（メッセージ内のリンクやボタンなど）
+        if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+           let children = childValue as? [AXUIElement] {
+            for child in children {
+                extractTextFromElement(child, appName: appName)
+            }
+        }
+    }
+    
+    /// 指定された属性リストから要素のテキストを抽出
+    private func extractAttributesFromElement(_ element: AXUIElement, appName: String, role: String?, attributes: [CFString]) {
+        for attribute in attributes {
+            if let value = safeGetAttributeValue(from: element, attribute: attribute) {
+                if let text = value as? String, !text.isEmpty {
+                    if isQualityContent(text: text, role: role) {
+                        print("📝 [AccessibilityAPI] 要素テキスト取得: [\(appName)] [\(role ?? "Unknown")] [\(String(describing: attribute))]")
+                        print("   📄 テキスト内容: \"\(text)\"")
+                        DispatchQueue.main.async {
+                            self.textModel.addText(text, appName: appName,
+                                                   avoidApps: self.shareData.avoidApps,
+                                                   minTextLength: self.shareData.minTextLength,
+                                                   maxTextLength: self.shareData.maxTextLength)
+                        }
+                    }
+                } else if let array = value as? [String] {
+                    // 配列形式のテキストも処理
+                    for text in array {
+                        if !text.isEmpty && isQualityContent(text: text, role: role) {
+                            print("📝 [AccessibilityAPI] 配列テキスト取得: [\(appName)] [\(role ?? "Unknown")]")
+                            print("   📄 配列テキスト内容: \"\(text)\"")
+                            DispatchQueue.main.async {
+                                self.textModel.addText(text, appName: appName,
+                                                       avoidApps: self.shareData.avoidApps,
+                                                       minTextLength: self.shareData.minTextLength,
+                                                       maxTextLength: self.shareData.maxTextLength)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     /// テキストの品質をチェック（コンテンツとして有用かどうか）
     /// - Parameters:
     ///   - text: チェックするテキスト
@@ -758,9 +878,48 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // リンクは短くても有効
             return trimmedText.count >= 2
             
+        case "AXMessage":
+            // メッセージは短くても有効（Slackメッセージ）
+            return trimmedText.count >= 1
+            
+        case "AXButton":
+            // ボタンは人名や短いテキストも有効
+            if trimmedText.count >= 2 {
+                // ユーザー名のパターンを許可（日本語名、英語名）
+                if trimmedText.contains("/") || // "Yuki Yamaguchi/Sales" のようなパターン
+                   isValidNamePattern(trimmedText) { // 文字、数字、スペース、ピリオド、ハイフン、スラッシュ
+                    return true
+                }
+            }
+            return trimmedText.count >= 3
+            
+        case "AXText":
+            // テキスト要素は1文字でも有効（絵文字や短いテキスト）
+            return trimmedText.count >= 1
+            
+        case "AXTabPanel":
+            // タブパネルのタイトルは短くても有効
+            return trimmedText.count >= 1
+            
+        case "AXList", "AXContentList":
+            // リスト要素は内容次第
+            return trimmedText.count >= 1
+            
         default:
-            // その他の要素は最低限の品質チェック
-            return trimmedText.count >= 5
+            // その他の要素は緩い品質チェック（ウェブアプリ対応）
+            return trimmedText.count >= 2
         }
+    }
+    
+    /// ユーザー名として有効なパターンかどうかを判定
+    private func isValidNamePattern(_ text: String) -> Bool {
+        // 基本的な文字、数字、および一般的な区切り文字のみを許可
+        let allowedCharacterSet = CharacterSet.alphanumerics
+            .union(.whitespaces)
+            .union(CharacterSet(charactersIn: "./- "))
+        
+        // すべての文字が許可された文字セットに含まれているかチェック
+        let textCharacterSet = CharacterSet(charactersIn: text)
+        return allowedCharacterSet.isSuperset(of: textCharacterSet)
     }
 }
