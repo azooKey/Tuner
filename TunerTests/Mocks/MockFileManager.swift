@@ -144,6 +144,52 @@ class MockFileManager: FileManaging {
         // Also remove if it was tracked as a created directory
         createdDirectories.remove(path)
     }
+    
+    func removeItem(at url: URL) throws {
+        try removeItem(atPath: url.path)
+    }
+    
+    func attributesOfItem(atPath path: String) throws -> [FileAttributeKey : Any] {
+        if files[path] != nil || createdDirectories.contains(path) {
+            return [.size: files[path]?.count ?? 0]
+        }
+        throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError, userInfo: [NSFilePathErrorKey: path])
+    }
+    
+    func createDirectory(atPath path: String, withIntermediateDirectories createIntermediates: Bool, attributes: [FileAttributeKey : Any]?) throws {
+        try createDirectory(at: URL(fileURLWithPath: path), withIntermediateDirectories: createIntermediates, attributes: attributes)
+    }
+    
+    func contentsOfDirectory(at url: URL, includingPropertiesForKeys keys: [URLResourceKey]?, options mask: FileManager.DirectoryEnumerationOptions) throws -> [URL] {
+        let dirPath = url.path
+        if !createdDirectories.contains(dirPath) {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError, userInfo: [NSFilePathErrorKey: dirPath])
+        }
+        
+        // Return files and directories that are children of this directory
+        let childPaths = files.keys.filter { $0.hasPrefix(dirPath + "/") && !$0.dropFirst(dirPath.count + 1).contains("/") }
+        let childDirs = createdDirectories.filter { $0.hasPrefix(dirPath + "/") && !$0.dropFirst(dirPath.count + 1).contains("/") }
+        
+        let allChildren = childPaths + childDirs
+        return allChildren.map { URL(fileURLWithPath: $0) }
+    }
+    
+    func copyItem(at srcURL: URL, to dstURL: URL) throws {
+        guard let data = files[srcURL.path] else {
+            throw NSError(domain: NSCocoaErrorDomain, code: NSFileReadNoSuchFileError, userInfo: [NSFilePathErrorKey: srcURL.path])
+        }
+        files[dstURL.path] = data
+    }
+    
+    func moveItem(at srcURL: URL, to dstURL: URL) throws {
+        try copyItem(at: srcURL, to: dstURL)
+        try removeItem(at: srcURL)
+    }
+    
+    func createFile(atPath path: String, contents data: Data?, attributes attr: [FileAttributeKey : Any]?) -> Bool {
+        files[path] = data ?? Data()
+        return true
+    }
 
     // MARK: - Utility Methods for Tests
 

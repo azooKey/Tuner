@@ -6,8 +6,8 @@ class MinHashUtilsTests: XCTestCase {
     var minHash: MinHashOptimized!
 
     override func setUpWithError() throws {
-        // Consistent parameters for tests
-        minHash = MinHashOptimized(numHashFunctions: 50, similarityThreshold: 0.7, sequenceLength: 5)
+        // Consistent parameters for tests - updated for optimized version
+        minHash = MinHashOptimized(numHashFunctions: 20, similarityThreshold: 0.7, sequenceLength: 3)
     }
 
     override func tearDownWithError() throws {
@@ -31,31 +31,22 @@ class MinHashUtilsTests: XCTestCase {
 
     func testSplitText() {
         let text1 = "abcdefghij"
-        let expected1: [[Unicode.Scalar]] = [
-            Array("abcde".unicodeScalars),
-            Array("bcdef".unicodeScalars),
-            Array("cdefg".unicodeScalars),
-            Array("defgh".unicodeScalars),
-            Array("efghi".unicodeScalars),
-            Array("fghij".unicodeScalars)
+        let expected1: [String] = [
+            "abc", "bcd", "cde", "def", "efg", "fgh", "ghi", "hij"
         ]
         XCTAssertEqual(minHash.splitText(text1), expected1, "Splitting failed for standard text.")
 
-        let text2 = "abc"
-        let expected2: [[Unicode.Scalar]] = [
-             Array("abc".unicodeScalars)
-        ]
-        // Test with sequenceLength = 5
+        let text2 = "ab"
+        let expected2: [String] = ["ab"]
+        // Test with sequenceLength = 3, shorter text should return the text itself
         XCTAssertEqual(minHash.splitText(text2), expected2, "Splitting failed for text shorter than sequence length.")
 
         let text3 = ""
-        let expected3: [[Unicode.Scalar]] = []
+        let expected3: [String] = []
         XCTAssertEqual(minHash.splitText(text3), expected3, "Splitting failed for empty text.")
 
-        let text4 = "abcde"
-        let expected4: [[Unicode.Scalar]] = [
-            Array("abcde".unicodeScalars)
-        ]
+        let text4 = "abc"
+        let expected4: [String] = ["abc"]
         XCTAssertEqual(minHash.splitText(text4), expected4, "Splitting failed for text equal to sequence length.")
     }
 
@@ -68,7 +59,7 @@ class MinHashUtilsTests: XCTestCase {
         let signature2 = minHash.computeMinHashSignature(for: text2)
         let signature3 = minHash.computeMinHashSignature(for: text3)
 
-        XCTAssertEqual(signature1.count, 50, "Signature length should match numHashFunctions.")
+        XCTAssertEqual(signature1.count, 20, "Signature length should match numHashFunctions.")
         XCTAssertEqual(signature1, signature2, "Signatures for identical texts should be identical.")
         XCTAssertNotEqual(signature1, signature3, "Signatures for different texts should be different.")
     }
@@ -89,7 +80,7 @@ class MinHashUtilsTests: XCTestCase {
         let text2 = "This is a sample text for testing similarity, very similar."
         let text3 = "Completely different content here."
         // Adjust threshold if needed for specific test cases, or use default
-        let customMinHash = MinHashOptimized(numHashFunctions: 50, similarityThreshold: 0.7, sequenceLength: 5)
+        let customMinHash = MinHashOptimized(numHashFunctions: 20, similarityThreshold: 0.7, sequenceLength: 3)
 
         XCTAssertTrue(customMinHash.isSimilar(text1, text2), "Similar texts should be identified as similar.")
         XCTAssertFalse(customMinHash.isSimilar(text1, text3), "Different texts should not be identified as similar.")

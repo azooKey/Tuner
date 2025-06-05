@@ -161,21 +161,21 @@ class TextModelTests: XCTestCase {
 
     func testAddText_DoesNotSaveWhenDisabled() throws {
         textModel.isDataSaveEnabled = false
-        textModel.addText("Some data", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 1, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("Some data", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 1, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
         XCTAssertNil(mockFileManager.getFileContent(for: savedTextsFileURL.path))
         XCTAssertEqual(textModel.texts.count, 0)
     }
 
     func testAddText_SkipsShortText() throws {
-        textModel.addText("Short", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("Short", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
         XCTAssertNil(mockFileManager.getFileContent(for: savedTextsFileURL.path))
         XCTAssertEqual(textModel.texts.count, 0)
     }
 
     func testAddText_SkipsAvoidedApp() throws {
-        textModel.addText("This text is long enough", appName: "AvoidMe", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("This text is long enough", appName: "AvoidMe", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
         XCTAssertNil(mockFileManager.getFileContent(for: savedTextsFileURL.path))
         XCTAssertEqual(textModel.texts.count, 0)
@@ -187,7 +187,7 @@ class TextModelTests: XCTestCase {
        let saveThreshold = 1
 
        // 1. Add text1 - should write
-       textModel.addText(text1, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+       textModel.addText(text1, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
        waitForFileAccessQueue()
        guard let content1 = mockFileManager.getFileContentAsString(for: savedTextsFileURL.path) else {
            XCTFail("File should contain text1")
@@ -199,7 +199,7 @@ class TextModelTests: XCTestCase {
        let lastSavedDate1 = textModel.lastSavedDate
 
        // 2. Add text1 again - should be skipped, file remains unchanged
-       textModel.addText(text1, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+       textModel.addText(text1, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
        waitForFileAccessQueue()
        guard let content2 = mockFileManager.getFileContentAsString(for: savedTextsFileURL.path) else {
            XCTFail("File should still contain text1")
@@ -213,7 +213,7 @@ class TextModelTests: XCTestCase {
 
 
        // 3. Add text2 - should append
-       textModel.addText(text2, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+       textModel.addText(text2, appName: "TestApp", saveLineTh: saveThreshold, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
        waitForFileAccessQueue()
        guard let content3 = mockFileManager.getFileContentAsString(for: savedTextsFileURL.path) else {
            XCTFail("File should contain text1 and text2")
@@ -229,9 +229,9 @@ class TextModelTests: XCTestCase {
 
     /* // Temporarily comment out the potentially problematic test case
     func testAddText_SkipsSymbolOrNumberOnlyText() throws {
-        textModel.addText("1234567890", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
-        textModel.addText("!@#$%^&*()", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
-        textModel.addText("   \t\n ", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("1234567890", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
+        textModel.addText("!@#$%^&*()", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
+        textModel.addText("   \t\n ", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
         XCTAssertNil(mockFileManager.getFileContent(for: savedTextsFileURL.path))
         XCTAssertEqual(textModel.texts.count, 0)
@@ -244,7 +244,7 @@ class TextModelTests: XCTestCase {
         mockFileManager.setFileContent(existingJsonString, for: savedTextsFileURL.path)
 
         let newText = "Newly added text, also long enough"
-        textModel.addText(newText, appName: "NewApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText(newText, appName: "NewApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
 
         guard let fileContent = mockFileManager.getFileContentAsString(for: savedTextsFileURL.path) else {
@@ -261,7 +261,7 @@ class TextModelTests: XCTestCase {
 
     func testUpdateFile_HandlesWriteErrorOnFileHandle() throws {
         // Simulate an error during the fileHandle.write operation
-        textModel.addText("This should trigger write", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("This should trigger write", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue() // Wait for handle to be created
 
         // Find the created handle and make it throw
@@ -280,7 +280,7 @@ class TextModelTests: XCTestCase {
         textModel.isDataSaveEnabled = true
         mockFileManager.shouldThrowOnWrite = true // Make the manager throw on the *write* method itself
 
-        textModel.addText("This write will fail", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength)
+        textModel.addText("This write will fail", appName: "TestApp", saveLineTh: 1, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: 1000)
         waitForFileAccessQueue()
 
         XCTAssertNil(mockFileManager.getFileContent(for: savedTextsFileURL.path))
@@ -297,6 +297,28 @@ class TextModelTests: XCTestCase {
         let loadedEntries = await textModel.loadFromFileAsync()
         XCTAssertTrue(loadedEntries.isEmpty)
         XCTAssertTrue(mockFileManager.contentsOfFileCalledURLs.contains(savedTextsFileURL))
+    }
+    
+    func testAddText_RejectsTextExceedingMaxLength() {
+        let avoidApps: [String] = []
+        let minTextLength = 3
+        let maxTextLength = 50
+        
+        // Create text that exceeds max length
+        let longText = String(repeating: "a", count: 51)
+        
+        textModel.addText(longText, appName: "TestApp", saveLineTh: 100, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: maxTextLength)
+        
+        // Verify text was rejected
+        XCTAssertTrue(textModel.texts.isEmpty, "Text exceeding max length should be rejected")
+        
+        // Add text within limits
+        let validText = String(repeating: "b", count: 50)
+        textModel.addText(validText, appName: "TestApp", saveLineTh: 100, saveIntervalSec: 300, avoidApps: avoidApps, minTextLength: minTextLength, maxTextLength: maxTextLength)
+        
+        // Verify valid text was accepted
+        XCTAssertEqual(textModel.texts.count, 1, "Text within max length should be accepted")
+        XCTAssertEqual(textModel.texts.first?.text, validText)
     }
 
     // MARK: - Accessibility API Data Parsing Tests

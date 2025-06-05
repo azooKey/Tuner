@@ -57,12 +57,12 @@ extension TextModel {
     
     /// 指定されたフォルダ内のテキストファイルを処理する
     private func processFilesInFolder(_ folderURL: URL, shareData: ShareData, avoidApps: [String], minTextLength: Int) async {
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         var importedFileCount = 0
         var newEntries: [TextEntry] = []
         
         do {
-            let fileURLs = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: nil, options: [])
+            let fileURLs = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: [URLResourceKey](), options: [])
             
             if fileURLs.isEmpty {
                 print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(folderURL.path)")
@@ -146,7 +146,7 @@ extension TextModel {
     /// 新規エントリを import.jsonl に追記する
     private func appendNewEntriesToJsonl(_ newEntries: [TextEntry]) async {
         let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl")
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         
         do {
             var currentContent = ""
@@ -201,7 +201,7 @@ extension TextModel {
 extension TextModel {
     /// import.jsonl ファイルを削除し、ShareDataのインポート履歴をリセットする
     func resetImportHistory(shareData: ShareData) async {
-        let fileManager = FileManager.default
+        let fileManager = self.fileManager
         let importFileURL = getTextEntryDirectory().appendingPathComponent("import.jsonl") // Use TextEntry directory
         
         do {
@@ -226,18 +226,6 @@ extension TextModel {
             print("❌ Failed to reset import history: \(error.localizedDescription)")
         }
     }
-}
-
-// TextModel.swift に追加する拡張
-extension TextModel {
-    // import.jsonlからテキストエントリを読み込む関数
-    func loadFromImportFileAsync() async -> [TextEntry] {
-        return await withCheckedContinuation { continuation in
-            self.loadFromImportFile { loadedTexts in
-                continuation.resume(returning: loadedTexts)
-            }
-        }
-    }
     
     // import.jsonlファイルから読み込むメソッド
     func loadFromImportFile(completion: @escaping ([TextEntry]) -> Void) {
@@ -245,7 +233,7 @@ extension TextModel {
         fileAccessQueue.async {
             var loadedTexts: [TextEntry] = []
             
-            if !FileManager.default.fileExists(atPath: importFileURL.path) {
+            if !self.fileManager.fileExists(atPath: importFileURL.path) {
                 DispatchQueue.main.async {
                     completion(loadedTexts)
                 }
@@ -281,6 +269,15 @@ extension TextModel {
             
             DispatchQueue.main.async {
                 completion(loadedTexts)
+            }
+        }
+    }
+    
+    // loadFromImportFile を async/await でラップした関数
+    func loadFromImportFileAsync() async -> [TextEntry] {
+        await withCheckedContinuation { continuation in
+            self.loadFromImportFile { loadedTexts in
+                continuation.resume(returning: loadedTexts)
             }
         }
     }

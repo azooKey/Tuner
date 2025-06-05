@@ -29,6 +29,13 @@ struct SettingsView: View {
     @State private var loadingMessage = "アプリリスト更新中..."
     /// インポート履歴リセット確認アラートの表示状態
     @State private var showingResetAlert = false
+    
+    // 学習処理の実行状態
+    @State private var isTrainingOriginal = false
+    @State private var isTrainingLM = false
+    @State private var isIncrementalTraining = false
+    @State private var isPurifying = false
+    @State private var isImporting = false
 
     /// 検索フィルター適用後のアプリケーションリスト
     private var filteredApps: [String] {
@@ -106,8 +113,12 @@ struct SettingsView: View {
     /// - Parameters:
     ///   - url: 開くフォルダのURL
     private func openFolderInFinder(url: URL) {
-        let folderURL = url.deletingLastPathComponent()
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+        Task.detached(priority: .userInitiated) {
+            let folderURL = url.deletingLastPathComponent()
+            await MainActor.run {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: folderURL.path)
+            }
+        }
     }
 }
 
@@ -119,9 +130,9 @@ extension SettingsView {
     /// - ポーリング間隔設定
     /// - 最終保存日時表示
     var basicSettingsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
+        VStack(alignment: .leading, spacing: 16) {
             // アクセシビリティセクション
-            GroupBox(label: Label("アクセシビリティ", systemImage: "accessibility").font(.subheadline)) {
+            GroupBox {
                 Toggle("アクセシビリティを有効化", isOn: $shareData.activateAccessibility)
                     .toggleStyle(.switch)
                     .onChange(of: shareData.activateAccessibility) { _, newValue in
@@ -130,78 +141,201 @@ extension SettingsView {
                             shareData.requestAccessibilityPermission()
                         }
                     }
+            } label: {
+                Label("アクセシビリティ", systemImage: "accessibility")
+                    .font(.headline)
             }
-            .padding(.vertical, 4)
             
-            // 保存設定セクション
-            GroupBox(label: Label("保存設定", systemImage: "square.and.arrow.down").font(.subheadline)) {
-                VStack(alignment: .leading, spacing: 8) {
+            // データ収集設定セクション
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
                     Toggle("データを保存する", isOn: $textModel.isDataSaveEnabled)
                         .toggleStyle(.switch)
                     
-                    // しきい値設定
-                    VStack(spacing: 4) {
+                    Divider()
+                    
+                    // テキスト長設定
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("テキスト長フィルター")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        // 最小文字数
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Label("最小", systemImage: "textformat.size.smaller")
+                                    .font(.caption)
+                                    .frame(width: 60, alignment: .leading)
+                                Slider(value: Binding(
+                                    get: { Double(shareData.minTextLength) },
+                                    set: { shareData.minTextLength = Int($0) }
+                                ), in: 0...100, step: 5)
+                                Text("\(shareData.minTextLength)文字")
+                                    .font(.caption)
+                                    .frame(width: 50, alignment: .trailing)
+                                    .monospacedDigit()
+                            }
+                        }
+                        
+                        // 最大文字数
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Label("最大", systemImage: "textformat.size.larger")
+                                    .font(.caption)
+                                    .frame(width: 60, alignment: .leading)
+                                Slider(value: Binding(
+                                    get: { Double(shareData.maxTextLength) },
+                                    set: { shareData.maxTextLength = Int($0) }
+                                ), in: 100...10000, step: 100)
+                                Text("\(shareData.maxTextLength)文字")
+                                    .font(.caption)
+                                    .frame(width: 50, alignment: .trailing)
+                                    .monospacedDigit()
+                            }
+                        }
+                    }
+                    
+                    Divider()
+                    
+                    // 保存タイミング設定
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("保存タイミング")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        // 行数閾値
                         HStack {
-                            Text("行数閾値:")
-                                .font(.footnote)
-                            Spacer()
+                            Label("行数", systemImage: "text.alignleft")
+                                .font(.caption)
+                                .frame(width: 60, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(shareData.saveLineTh) },
+                                set: { shareData.saveLineTh = Int($0) }
+                            ), in: 10...100, step: 10)
                             Text("\(shareData.saveLineTh)行")
-                                .font(.footnote)
+                                .font(.caption)
+                                .frame(width: 50, alignment: .trailing)
+                                .monospacedDigit()
                         }
-                        Slider(value: Binding(
-                            get: { Double(shareData.saveLineTh) },
-                            set: { shareData.saveLineTh = Int($0) }
-                        ), in: 10...100, step: 10)
                         
+                        // 保存間隔
                         HStack {
-                            Text("保存間隔:")
-                                .font(.footnote)
-                            Spacer()
+                            Label("間隔", systemImage: "timer")
+                                .font(.caption)
+                                .frame(width: 60, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(shareData.saveIntervalSec) },
+                                set: { shareData.saveIntervalSec = Int($0) }
+                            ), in: 10...600, step: 10)
                             Text("\(shareData.saveIntervalSec)秒")
-                                .font(.footnote)
+                                .font(.caption)
+                                .frame(width: 50, alignment: .trailing)
+                                .monospacedDigit()
                         }
-                        Slider(value: Binding(
-                            get: { Double(shareData.saveIntervalSec) },
-                            set: { shareData.saveIntervalSec = Int($0) }
-                        ), in: 10...600, step: 10)
-                        
-                        HStack {
-                            Text("最小テキスト長:")
-                                .font(.footnote)
-                            Spacer()
-                            Text("\(shareData.minTextLength)文字")
-                                .font(.footnote)
-                        }
-                        Slider(value: Binding(
-                            get: { Double(shareData.minTextLength) },
-                            set: { shareData.minTextLength = Int($0) }
-                        ), in: 0...100, step: 10)
                     }
                 }
+            } label: {
+                Label("データ収集設定", systemImage: "square.and.arrow.down")
+                    .font(.headline)
             }
-            .padding(.vertical, 4)
             
             // ポーリング設定セクション
-            GroupBox(label: Label("ポーリング間隔", systemImage: "timer").font(.subheadline)) {
-                Picker("", selection: $shareData.pollingInterval) {
-                    Text("無効").tag(0)
-                    Text("5秒").tag(5)
-                    Text("10秒").tag(10)
-                    Text("30秒").tag(30)
-                    Text("60秒").tag(60)
+            GroupBox {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("テキスト取得の間隔を設定します")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    
+                    Picker("", selection: $shareData.pollingInterval) {
+                        Text("無効").tag(0)
+                        Text("5秒").tag(5)
+                        Text("10秒").tag(10)
+                        Text("30秒").tag(30)
+                        Text("60秒").tag(60)
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
                 }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+            } label: {
+                Label("ポーリング間隔", systemImage: "timer")
+                    .font(.headline)
             }
-            .padding(.vertical, 4)
             
-            // 保存ステータス
-            if let lastSavedDate = textModel.lastSavedDate {
-                GroupBox(label: Label("最終保存", systemImage: "info.circle").font(.subheadline)) {
-                    Text(lastSavedDate, formatter: dateFormatter)
-                        .font(.footnote)
+            // 自動学習設定セクション
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    Toggle("毎日自動でoriginal_marisaを更新", isOn: $shareData.autoLearningEnabled)
+                        .toggleStyle(.switch)
+                        .onChange(of: shareData.autoLearningEnabled) { _, _ in
+                            textModel.updateAutoLearningSettings()
+                        }
+                    
+                    if shareData.autoLearningEnabled {
+                        Divider()
+                        
+                        HStack {
+                            Text("実行時刻:")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            Picker("", selection: $shareData.autoLearningHour) {
+                                ForEach(0..<24, id: \.self) { hour in
+                                    Text("\(hour)時").tag(hour)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 70)
+                            .onChange(of: shareData.autoLearningHour) { _, _ in
+                                textModel.updateAutoLearningSettings()
+                            }
+                            
+                            Picker("", selection: $shareData.autoLearningMinute) {
+                                ForEach([0, 15, 30, 45], id: \.self) { minute in
+                                    Text("\(minute)分").tag(minute)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .frame(width: 70)
+                            .onChange(of: shareData.autoLearningMinute) { _, _ in
+                                textModel.updateAutoLearningSettings()
+                            }
+                            
+                            Spacer()
+                            
+                            Text("次回: 毎日 \(shareData.autoLearningHour):\(String(format: "%02d", shareData.autoLearningMinute))")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    // 最終自動学習日時
+                    if let lastDate = textModel.lastOriginalModelTrainingDate {
+                        HStack {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundColor(.green)
+                                .font(.caption)
+                            Text("最終実行: \(lastDate, formatter: dateFormatter)")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
-                .padding(.vertical, 4)
+            } label: {
+                Label("自動学習", systemImage: "clock.arrow.circlepath")
+                    .font(.headline)
+            }
+            
+            // ステータス表示
+            if let lastSavedDate = textModel.lastSavedDate {
+                HStack {
+                    Image(systemName: "info.circle.fill")
+                        .foregroundColor(.blue)
+                    Text("最終保存: \(lastSavedDate, formatter: dateFormatter)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .padding(.top, 8)
             }
         }
     }
@@ -211,195 +345,362 @@ extension SettingsView {
     /// - データ状態の表示
     /// - データ管理アクション
     var dataManagementSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // パス表示セクション
-            GroupBox(label: Label("保存場所", systemImage: "folder").font(.subheadline)) {
-                VStack(alignment: .leading, spacing: 8) {
-                    // 保存先 JSONL パス
-                    fileLocationRow(label: "JSONL:", path: textModel.getFileURL())
-
-                    Divider()
-
-                    // インポートフォルダパス（変更可能）
-                    importFolderRow()
-                }
-                .padding(.vertical, 4)
-            }
-            .padding(.bottom, 4)
-
-            // 状態表示セクション
-            GroupBox(label: Label("データ状態", systemImage: "info.circle").font(.subheadline)) {
-                VStack(alignment: .leading, spacing: 8) {
-                    // 最終保存日時
+        VStack(alignment: .leading, spacing: 16) {
+            // ファイルパス情報
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    // JSONL保存先
                     HStack {
-                        Image(systemName: "arrow.down.doc")
-                            .foregroundColor(textModel.lastSavedDate == nil ? .gray : .blue)
-                        Text("最終保存:")
+                        Label("データ保存先", systemImage: "doc.text")
                             .font(.caption)
-                        if let lastSavedDate = textModel.lastSavedDate {
-                            Text(lastSavedDate, formatter: dateFormatter)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button(action: {
+                            openFolderInFinder(url: textModel.getFileURL())
+                        }) {
+                            Image(systemName: "folder")
                                 .font(.caption)
-                        } else {
-                            Text("データなし")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+                    
+                    Text(textModel.getFileURL().path)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    
+                    Divider()
+                    
+                    // インポートフォルダ
+                    HStack {
+                        Label("インポートフォルダ", systemImage: "square.and.arrow.down.on.square")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button("変更") {
+                            selectImportFolder()
+                        }
+                        .controlSize(.small)
+                        .buttonStyle(.bordered)
+                        
+                        if shareData.importBookmarkData != nil {
+                            Button(action: openImportFolderInFinder) {
+                                Image(systemName: "folder")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.borderless)
                         }
                     }
+                    
+                    if !shareData.importTextPath.isEmpty {
+                        Text(shareData.importTextPath)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(2)
+                            .truncationMode(.middle)
+                            .textSelection(.enabled)
+                    } else {
+                        Text("未設定")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
-                .padding(.vertical, 4)
+            } label: {
+                Label("ファイル管理", systemImage: "folder")
+                    .font(.headline)
             }
-            .padding(.bottom, 4)
-
-            // アクションセクション
-            GroupBox(label: Label("アクション", systemImage: "gearshape").font(.subheadline)) {
+            
+            // データインポート
+            GroupBox {
                 VStack(alignment: .leading, spacing: 10) {
-                    // インポートボタン、リセットボタン、最終状況表示のHStack
                     HStack {
-                        // インポートボタン
-                        Button {
-                            Task {
-                                await textModel.importTextFiles(shareData: shareData, avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength)
-                            }
-                        } label: {
-                            Label("ファイルインポート", systemImage: "square.and.arrow.down")
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(isRefreshing)
-
-                        // インポート履歴リセットボタン (インポートフォルダが設定されている場合のみ表示)
-                        if shareData.importBookmarkData != nil {
-                             Button(role: .destructive) {
-                                 showingResetAlert = true
-                             } label: {
-                                 Label("リセット", systemImage: "trash")
-                                     .font(.caption)
-                             }
-                             .buttonStyle(.bordered)
-                             .controlSize(.small)
-                             .help("import.jsonlとインポート記録を削除")
-                        }
-
-                        Spacer()
-
-                        // 最終インポート状況を表示
-                        if let lastImportDate = shareData.lastImportDateAsDate {
-                            VStack(alignment: .trailing, spacing: 2) {
-                                Text("最終チェック: \(lastImportDate, formatter: dateFormatter)")
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("テキストファイルインポート")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if let lastImportDate = shareData.lastImportDateAsDate {
+                                Text("最終実行: \(lastImportDate, formatter: dateFormatter)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                                 if shareData.lastImportedFileCount >= 0 {
-                                    Text("最後に \(shareData.lastImportedFileCount) ファイルをインポート")
+                                    Text("\(shareData.lastImportedFileCount)ファイルをインポート")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Text("未実行")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
+                        Spacer()
+                        
+                        HStack(spacing: 8) {
+                            Button {
+                                Task {
+                                    isImporting = true
+                                    defer { isImporting = false }
+                                    await textModel.importTextFiles(
+                                        shareData: shareData,
+                                        avoidApps: shareData.avoidApps,
+                                        minTextLength: shareData.minTextLength
+                                    )
+                                }
+                            } label: {
+                                if isImporting {
+                                    HStack(spacing: 4) {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                        Text("インポート中...")
+                                    }
+                                } else {
+                                    Label("インポート", systemImage: "square.and.arrow.down")
                                 }
                             }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        } else {
-                             Text("未実行")
+                            .controlSize(.small)
+                            .buttonStyle(.bordered)
+                            .disabled(shareData.importBookmarkData == nil || isImporting)
+                            
+                            if shareData.importBookmarkData != nil {
+                                Button(role: .destructive) {
+                                    showingResetAlert = true
+                                } label: {
+                                    Image(systemName: "trash")
+                                }
+                                .controlSize(.small)
+                                .buttonStyle(.bordered)
+                                .help("インポート履歴をリセット")
+                            }
+                        }
+                    }
+                    
+                    Text("インポートフォルダ内の.txtファイルを読み込みます")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } label: {
+                HStack {
+                    Label("データインポート", systemImage: "square.and.arrow.down.on.square")
+                        .font(.headline)
+                    if isImporting {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                            Text("実行中")
                                 .font(.caption)
                                 .foregroundColor(.secondary)
                         }
                     }
-
-                    // インポート機能の説明
-                    Text("インポートフォルダ内の `.txt` ファイルを読み込み、`savedText.jsonl` に追加します。")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text("既にインポート済みのファイルはスキップされます。")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-
-                    Divider()
-
-                    // N-gram 訓練ボタンと最終訓練日時
+                }
+            }
+            
+            // 学習モデル管理
+            GroupBox {
+                VStack(alignment: .leading, spacing: 10) {
+                    // Original Marisa
                     HStack {
-                        // 全データ再構築ボタン
-                        Button {
-                            Task {
-                                await textModel.trainNGramFromTextEntries() // original モデルを生成
-                            }
-                        } label: {
-                            Label("N-gram再構築 (全データ)", systemImage: "arrow.triangle.2.circlepath.circle") // ラベルを少し変更
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("保存された全データから original モデルと lm モデルの初期状態を再生成します。")
-
-                        // 追加学習ボタン
-                        Button {
-                             Task {
-                                 await textModel.trainIncrementalNGramManually() // 実装済みのメソッドを呼び出す
-                             }
-                        } label: {
-                            Label("N-gram追加学習 (lm)", systemImage: "plus.circle") // アイコン変更
-                                .font(.footnote)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .help("保存されたデータを使用して既存の lm モデルを更新します。")
-                        // TODO: lmモデルが存在しない場合は無効化するなどの制御を追加検討
-
-                        Spacer()
-
-                        // 最終訓練日時を表示
-                        if let lastTrainingDate = textModel.lastNGramTrainingDate {
-                             HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle")
-                                    .foregroundColor(.green)
-                                Text("最終訓練: \(lastTrainingDate, formatter: dateFormatter)")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundColor(.orange)
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Original Marisa")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if let lastDate = textModel.lastOriginalModelTrainingDate {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                    Text("最終訓練: \(lastDate, formatter: dateFormatter)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
                                 Text("未訓練")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
                             }
-                           .font(.caption)
-                           .foregroundColor(.secondary)
                         }
-                    }
-
-                    Divider() // アクション間の区切り線を追加
-
-                    // データ整理ボタン
-                    HStack {
+                        
+                        Spacer()
+                        
                         Button {
                             Task {
-                                // データ整理処理を呼び出す
-                                await textModel.purifyFile(avoidApps: shareData.avoidApps, minTextLength: shareData.minTextLength) {}
+                                isTrainingOriginal = true
+                                defer { isTrainingOriginal = false }
+                                await textModel.trainOriginalModelManually()
                             }
                         } label: {
-                            Label("データ整理を実行", systemImage: "sparkles")
-                                .font(.footnote)
+                            if isTrainingOriginal {
+                                HStack(spacing: 4) {
+                                    ProgressView()
+                                        .scaleEffect(0.8)
+                                    Text("訓練中...")
+                                }
+                            } else {
+                                Label("手動再構築", systemImage: "arrow.triangle.2.circlepath")
+                            }
                         }
-                        .buttonStyle(.bordered)
                         .controlSize(.small)
-
+                        .buttonStyle(.bordered)
+                        .disabled(isTrainingOriginal)
+                    }
+                    
+                    Divider()
+                    
+                    // LM Model
+                    HStack {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("LM Model")
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                            
+                            if let lastDate = textModel.lastNGramTrainingDate {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption)
+                                    Text("最終訓練: \(lastDate, formatter: dateFormatter)")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+                            } else {
+                                Text("未訓練")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        
                         Spacer()
-
-                        // 最終整理日時を表示（アクションセクションにも追加）
-                        if let lastPurifyDate = textModel.lastPurifyDate {
-                             HStack(spacing: 4) {
-                                Image(systemName: "checkmark.seal")
-                                    .foregroundColor(.orange)
-                                Text("最終整理: \(lastPurifyDate, formatter: dateFormatter)")
+                        
+                        HStack(spacing: 8) {
+                            Button {
+                                Task {
+                                    isTrainingLM = true
+                                    defer { isTrainingLM = false }
+                                    await textModel.trainNGramFromTextEntries()
+                                }
+                            } label: {
+                                if isTrainingLM {
+                                    HStack(spacing: 4) {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                        Text("再構築中...")
+                                    }
+                                } else {
+                                    Label("再構築", systemImage: "arrow.triangle.2.circlepath")
+                                }
                             }
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                        } else {
-                            HStack(spacing: 4) {
-                                Image(systemName: "clock.arrow.circlepath")
-                                    .foregroundColor(.gray)
-                                Text("未実行")
+                            .controlSize(.small)
+                            .buttonStyle(.bordered)
+                            .disabled(isTrainingLM || isIncrementalTraining)
+                            
+                            Button {
+                                Task {
+                                    isIncrementalTraining = true
+                                    defer { isIncrementalTraining = false }
+                                    await textModel.trainIncrementalNGramManually()
+                                }
+                            } label: {
+                                if isIncrementalTraining {
+                                    HStack(spacing: 4) {
+                                        ProgressView()
+                                            .scaleEffect(0.8)
+                                        Text("学習中...")
+                                    }
+                                } else {
+                                    Label("追加学習", systemImage: "plus.circle")
+                                }
                             }
-                           .font(.caption)
-                           .foregroundColor(.secondary)
+                            .controlSize(.small)
+                            .buttonStyle(.bordered)
+                            .disabled(isTrainingLM || isIncrementalTraining)
                         }
                     }
                 }
-                .padding(.vertical, 6)
+            } label: {
+                HStack {
+                    Label("学習モデル", systemImage: "brain")
+                        .font(.headline)
+                    if isTrainingOriginal || isTrainingLM || isIncrementalTraining {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                            Text("処理中")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
+            }
+            
+            // データ整理
+            GroupBox {
+                HStack {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("重複データ除去")
+                            .font(.subheadline)
+                            .fontWeight(.medium)
+                        
+                        if let lastDate = textModel.lastPurifyDate {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("最終実行: \(lastDate, formatter: dateFormatter)")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                            }
+                        } else {
+                            Text("未実行")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                    
+                    Spacer()
+                    
+                    Button {
+                        Task {
+                            isPurifying = true
+                            defer { isPurifying = false }
+                            await textModel.purifyFile(
+                                avoidApps: shareData.avoidApps,
+                                minTextLength: shareData.minTextLength
+                            ) {}
+                        }
+                    } label: {
+                        if isPurifying {
+                            HStack(spacing: 4) {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("整理中...")
+                            }
+                        } else {
+                            Label("整理実行", systemImage: "sparkles")
+                        }
+                    }
+                    .controlSize(.small)
+                    .buttonStyle(.bordered)
+                    .disabled(isPurifying)
+                }
+            } label: {
+                HStack {
+                    Label("データ整理", systemImage: "sparkles")
+                        .font(.headline)
+                    if isPurifying {
+                        Spacer()
+                        HStack(spacing: 4) {
+                            ProgressView()
+                                .scaleEffect(0.6)
+                            Text("実行中")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
+                    }
+                }
             }
         }
         .alert("インポート履歴のリセット", isPresented: $showingResetAlert) {
@@ -410,210 +711,104 @@ extension SettingsView {
                 }
             }
         } message: {
-            Text("`import.jsonl` ファイルと記録された日時/ファイル数が削除されます。よろしいですか？")
-        }
-    }
-
-    // ファイル/フォルダパス表示用の補助ビュー
-    private func fileLocationRow(label: String, path: URL, isDirectory: Bool = false) -> some View {
-        HStack {
-            Text(label)
-                .font(.footnote)
-                .frame(width: 60, alignment: .leading) // ラベル幅を固定
-
-            // パス表示 (省略表示) - フルパス表示に変更
-            Text(path.path) // .lastPathComponent を削除
-                .font(.system(.footnote, design: .monospaced))
-                .lineLimit(1)
-                .truncationMode(.middle) // 中央を省略
-
-            Spacer()
-
-            // Finderで開くボタン
-            Button {
-                if isDirectory {
-                    // ディレクトリを開く
-                     NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: path.path)
-                } else {
-                    // ファイルを含むフォルダを開く
-                    openFolderInFinder(url: path)
-                }
-            } label: {
-                Image(systemName: "folder")
-                    .font(.footnote)
-            }
-            .buttonStyle(.borderless)
-            .help("Finderで表示") // ツールチップ追加
-        }
-    }
-
-    // インポートフォルダのパス表示と設定変更用の補助ビュー
-    private func importFolderRow() -> some View {
-        HStack {
-            Text("インポート:")
-                .font(.footnote)
-                .frame(width: 60, alignment: .leading)
-
-            // パス表示 (クリックでFinder表示)
-            Button(action: openImportFolderInFinder) {
-                // パスが空でなく、ファイルURLとして有効な場合にlastPathComponentを表示 - フルパス表示に変更
-                let pathToShow = shareData.importTextPath.isEmpty ? "未設定" : shareData.importTextPath
-                Text(pathToShow)
-                    .font(.system(.footnote, design: .monospaced))
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    // ブックマークが存在しない場合はグレー表示
-                    .foregroundColor(shareData.importBookmarkData == nil ? .secondary : .primary)
-            }
-            .buttonStyle(.plain)
-            // ブックマークが存在しない場合は無効
-            .disabled(shareData.importBookmarkData == nil)
-            // ツールチップにはフルパスを表示（ブックマークがあれば）
-            .help(shareData.importBookmarkData == nil ? "" : shareData.importTextPath)
-
-            Spacer()
-
-            // フォルダ選択ボタン
-            Button("変更") {
-                selectImportFolder()
-            }
-            .font(.footnote)
-            .controlSize(.small)
-            .buttonStyle(.bordered)
-            .help("インポートフォルダを選択")
-
-            // Finderで開くボタン (TextFieldのクリックと機能重複するが、視認性のために残す)
-            Button {
-                 openImportFolderInFinder()
-            } label: {
-                Image(systemName: "folder")
-                    .font(.footnote)
-            }
-            .buttonStyle(.borderless)
-            // ブックマークが存在しない場合は無効
-            .disabled(shareData.importBookmarkData == nil)
-            .help(shareData.importBookmarkData == nil ? "" : "Finderでインポートフォルダを表示")
+            Text("import.jsonlファイルと記録された日時/ファイル数が削除されます。")
         }
     }
     
-    // インポートフォルダを選択するためのパネルを表示
+    // インポートフォルダを選択
     private func selectImportFolder() {
         let openPanel = NSOpenPanel()
         openPanel.canChooseFiles = false
         openPanel.canChooseDirectories = true
         openPanel.allowsMultipleSelection = false
-        openPanel.title = "インポートフォルダを選択してください"
-        openPanel.message = "テキストファイルを含むフォルダを選択してください。"
+        openPanel.title = "インポートフォルダを選択"
+        openPanel.message = "テキストファイルを含むフォルダを選択してください"
         openPanel.prompt = "選択"
 
-        // パネル表示前にフラグを立てる
         shareData.isImportPanelShowing = true
 
         openPanel.begin { response in
-            // パネルが閉じたらフラグを下ろす → ハンドラの最後に移動
-            // 完了ハンドラはメインスレッドで実行されるため、ここで安全に更新できる
-            // shareData.isImportPanelShowing = false
-
             if response == .OK, let url = openPanel.url {
-                // ブックマーク生成と状態更新をバックグラウンドで行う
                 Task.detached(priority: .userInitiated) {
                     var newBookmarkData: Data?
                     var errorMessage: String?
 
                     do {
-                        // 時間のかかる可能性のあるブックマーク生成
-                        newBookmarkData = try url.bookmarkData(options: .withSecurityScope,
-                                                               includingResourceValuesForKeys: nil,
-                                                               relativeTo: nil)
-                        print("ブックマークを生成しました: \(url.path)")
+                        newBookmarkData = try url.bookmarkData(
+                            options: .withSecurityScope,
+                            includingResourceValuesForKeys: nil,
+                            relativeTo: nil
+                        )
                     } catch {
                         errorMessage = "ブックマークの作成に失敗しました: \(error.localizedDescription)"
                         print(errorMessage ?? "")
                     }
 
-                    // メインスレッドで状態を更新
                     await MainActor.run {
                         if let newBookmarkData = newBookmarkData {
                             shareData.importTextPath = url.path
                             shareData.importBookmarkData = newBookmarkData
                         } else {
-                            // エラー発生時はクリア
                             shareData.importTextPath = ""
                             shareData.importBookmarkData = nil
-                            // 必要であればユーザーにエラーを通知する処理を追加
                         }
                     }
                 }
             }
-
-            // パネルが閉じる処理（完了、キャンセル、エラー）の最後にフラグを下ろす
             shareData.isImportPanelShowing = false
         }
     }
 
-    // 設定されたインポートフォルダをFinderで開く
+    // インポートフォルダをFinderで開く
     private func openImportFolderInFinder() {
+        Task.detached(priority: .userInitiated) {
+            await self.openImportFolderInFinderAsync()
+        }
+    }
+    
+    // インポートフォルダをFinderで開く（非同期版）
+    private func openImportFolderInFinderAsync() async {
         guard let bookmarkData = shareData.importBookmarkData else {
-            print("ブックマークデータが見つかりません。")
             return
         }
 
-        // ブックマーク解決とFinder表示をバックグラウンド→メインスレッドで行う
-        Task.detached(priority: .userInitiated) {
-            var resolvedURL: URL?
-            var isStale = false
-            var accessGranted = false
-            var errorMessage: String?
+        var resolvedURL: URL?
+        var isStale = false
+        var accessGranted = false
 
-            do {
-                // 時間のかかる可能性のあるブックマーク解決
-                resolvedURL = try URL(resolvingBookmarkData: bookmarkData,
-                                      options: [.withSecurityScope],
-                                      relativeTo: nil,
-                                      bookmarkDataIsStale: &isStale)
+        do {
+            resolvedURL = try URL(
+                resolvingBookmarkData: bookmarkData,
+                options: [.withSecurityScope],
+                relativeTo: nil,
+                bookmarkDataIsStale: &isStale
+            )
 
-                guard let url = resolvedURL else {
-                    throw URLError(.badURL) // 簡略化のため。より具体的なエラーを定義しても良い
-                }
-
-                if isStale {
-                    errorMessage = "ブックマークが古くなっています。再選択が必要です。"
-                    print(errorMessage ?? "")
-                    // 必要であればメインスレッドでブックマークをクリア
-                    // await MainActor.run { ... }
-                    return
-                }
-
-                // 時間のかかる可能性のあるアクセス権取得
-                accessGranted = url.startAccessingSecurityScopedResource()
-                if !accessGranted {
-                    errorMessage = "フォルダへのアクセス権を取得できませんでした: \(url.path)"
-                    print(errorMessage ?? "")
-                    // アクセス権取得失敗時はここで終了
-                    return
-                }
-
-                // アクセス権取得成功後、メインスレッドでFinderを開く
-                await MainActor.run {
-                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
-                    print("Finderで開きました: \(url.path)")
-                }
-
-            } catch {
-                errorMessage = "ブックマークからのURL解決またはアクセス権取得に失敗しました: \(error.localizedDescription)"
-                print(errorMessage ?? "")
-                // 必要であればメインスレッドでエラーをユーザーに通知 or ブックマーククリア
-                // await MainActor.run { ... }
+            guard let url = resolvedURL else {
+                throw URLError(.badURL)
             }
 
-            // アクセス権取得を試みた場合、最後に必ず解放処理を行う
-            // startAccessingSecurityScopedResource が呼ばれた後でのみ stop を呼ぶ
-            if let url = resolvedURL, accessGranted {
-                 // url.stopAccessingSecurityScopedResource() // stopAccessingSecurityScopedResourceは、アクセスが不要になったらすぐに呼び出すべきです。Finderが開いた後すぐに不要になるかはユースケースによりますが、ここではTask終了時に解放します。
-                // startAccessingSecurityScopedResourceと対になるように、Taskのスコープを抜ける際に確実に呼ばれるようにします。
-                // deferブロックをTask.detached内で使用することも検討できますが、ここでは最後に配置します。
-                url.stopAccessingSecurityScopedResource()
+            if isStale {
+                print("ブックマークが古くなっています。再選択が必要です。")
+                return
             }
+
+            accessGranted = url.startAccessingSecurityScopedResource()
+            if !accessGranted {
+                print("フォルダへのアクセス権を取得できませんでした: \(url.path)")
+                return
+            }
+
+            await MainActor.run {
+                NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: url.path)
+            }
+
+        } catch {
+            print("ブックマークからのURL解決に失敗しました: \(error.localizedDescription)")
+        }
+
+        if let url = resolvedURL, accessGranted {
+            url.stopAccessingSecurityScopedResource()
         }
     }
 }
@@ -622,44 +817,50 @@ extension SettingsView {
 extension SettingsView {
     // MARK: - アプリ除外セクション
     var appExclusionSection: some View {
-        VStack(spacing: 12) {
-            // アプリアイコン取得とアプリリスト更新
-            GroupBox(label: Label("アプリケーション管理", systemImage: "app.badge.checkmark").font(.subheadline)) {
-                VStack(spacing: 8) {
+        VStack(spacing: 16) {
+            // コントロールパネル
+            GroupBox {
+                VStack(spacing: 10) {
+                    // 更新ボタンとステータス
                     HStack {
-                        Button(action: {
-                            updateRunningApps()
-                        }) {
-                            HStack {
+                        Button(action: updateRunningApps) {
+                            HStack(spacing: 4) {
                                 if isRefreshing {
                                     ProgressView()
-                                        .scaleEffect(0.8)
+                                        .scaleEffect(0.7)
                                 } else {
                                     Image(systemName: "arrow.clockwise")
                                 }
                                 Text("アプリリスト更新")
-                                    .font(.footnote)
                             }
                         }
-                        .buttonStyle(.bordered)
                         .controlSize(.small)
+                        .buttonStyle(.bordered)
                         .disabled(isRefreshing)
                         
                         Spacer()
                         
-                        if !shareData.avoidApps.isEmpty {
-                            Menu {
-                                Button(role: .destructive, action: {
-                                    shareData.avoidApps.removeAll()
-                                }) {
-                                    Label("すべて解除", systemImage: "trash")
-                                }
-                            } label: {
-                                Label("", systemImage: "ellipsis.circle")
-                                    .font(.footnote)
+                        // ステータス表示
+                        HStack(spacing: 12) {
+                            Label("\(shareData.apps.count)", systemImage: "app")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            
+                            if !shareData.avoidApps.isEmpty {
+                                Label("\(shareData.avoidApps.count)除外", systemImage: "xmark.app")
+                                    .font(.caption)
+                                    .foregroundColor(.red)
                             }
-                            .menuStyle(.borderlessButton)
+                        }
+                        
+                        if !shareData.avoidApps.isEmpty {
+                            Button(role: .destructive) {
+                                shareData.avoidApps.removeAll()
+                            } label: {
+                                Label("すべて解除", systemImage: "trash")
+                            }
                             .controlSize(.small)
+                            .buttonStyle(.bordered)
                         }
                     }
                     
@@ -668,13 +869,10 @@ extension SettingsView {
                         Image(systemName: "magnifyingglass")
                             .foregroundColor(.secondary)
                         TextField("アプリを検索...", text: $searchText)
-                            .font(.footnote)
                             .textFieldStyle(.plain)
                         
                         if !searchText.isEmpty {
-                            Button(action: {
-                                searchText = ""
-                            }) {
+                            Button(action: { searchText = "" }) {
                                 Image(systemName: "xmark.circle.fill")
                                     .foregroundColor(.secondary)
                             }
@@ -683,259 +881,223 @@ extension SettingsView {
                     }
                     .padding(6)
                     .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
-                    
-                    // 除外アプリ数表示
-                    HStack {
-                        Text("実行中のアプリ: \(shareData.apps.count)個")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                        
-                        Spacer()
-                        
-                        Text("除外中: \(shareData.avoidApps.count)個")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    }
-                    .padding(.top, 4)
+                    .cornerRadius(6)
                 }
-                .padding(.vertical, 6)
+            } label: {
+                Label("アプリケーション管理", systemImage: "app.badge.checkmark")
+                    .font(.headline)
             }
-            .padding(.bottom, 4)
             
-            // 除外中のアプリリスト（存在する場合）
+            // 除外中のアプリ
             if !shareData.avoidApps.isEmpty {
-                excludedAppsGroup
-            }
-            
-            // アプリケーションリスト
-            runningAppsGroup
-        }
-    }
-    
-    // 除外中アプリを表示するためのGroupBox
-    private var excludedAppsGroup: some View {
-        GroupBox(label: Label("除外中のアプリ", systemImage: "xmark.app").font(.subheadline)) {
-            excludedAppsScrollView
-        }
-        .padding(.bottom, 4)
-    }
-    
-    // 除外中アプリのスクロールビュー
-    private var excludedAppsScrollView: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(shareData.avoidApps.sorted(), id: \.self) { appName in
-                    excludedAppItem(appName)
+                GroupBox {
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 8) {
+                            ForEach(shareData.avoidApps.sorted(), id: \.self) { appName in
+                                excludedAppChip(appName)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } label: {
+                    Label("除外中のアプリ (\(shareData.avoidApps.count))", systemImage: "xmark.app")
+                        .font(.headline)
+                        .foregroundColor(.red)
                 }
             }
-            .padding(.vertical, 4)
-        }
-    }
-    
-    // 個別の除外アプリアイテム表示
-    private func excludedAppItem(_ appName: String) -> some View {
-        VStack {
-            appIconView(for: appName, size: 24)
             
-            Text(appName)
-                .font(.system(size: 9))
-                .lineLimit(1)
-                .frame(maxWidth: 60)
-            
-            Button(action: {
-                shareData.toggleAppExclusion(appName)
-            }) {
-                Image(systemName: "xmark.circle.fill")
-                    .foregroundColor(.red)
-                    .font(.system(size: 10))
+            // アプリリスト
+            GroupBox {
+                if filteredApps.isEmpty {
+                    VStack(spacing: 8) {
+                        Image(systemName: searchText.isEmpty ? "app.dashed" : "magnifyingglass")
+                            .font(.largeTitle)
+                            .foregroundColor(.secondary)
+                        Text(searchText.isEmpty ? "アプリが見つかりません" : "「\(searchText)」に一致するアプリがありません")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                    .frame(height: 100)
+                    .frame(maxWidth: .infinity)
+                } else {
+                    List {
+                        ForEach(filteredApps, id: \.self) { appName in
+                            appRow(appName)
+                        }
+                    }
+                    .listStyle(.plain)
+                    .frame(height: 300)
+                }
+            } label: {
+                Label(searchText.isEmpty ? "実行中のアプリ" : "検索結果", systemImage: "app")
+                    .font(.headline)
             }
-            .buttonStyle(.borderless)
         }
-        .padding(4)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(6)
     }
     
-    // アプリアイコン表示用のビュー
-    private func appIconView(for appName: String, size: CGFloat) -> some View {
-        Group {
+    // 除外中アプリのチップ表示
+    private func excludedAppChip(_ appName: String) -> some View {
+        HStack(spacing: 4) {
             if let icon = appIcons[appName] {
                 Image(nsImage: icon)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
+                    .frame(width: 16, height: 16)
             } else {
                 Image(systemName: "app.dashed")
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
+                    .font(.caption)
             }
-        }
-        .frame(width: size, height: size)
-    }
-    
-    // 実行中アプリを表示するためのGroupBox
-    private var runningAppsGroup: some View {
-        GroupBox(label: Label(searchText.isEmpty ? "実行中のアプリ" : "検索結果", systemImage: "app").font(.subheadline)) {
-            if filteredApps.isEmpty {
-                emptyAppsView
-            } else {
-                appListView
-            }
-        }
-    }
-    
-    // アプリが見つからない場合のビュー
-    private var emptyAppsView: some View {
-        HStack {
-            Spacer()
-            Text(searchText.isEmpty ? "アプリが見つかりません" : "「\(searchText)」に一致するアプリがありません")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding()
-            Spacer()
-        }
-    }
-    
-    // アプリのリスト表示
-    private var appListView: some View {
-        List {
-            ForEach(filteredApps, id: \.self) { appName in
-                appRow(for: appName)
-            }
-        }
-        .frame(height: 250)
-        .listStyle(.plain)
-    }
-    
-    // 個別のアプリ行
-    private func appRow(for appName: String) -> some View {
-        HStack {
+            
+            Text(appName)
+                .font(.caption)
+                .lineLimit(1)
+            
             Button(action: {
                 withAnimation {
                     shareData.toggleAppExclusion(appName)
                 }
             }) {
-                HStack {
-                    // アプリアイコン
-                    appIconView(for: appName, size: 16)
-                    
-                    // アプリ名
-                    Text(appName)
-                        .font(.footnote)
-                    
-                    Spacer()
-                    
-                    // 除外状態表示
-                    appStatusBadge(for: appName)
-                }
-                .contentShape(Rectangle())
+                Image(systemName: "xmark.circle.fill")
+                    .font(.caption)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderless)
         }
-        .padding(.vertical, 2)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.red.opacity(0.1))
+        .cornerRadius(12)
     }
     
-    // アプリの状態表示バッジ
-    private func appStatusBadge(for appName: String) -> some View {
-        Group {
-            if shareData.isAppExcluded(appName) {
-                Text("除外中")
-                    .font(.caption2)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.red)
-                    .cornerRadius(4)
-            } else {
-                Text("監視中")
-                    .font(.caption2)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 6)
-                    .padding(.vertical, 2)
-                    .background(Color.green)
-                    .cornerRadius(4)
+    // アプリ行の表示
+    private func appRow(_ appName: String) -> some View {
+        Button(action: {
+            withAnimation {
+                shareData.toggleAppExclusion(appName)
             }
+        }) {
+            HStack {
+                // アイコン
+                if let icon = appIcons[appName] {
+                    Image(nsImage: icon)
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 20, height: 20)
+                } else {
+                    Image(systemName: "app.dashed")
+                        .frame(width: 20, height: 20)
+                }
+                
+                // アプリ名
+                Text(appName)
+                    .font(.system(.body, design: .default))
+                
+                Spacer()
+                
+                // ステータス
+                if shareData.isAppExcluded(appName) {
+                    Label("除外中", systemImage: "xmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.red)
+                        .cornerRadius(10)
+                } else {
+                    Label("監視中", systemImage: "checkmark.circle.fill")
+                        .font(.caption)
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.green)
+                        .cornerRadius(10)
+                }
+            }
+            .contentShape(Rectangle())
         }
+        .buttonStyle(.plain)
+        .padding(.vertical, 4)
     }
 }
 
 // MARK: - SettingsView Extension for App Icons
 extension SettingsView {
-    // アプリリスト更新（アイコン取得を含む）
+    // アプリリスト更新
     func updateRunningApps() {
-        // 既にリフレッシュ中なら何もしない
         guard !isRefreshing else { return }
         
         isRefreshing = true
         loadingMessage = "アプリリスト取得中..."
         
-        // まずアプリリストだけ更新（高速）
         shareData.updateRunningApps()
         
-        // 次にバックグラウンドスレッドでアイコンを読み込む
         Task.detached(priority: .background) {
-            await loadAppIconsAsync()
+            await self.loadAppIconsAsync()
         }
     }
     
-    // 非同期でアプリアイコンを取得
-    @MainActor
+    // アプリアイコンを非同期で取得
     func loadAppIconsAsync() async {
-        // アイコンをクリア
-        appIcons.removeAll()
-        
-        loadingMessage = "アプリアイコン読み込み中..."
-        
-        // 各アプリのアイコンを取得
-        let workspace = NSWorkspace.shared
-        
-        // まず実行中のアプリアイコンを取得
-        for appName in shareData.apps {
-            await loadIconForAppAsync(appName, workspace: workspace)
-            
-            // UIの反応性を保つために少し待機
-            try? await Task.sleep(nanoseconds: 1_000_000) // 1ミリ秒
+        await MainActor.run {
+            self.loadingMessage = "アプリアイコン読み込み中..."
         }
         
-        // 次に除外アプリのアイコンを取得（現在実行中でない可能性がある）
-        for appName in shareData.avoidApps where appIcons[appName] == nil {
-            await loadIconForAppAsync(appName, workspace: workspace)
+        let allApps = Array(Set(shareData.apps + shareData.avoidApps))
+        var processedIcons: [String: NSImage] = [:]
+        
+        await withTaskGroup(of: (String, NSImage?).self) { group in
+            for appName in allApps {
+                group.addTask {
+                    let icon = await self.loadIconForApp(appName)
+                    return (appName, icon)
+                }
+            }
             
-            // UIの反応性を保つために少し待機
-            try? await Task.sleep(nanoseconds: 1_000_000) // 1ミリ秒
+            for await (appName, icon) in group {
+                if let icon = icon {
+                    processedIcons[appName] = icon
+                }
+                
+                if processedIcons.count % 10 == 0 {
+                    let currentBatch = processedIcons
+                    await MainActor.run {
+                        self.appIcons.merge(currentBatch) { _, new in new }
+                    }
+                    processedIcons.removeAll()
+                }
+            }
         }
         
-        // 完了
-        isRefreshing = false
+        if !processedIcons.isEmpty {
+            await MainActor.run {
+                self.appIcons.merge(processedIcons) { _, new in new }
+            }
+        }
+        
+        await MainActor.run {
+            self.isRefreshing = false
+        }
     }
     
-    // 非同期で単一アプリのアイコンを取得
-    @MainActor
-    private func loadIconForAppAsync(_ appName: String, workspace: NSWorkspace) async {
-        var icon: NSImage?
-        
-        // 公開された非同期コンテキストに移動してファイル操作を行う
-        await Task.detached(priority: .background) {
-            // バンドルIDからアプリURLを取得
-            if let bundleId = getBundleIdentifierForApp(appName),
+    // 単一アプリのアイコンを取得
+    private func loadIconForApp(_ appName: String) async -> NSImage? {
+        return await Task.detached(priority: .background) {
+            let workspace = NSWorkspace.shared
+            
+            if let bundleId = self.getBundleIdentifierForApp(appName),
                let appURL = workspace.urlForApplication(withBundleIdentifier: bundleId) {
-                icon = workspace.icon(forFile: appURL.path)
+                return workspace.icon(forFile: appURL.path)
             }
-            // パスからアプリを検索
-            else if let appURL = await findAppPathAsync(for: appName) {
-                icon = workspace.icon(forFile: appURL.path)
+            
+            if let appURL = await self.findAppPathAsync(for: appName) {
+                return workspace.icon(forFile: appURL.path)
             }
+            
+            return nil
         }.value
-        
-        // アイコンが見つかれば設定
-        if let icon = icon {
-            self.appIcons[appName] = icon
-        }
     }
     
-    // アプリ名からバンドルIDを推測
+    // よく知られたアプリのバンドルID
     private func getBundleIdentifierForApp(_ appName: String) -> String? {
-        // 一般的なAppleアプリのバンドルID
         let knownApps: [String: String] = [
             "Finder": "com.apple.finder",
             "Safari": "com.apple.Safari",
@@ -943,40 +1105,23 @@ extension SettingsView {
             "Messages": "com.apple.MobileSMS",
             "Calendar": "com.apple.iCal",
             "Notes": "com.apple.Notes",
-            "Photos": "com.apple.Photos",
-            "Music": "com.apple.Music",
             "Terminal": "com.apple.Terminal",
             "Xcode": "com.apple.dt.Xcode",
             "システム設定": "com.apple.systempreferences",
-            "システム環境設定": "com.apple.systempreferences",
-            "App Store": "com.apple.AppStore",
-            "Maps": "com.apple.Maps",
-            "FaceTime": "com.apple.FaceTime",
-            "Books": "com.apple.iBooksX",
-            "Preview": "com.apple.Preview",
-            "QuickTime Player": "com.apple.QuickTimePlayerX",
-            "TextEdit": "com.apple.TextEdit",
-            "Calculator": "com.apple.Calculator",
-            "Dictionary": "com.apple.Dictionary",
-            "Reminders": "com.apple.reminders",
-            "Contacts": "com.apple.AddressBook",
-            "Home": "com.apple.Home",
         ]
         
         return knownApps[appName]
     }
     
-    // アプリ名からアプリへのパスを非同期で検索
+    // アプリのパスを検索
     private func findAppPathAsync(for appName: String) async -> URL? {
-        // まず/Applicationsフォルダを探索
-        let applicationFolderURL = URL(fileURLWithPath: "/Applications")
-        if let appURL = await findAppAsync(named: appName, in: applicationFolderURL) {
-            return appURL
-        }
+        let searchPaths = [
+            URL(fileURLWithPath: "/Applications"),
+            FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask).first
+        ].compactMap { $0 }
         
-        // 次にユーザーのApplicationsフォルダを探索
-        if let userApplicationsURL = FileManager.default.urls(for: .applicationDirectory, in: .userDomainMask).first {
-            if let appURL = await findAppAsync(named: appName, in: userApplicationsURL) {
+        for searchPath in searchPaths {
+            if let appURL = await findAppAsync(named: appName, in: searchPath) {
                 return appURL
             }
         }
@@ -984,24 +1129,23 @@ extension SettingsView {
         return nil
     }
     
-    // 指定されたディレクトリ内でアプリを非同期で探す
+    // 指定ディレクトリ内でアプリを検索
     private func findAppAsync(named appName: String, in directory: URL) async -> URL? {
-        guard let fileEnumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else {
+        guard let enumerator = FileManager.default.enumerator(at: directory, includingPropertiesForKeys: nil) else {
             return nil
         }
         
-        // 一定数のファイルだけ調べて時間がかかりすぎないようにする
         var count = 0
         let maxCount = 100
         
-        for case let fileURL as URL in fileEnumerator {
+        for case let fileURL as URL in enumerator {
             guard count < maxCount else { break }
             
-            if fileURL.pathExtension == "app" && fileURL.lastPathComponent.lowercased().hasPrefix(appName.lowercased()) {
+            if fileURL.pathExtension == "app" && 
+               fileURL.lastPathComponent.lowercased().hasPrefix(appName.lowercased()) {
                 return fileURL
             }
             
-            // UIの反応性を保つために定期的に中断
             if count % 10 == 0 {
                 await Task.yield()
             }

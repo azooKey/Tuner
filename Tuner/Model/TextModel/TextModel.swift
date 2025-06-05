@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import EfficientNGram
+import KanaKanjiConverterModule
 
 /// テキストデータの管理と処理を行うモデルクラス
 /// - テキストエントリの保存と読み込み
@@ -19,6 +19,7 @@ class TextModel: ObservableObject {
     @Published var isDataSaveEnabled: Bool = true
     @Published var lastNGramTrainingDate: Date? = nil
     @Published var lastPurifyDate: Date? = nil
+    @Published var lastOriginalModelTrainingDate: Date? = nil
     
     let ngramSize: Int = 5
     private var saveCounter = 0
@@ -32,15 +33,43 @@ class TextModel: ObservableObject {
     private var minHashOptimizer = TextModelOptimizedWithLRU()
     private let similarityThreshold: Double = 0.8
     
+    // 自動学習関連のプロパティ
+    private var autoLearningTimer: Timer?
+    private var shareData: ShareData?
+    
+    // 処理レベル制御（CPU負荷軽減）
+    enum ProcessingLevel {
+        case disabled       // 重複削除を無効
+        case minimal        // 完全一致のみ
+        case normal         // 完全一致 + 前方一致
+        case full           // 全処理（類似度検出含む）
+    }
+    
+    @Published var processingLevel: ProcessingLevel = .minimal
+    private var consecutiveHeavyProcessingCount = 0
+    
     // ファイル管理のためのプロパティ (追加)
-    private let fileManager: FileManaging
+    internal let fileManager: FileManaging
     private let appGroupIdentifier: String = "group.dev.ensan.inputmethod.azooKeyMac" // App Group ID (定数化)
     
     /// イニシャライザ (修正: FileManaging を注入)
-    init(fileManager: FileManaging = DefaultFileManager()) {
+    init(fileManager: FileManaging = DefaultFileManager(), shareData: ShareData? = nil) {
         self.fileManager = fileManager // 注入されたインスタンスを保存
-        createAppDirectory()
-        printFileURL() // ファイルパスを表示
+        self.shareData = shareData
+        
+        // ディレクトリ作成とファイルアクセスを非同期で実行
+        DispatchQueue.global(qos: .utility).async {
+            self.createAppDirectory()
+            self.printFileURL() // ファイルパスを表示
+            
+            // 破損したMARISAファイルのクリーンアップ
+            self.cleanupCorruptedMARISAFiles()
+            
+            // 自動学習のセットアップもバックグラウンドで実行
+            DispatchQueue.main.async {
+                self.setupAutoLearning()
+            }
+        }
     }
     
     // LM (.marisa) ファイルの保存ディレクトリを取得 (修正: self.fileManager を使用)
@@ -231,12 +260,14 @@ class TextModel: ObservableObject {
                 print("🐛 [TextModel] updateFile: Finished writing loop (\(linesWritten) lines written).") // Debug print
 
                 if linesWritten > 0 {
-                    print("💾 Saved \(linesWritten) entries to \(fileURL.lastPathComponent)")
+                    print("💾 [TextModel] ファイル保存完了: \(linesWritten)件を\(fileURL.lastPathComponent)に保存")
                     // Only update lastSavedDate if writing was successful
                     DispatchQueue.main.async {
                         self.lastSavedDate = Date()
-                        print("🐛 [TextModel] updateFile: Updated lastSavedDate.") // Debug print
+                        print("📅 [TextModel] 最終保存日時を更新")
                     }
+                } else {
+                    print("⚠️ [TextModel] ファイル保存: 書き込み対象なし")
                 }
 
                 // Trigger N-gram training only if writes were successful
@@ -272,6 +303,28 @@ class TextModel: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    /// テキストを改行や連続空白で分割して複数のエントリに分ける
+    func splitTextIntoEntries(_ text: String) -> [String] {
+        // 改行、複数の空白、タブで分割
+        var components: [String] = []
+        
+        // まず改行とタブで分割
+        let primaryComponents = text.components(separatedBy: CharacterSet(charactersIn: "\n\r\t"))
+        
+        // 各コンポーネントをさらに連続する空白で分割
+        for component in primaryComponents {
+            let secondaryComponents = component.components(separatedBy: "  ") // 2つ以上の連続空白
+            for subComponent in secondaryComponents {
+                let trimmed = subComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty && trimmed.count >= 3 { // 短すぎるフラグメントは除外
+                    components.append(trimmed)
+                }
+            }
+        }
+        
+        return components
+    }
+    
     /// テキストエントリを追加し、条件に応じてファイルに保存
     /// - Parameters:
     ///   - text: 追加するテキスト
@@ -280,9 +333,10 @@ class TextModel: ObservableObject {
     ///   - saveIntervalSec: 保存をトリガーする時間間隔（秒）
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
-    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int) {
+    ///   - maxTextLength: 最大テキスト長
+    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int, maxTextLength: Int = 1000) {
         if !isDataSaveEnabled {
-            // print("⚠️ データ保存が無効化されています") // 必要ならコメント解除
+            print("⚠️ [TextModel] データ保存が無効化されています")
             return
         }
         
@@ -294,28 +348,57 @@ class TextModel: ObservableObject {
             return
         }
         
-        let cleanedText = removeExtraNewlines(from: text)
-        
-        // 直前の "正常に追加された" テキストとの重複チェック (修正)
-        if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
-            // print("🔍 SKIP(Duplicate): [\(appName)] Same as last successfully added. Text: \(cleanedText)")
+        if text.count > maxTextLength {
             return
         }
         
-        if cleanedText.utf16.isSymbolOrNumber {
+        // テキストを分割して複数のエントリとして処理
+        let textFragments = splitTextIntoEntries(text)
+        
+        if textFragments.isEmpty {
             return
         }
         
-        if avoidApps.contains(appName) {
-            return
-        }
-        
+        var addedCount = 0
         let timestamp = Date()
-        let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
         
-        texts.append(newTextEntry)
-        lastAddedEntryText = cleanedText // 正常に追加されたので更新
-        saveCounter += 1
+        for fragment in textFragments {
+            let cleanedText = removeExtraNewlines(from: fragment)
+            
+            // 最大文字数チェック（分割後の各フラグメントに対しても適用）
+            if cleanedText.count > maxTextLength {
+                continue
+            }
+            
+            // 直前の "正常に追加された" テキストとの重複チェック
+            if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
+                continue
+            }
+            
+            if cleanedText.utf16.isSymbolOrNumber {
+                continue
+            }
+            
+            if avoidApps.contains(appName) {
+                continue
+            }
+            
+            let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
+            texts.append(newTextEntry)
+            lastAddedEntryText = cleanedText
+            saveCounter += 1
+            addedCount += 1
+        }
+        
+        if addedCount > 0 {
+            // デバッグ用：エントリ追加時の出力
+            print("✅ [TextModel] エントリ追加: [\(appName)] \(addedCount)件追加 (メモリ内: \(texts.count)件)")
+            if addedCount == 1 {
+                print("   💬 追加されたテキスト: \"\(textFragments.first!)\"")
+            } else {
+                print("   💬 分割されたテキスト例: \"\(textFragments.first!)\" ... (他\(addedCount-1)件)")
+            }
+        }
         
         let intervalFlag : Bool = {
             if let lastSavedDate = lastSavedDate {
@@ -327,7 +410,7 @@ class TextModel: ObservableObject {
         }()
         
         if (texts.count >= saveLineTh || intervalFlag) && !isUpdatingFile {
-            // print("💾 ファイル保存トリガー: ...") // 必要なら維持・調整
+            print("💾 [TextModel] ファイル保存トリガー: \(texts.count)件 (閾値:\(saveLineTh), 間隔:\(intervalFlag))")
             updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
         }
         
@@ -426,5 +509,134 @@ class TextModel: ObservableObject {
                 continuation.resume(returning: loadedTexts)
             }
         }
+    }
+    
+    // MARK: - Automatic Learning
+    
+    /// 自動学習機能のセットアップ
+    private func setupAutoLearning() {
+        guard let shareData = shareData else { return }
+        
+        // 現在のタイマーを停止
+        autoLearningTimer?.invalidate()
+        
+        // 自動学習が有効でない場合は終了
+        guard shareData.autoLearningEnabled else { return }
+        
+        // 毎日指定時刻に実行するタイマーを設定（バックグラウンドで実行）
+        DispatchQueue.global(qos: .utility).async {
+            DispatchQueue.main.async {
+                self.scheduleNextAutoLearning()
+            }
+        }
+    }
+    
+    /// 次回の自動学習をスケジュール
+    private func scheduleNextAutoLearning() {
+        guard let shareData = shareData else { return }
+        guard shareData.autoLearningEnabled else { return }
+        
+        // Calendar計算を非同期で実行
+        Task.detached(priority: .utility) {
+            let scheduledTime = await self.calculateNextScheduledTime(
+                hour: shareData.autoLearningHour,
+                minute: shareData.autoLearningMinute
+            )
+            
+            let timeInterval = scheduledTime.timeIntervalSince(Date())
+            
+            print("🕐 Next automatic original_marisa training scheduled at: \(scheduledTime)")
+            
+            await MainActor.run {
+                self.autoLearningTimer = Timer.scheduledTimer(withTimeInterval: timeInterval, repeats: false) { [weak self] _ in
+                    Task {
+                        await self?.performAutomaticLearning()
+                    }
+                }
+            }
+        }
+    }
+    
+    /// 次回スケジュール時刻を計算（バックグラウンドで実行）
+    private func calculateNextScheduledTime(hour: Int, minute: Int) async -> Date {
+        return await Task.detached(priority: .utility) {
+            let now = Date()
+            let calendar = Calendar.current
+            
+            // 今日の指定時刻を計算
+            var components = calendar.dateComponents([.year, .month, .day], from: now)
+            components.hour = hour
+            components.minute = minute
+            components.second = 0
+            
+            guard let todayScheduledTime = calendar.date(from: components) else {
+                return now.addingTimeInterval(86400) // 24時間後をフォールバック
+            }
+            
+            // 実行予定時刻を決定（今日の時刻が過ぎていれば明日に設定）
+            if todayScheduledTime > now {
+                return todayScheduledTime
+            } else {
+                // 明日の同じ時刻に設定
+                return calendar.date(byAdding: .day, value: 1, to: todayScheduledTime) ?? todayScheduledTime
+            }
+        }.value
+    }
+    
+    /// 自動学習を実行
+    private func performAutomaticLearning() async {
+        print("🚀 Starting automatic original_marisa training...")
+        
+        // original_marisaの再構築を実行
+        await trainNGramFromTextEntries(ngramSize: ngramSize, baseFilePattern: "original")
+        
+        // 最後の自動学習日時を更新
+        await MainActor.run {
+            self.lastOriginalModelTrainingDate = Date()
+            print("✅ Automatic original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+        }
+        
+        // 次回の学習をスケジュール
+        scheduleNextAutoLearning()
+    }
+    
+    /// 自動学習設定を更新（外部から呼び出される）
+    func updateAutoLearningSettings() {
+        // メインスレッドをブロックしないように非同期で実行
+        DispatchQueue.main.async {
+            self.setupAutoLearning()
+        }
+    }
+    
+    /// 手動でoriginal_marisaの再構築を実行（データ完全クリーニング付き）
+    func trainOriginalModelManually() async {
+        print("🧹 Starting original_marisa training with full data cleaning...")
+        
+        // 完全クリーニングを先に実行
+        await performFullCleaningBeforeOriginalTraining()
+        
+        // クリーニング後にモデル学習実行
+        await trainNGramFromTextEntries(ngramSize: ngramSize, baseFilePattern: "original")
+        await MainActor.run {
+            self.lastOriginalModelTrainingDate = Date()
+            print("✅ Manual original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+        }
+    }
+    
+    /// original_marisa更新前の完全クリーニング
+    private func performFullCleaningBeforeOriginalTraining() async {
+        return await withCheckedContinuation { continuation in
+            print("🧽 original_marisa更新前の完全データクリーニングを開始...")
+            
+            // セクション分割による完全purifyを実行
+            self.purifyFile(avoidApps: [], minTextLength: 5, isFullClean: true) {
+                print("✅ original_marisa更新前のクリーニング完了")
+                continuation.resume()
+            }
+        }
+    }
+    
+    deinit {
+        autoLearningTimer?.invalidate()
     }
 }
