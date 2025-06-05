@@ -342,7 +342,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     DispatchQueue.main.async {
                         self.textModel.addText(text, appName: appName,
                                                avoidApps: self.shareData.avoidApps,
-                                               minTextLength: self.shareData.minTextLength)
+                                               minTextLength: self.shareData.minTextLength,
+                                               maxTextLength: self.shareData.maxTextLength)
                     }
                 }
             }
@@ -368,7 +369,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                         DispatchQueue.main.async {
                             self.textModel.addText(text, appName: appName,
                                                    avoidApps: self.shareData.avoidApps,
-                                                   minTextLength: self.shareData.minTextLength)
+                                                   minTextLength: self.shareData.minTextLength,
+                                                   maxTextLength: self.shareData.maxTextLength)
                         }
                     }
                 } else if let array = value as? [String] {
@@ -388,7 +390,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                             DispatchQueue.main.async {
                                 self.textModel.addText(text, appName: appName,
                                                        avoidApps: self.shareData.avoidApps,
-                                                       minTextLength: self.shareData.minTextLength)
+                                                       minTextLength: self.shareData.minTextLength,
+                                                       maxTextLength: self.shareData.maxTextLength)
                             }
                         }
                     }

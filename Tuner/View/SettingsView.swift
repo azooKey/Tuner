@@ -180,6 +180,18 @@ extension SettingsView {
                             get: { Double(shareData.minTextLength) },
                             set: { shareData.minTextLength = Int($0) }
                         ), in: 0...100, step: 10)
+                        
+                        HStack {
+                            Text("最大テキスト長:")
+                                .font(.footnote)
+                            Spacer()
+                            Text("\(shareData.maxTextLength)文字")
+                                .font(.footnote)
+                        }
+                        Slider(value: Binding(
+                            get: { Double(shareData.maxTextLength) },
+                            set: { shareData.maxTextLength = Int($0) }
+                        ), in: 100...10000, step: 100)
                     }
                 }
             }

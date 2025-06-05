@@ -33,6 +33,9 @@ class ShareData: ObservableObject {
     /// 保存するテキストの最小文字数
     @AppStorage("minTextLength") var minTextLength: Int = 3
     
+    /// 保存するテキストの最大文字数
+    @AppStorage("maxTextLength") var maxTextLength: Int = 1000
+    
     /// 自動学習機能を有効にするか
     @AppStorage("autoLearningEnabled") var autoLearningEnabled: Bool = true
     
@@ -64,6 +67,7 @@ class ShareData: ObservableObject {
     private let saveLineThKey = "saveLineTh"
     private let saveIntervalSecKey = "saveIntervalSec"
     private let minTextLengthKey = "minTextLength"
+    private let maxTextLengthKey = "maxTextLength"
     private let autoLearningEnabledKey = "autoLearningEnabled"
     private let autoLearningHourKey = "autoLearningHour"
     private let autoLearningMinuteKey = "autoLearningMinute"
@@ -218,6 +222,7 @@ extension ShareData {
         UserDefaults.standard.removeObject(forKey: saveLineThKey)
         UserDefaults.standard.removeObject(forKey: saveIntervalSecKey)
         UserDefaults.standard.removeObject(forKey: minTextLengthKey)
+        UserDefaults.standard.removeObject(forKey: maxTextLengthKey)
         UserDefaults.standard.removeObject(forKey: autoLearningEnabledKey)
         UserDefaults.standard.removeObject(forKey: autoLearningHourKey)
         UserDefaults.standard.removeObject(forKey: autoLearningMinuteKey)
@@ -244,6 +249,7 @@ extension ShareData {
                saveLineTh == 10 &&
                saveIntervalSec == 5 &&
                minTextLength == 3 &&
+               maxTextLength == 1000 &&
                autoLearningEnabled == true &&
                autoLearningHour == 3 &&
                autoLearningMinute == 0 &&

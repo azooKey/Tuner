@@ -333,7 +333,8 @@ class TextModel: ObservableObject {
     ///   - saveIntervalSec: 保存をトリガーする時間間隔（秒）
     ///   - avoidApps: 除外するアプリケーション名のリスト
     ///   - minTextLength: 最小テキスト長
-    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int) {
+    ///   - maxTextLength: 最大テキスト長
+    func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int, maxTextLength: Int = 1000) {
         if !isDataSaveEnabled {
             print("⚠️ [TextModel] データ保存が無効化されています")
             return
@@ -344,6 +345,10 @@ class TextModel: ObservableObject {
         }
         
         if text.count < minTextLength {
+            return
+        }
+        
+        if text.count > maxTextLength {
             return
         }
         
@@ -359,6 +364,11 @@ class TextModel: ObservableObject {
         
         for fragment in textFragments {
             let cleanedText = removeExtraNewlines(from: fragment)
+            
+            // 最大文字数チェック（分割後の各フラグメントに対しても適用）
+            if cleanedText.count > maxTextLength {
+                continue
+            }
             
             // 直前の "正常に追加された" テキストとの重複チェック
             if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
