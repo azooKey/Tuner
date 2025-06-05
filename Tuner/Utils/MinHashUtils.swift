@@ -7,19 +7,19 @@
 
 import Foundation
 
-/// シンプルなハッシュ関数を提供する列挙型
+/// シンプルなハッシュ関数を提供する列挙型（高速化版）
 /// - 文字列のハッシュ値を計算
 /// - シード値を使用して異なるハッシュ値を生成
 enum SimpleHasher {
-    /// 文字列のハッシュ値を計算
+    /// 文字列のハッシュ値を計算（高速化版）
     /// - Parameters:
     ///   - input: ハッシュ計算対象の文字列
     ///   - seed: ハッシュ計算に使用するシード値
     /// - Returns: 計算されたハッシュ値
-    static func customHash(_ input: some Collection<Unicode.Scalar>, seed: Int) -> Int {
+    static func customHash(_ input: String, seed: Int) -> Int {
         var hash = seed
-        for char in input {
-            hash = (hash &* 31) &+ Int(char.value)
+        for char in input.utf16 {
+            hash = (hash &* 31) &+ Int(char)
         }
         return hash
     }
@@ -36,11 +36,12 @@ struct MinHashOptimized {
     private let similarityThreshold: Double
     private let sequenceLength: Int
 
-    init(numHashFunctions: Int = 50, similarityThreshold: Double = 0.7, sequenceLength: Int = 5) {
-        self.numHashFunctions = numHashFunctions
-        self.seeds = (0..<numHashFunctions).map { _ in Int.random(in: Int.min...Int.max) }
+    init(numHashFunctions: Int = 20, similarityThreshold: Double = 0.7, sequenceLength: Int = 3) {
+        // CPU使用率を抑えるためハッシュ関数数とシーケンス長を削減
+        self.numHashFunctions = min(numHashFunctions, 20) // 最大20に制限
+        self.seeds = (0..<self.numHashFunctions).map { $0 * 31 + 17 } // 乱数より高速な固定値
         self.similarityThreshold = similarityThreshold
-        self.sequenceLength = sequenceLength
+        self.sequenceLength = max(sequenceLength, 2) // 最小2文字
     }
 
     // テキストの前処理を行う
@@ -54,64 +55,86 @@ struct MinHashOptimized {
         return singleSpace
     }
 
-    // テキストを文字列のシーケンスに分割
-    internal func splitText(_ text: String) -> [[Unicode.Scalar]] {
+    // テキストを文字列のシーケンスに分割（高速化版）
+    internal func splitText(_ text: String) -> [String] {
         let processedText = preprocessText(text)
-        // 文字列を指定された長さのシーケンスに分割
-        var sequences: [[Unicode.Scalar]] = []
-        let scalars = Array(processedText.unicodeScalars)
-
-        // sequenceLength を使うように変更
         let length = self.sequenceLength
-        guard scalars.count >= length else { // テキストがシーケンス長より短い場合は、テキスト全体を1つのシーケンスとする
-            if !scalars.isEmpty {
-                sequences.append(Array(scalars))
-            }
-            return sequences
+        
+        guard processedText.count >= length else {
+            return processedText.isEmpty ? [] : [processedText]
         }
-
-        for index in 0...(scalars.count - length) { // ループ範囲を修正
-            let sequence = Array(scalars[index..<index + length]) // sequenceLength を使うように変更
-            sequences.append(sequence)
+        
+        var sequences: [String] = []
+        sequences.reserveCapacity(processedText.count - length + 1)
+        
+        let startIndex = processedText.startIndex
+        for i in 0...(processedText.count - length) {
+            let start = processedText.index(startIndex, offsetBy: i)
+            let end = processedText.index(start, offsetBy: length)
+            sequences.append(String(processedText[start..<end]))
         }
-        // 注意: テキスト末尾のシーケンス長未満の部分は現在含まれていません。必要に応じて追加してください。
-
+        
         return sequences
     }
 
     func computeMinHashSignature(for text: String) -> [Int] {
+        // 空文字列や短すぎるテキストの早期処理
+        guard text.count >= sequenceLength else {
+            return seeds.map { _ in text.hashValue }
+        }
+        
         let sequences = splitText(text)
+        guard !sequences.isEmpty else {
+            return seeds.map { _ in 0 }
+        }
+        
+        // ハッシュ計算の最適化：事前にシーケンスのハッシュ値を計算
+        var sequenceHashes: [Int] = []
+        sequenceHashes.reserveCapacity(sequences.count)
+        
+        for sequence in sequences {
+            sequenceHashes.append(sequence.hashValue)
+        }
+        
         return self.seeds.map { seed in
             var minHash = Int.max
-            for sequence in sequences {
-                let hash = SimpleHasher.customHash(sequence, seed: seed)
+            for sequenceHash in sequenceHashes {
+                let hash = sequenceHash &* seed // ビット演算で高速化
                 if hash < minHash {
                     minHash = hash
                 }
             }
-            // もしminHashがInt.maxのままなら（理論上はngramsが空でない限り起こらないはず）、
-            // 0を返すなど、明確なデフォルト値を設定することも検討できる
-            return minHash
+            return minHash == Int.max ? 0 : minHash
         }
     }
 
-    /// 2つのシグネチャ間のJaccard類似度を計算
+    /// 2つのシグネチャ間のJaccard類似度を計算（高速化版）
     /// - Parameters:
     ///   - signature1: 1つ目のシグネチャ
     ///   - signature2: 2つ目のシグネチャ
     /// - Returns: 計算された類似度（0.0-1.0）
     func computeJaccardSimilarity(signature1: [Int], signature2: [Int]) -> Double {
-        assert(signature1.count == signature2.count, "signature1 and signature2 must have the same length")
-        let equalCount = zip(signature1, signature2).reduce(into: 0) {
-            if $1.0 == $1.1 {
-                $0 += 1
+        let count = min(signature1.count, signature2.count)
+        guard count > 0 else { return 0.0 }
+        
+        var equalCount = 0
+        for i in 0..<count {
+            if signature1[i] == signature2[i] {
+                equalCount += 1
             }
         }
-        return Double(equalCount) / Double(signature1.count)
+        return Double(equalCount) / Double(count)
     }
 
-    // テキストの類似性を判定
+    // テキストの類似性を判定（高速化版）
     func isSimilar(_ text1: String, _ text2: String) -> Bool {
+        // 長さの差が大きい場合は早期終了
+        let lengthDiff = abs(text1.count - text2.count)
+        let maxLength = max(text1.count, text2.count)
+        if maxLength > 0 && Double(lengthDiff) / Double(maxLength) > 0.5 {
+            return false
+        }
+        
         let signature1 = computeMinHashSignature(for: text1)
         let signature2 = computeMinHashSignature(for: text2)
         let similarity = computeJaccardSimilarity(signature1: signature1, signature2: signature2)

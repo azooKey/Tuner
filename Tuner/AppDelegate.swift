@@ -286,20 +286,31 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
         let role = self.getRole(of: element)
         
-        // テキスト取得を試みる属性のリストを拡張
-        let textAttributes = [
+        // UI要素やツールバー要素を除外
+        if shouldSkipElement(role: role, element: element) {
+            return
+        }
+        
+        // コンテンツ重視の属性のみに限定（UI要素の属性を除外）
+        let contentAttributes = [
             kAXValueAttribute as CFString,
-            kAXTitleAttribute as CFString,
-            kAXDescriptionAttribute as CFString,
-            kAXHelpAttribute as CFString,
-            kAXPlaceholderValueAttribute as CFString,
-            kAXSelectedTextAttribute as CFString,
-            kAXMenuItemMarkCharAttribute as CFString,
-            kAXMenuItemCmdCharAttribute as CFString,
-            kAXMenuItemCmdVirtualKeyAttribute as CFString,
-            kAXMenuItemCmdGlyphAttribute as CFString,
-            kAXMenuItemCmdModifiersAttribute as CFString
+            kAXSelectedTextAttribute as CFString
         ]
+        
+        // role別の属性許可リスト
+        let roleSpecificAttributes: [CFString]
+        switch role {
+        case "AXTextField", "AXTextArea", "AXStaticText":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXSelectedTextAttribute as CFString]
+        case "AXLink":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString]
+        case "AXWebArea", "AXScrollArea":
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXSelectedTextAttribute as CFString]
+        default:
+            roleSpecificAttributes = [kAXValueAttribute as CFString]
+        }
+        
+        let textAttributes = Array(Set(contentAttributes + roleSpecificAttributes))
         
         // グループ要素の場合は子要素を優先的に処理
         if role == "AXGroup" {
@@ -325,10 +336,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                        appName, 
                        role ?? "Unknown", 
                        text)
-                DispatchQueue.main.async {
-                    self.textModel.addText(text, appName: appName,
-                                           avoidApps: self.shareData.avoidApps,
-                                           minTextLength: self.shareData.minTextLength)
+                if self.isQualityContent(text: text, role: role) {
+                    print("📝 [AccessibilityAPI] 品質リンクテキスト取得: [\(appName)] [\(role ?? "Unknown")]")
+                    print("   📄 リンクテキスト内容: \"\(text)\"")
+                    DispatchQueue.main.async {
+                        self.textModel.addText(text, appName: appName,
+                                               avoidApps: self.shareData.avoidApps,
+                                               minTextLength: self.shareData.minTextLength)
+                    }
                 }
             }
         }
@@ -347,10 +362,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                            role ?? "Unknown", 
                            String(describing: attribute), 
                            text)
-                    DispatchQueue.main.async {
-                        self.textModel.addText(text, appName: appName,
-                                               avoidApps: self.shareData.avoidApps,
-                                               minTextLength: self.shareData.minTextLength)
+                    if self.isQualityContent(text: text, role: role) {
+                        print("📝 [AccessibilityAPI] 品質テキスト取得: [\(appName)] [\(role ?? "Unknown")]")
+                        print("   📄 テキスト内容: \"\(text)\"")
+                        DispatchQueue.main.async {
+                            self.textModel.addText(text, appName: appName,
+                                                   avoidApps: self.shareData.avoidApps,
+                                                   minTextLength: self.shareData.minTextLength)
+                        }
                     }
                 } else if let array = value as? [String] {
                     // 配列形式のテキストも処理
@@ -363,10 +382,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                                role ?? "Unknown", 
                                String(describing: attribute), 
                                text)
-                        DispatchQueue.main.async {
-                            self.textModel.addText(text, appName: appName,
-                                                   avoidApps: self.shareData.avoidApps,
-                                                   minTextLength: self.shareData.minTextLength)
+                        if self.isQualityContent(text: text, role: role) {
+                            print("📝 [AccessibilityAPI] 品質配列テキスト取得: [\(appName)] [\(role ?? "Unknown")]")
+                            print("   📄 配列テキスト内容: \"\(text)\"")
+                            DispatchQueue.main.async {
+                                self.textModel.addText(text, appName: appName,
+                                                       avoidApps: self.shareData.avoidApps,
+                                                       minTextLength: self.shareData.minTextLength)
+                            }
                         }
                     }
                 }
@@ -513,6 +536,186 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 os_log("Polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
                 fetchTextElements(from: axApp, appName: activeApplicationName)
             }
+        }
+    }
+    
+    /// UI要素をスキップするかどうかを判定
+    /// - Parameters:
+    ///   - role: 要素のrole
+    ///   - element: AXUIElement
+    /// - Returns: スキップする場合はtrue
+    private func shouldSkipElement(role: String?, element: AXUIElement) -> Bool {
+        guard let role = role else { return true }
+        
+        // 除外するroleのリスト（ツールバーのみ）
+        let excludedRoles = [
+            "AXToolbar"
+        ]
+        
+        if excludedRoles.contains(role) {
+            return true
+        }
+        
+        // より詳細な判定：特定の属性を持つ要素を除外
+        if let subrole = getSubrole(of: element) {
+            let excludedSubroles = [
+                "AXToolbarButton",
+                "AXNavigationBar", 
+                "AXSecureTextField"
+            ]
+            
+            if excludedSubroles.contains(subrole) {
+                return true
+            }
+        }
+        
+        // タイトルでフィルタリング（UI要素の一般的なタイトルを除外）
+        if let title = getTitle(of: element) {
+            let excludedTitles = [
+                "Close",
+                "閉じる", 
+                "Minimize",
+                "最小化",
+                "Zoom",
+                "拡大/縮小",
+                "File",
+                "ファイル",
+                "Edit", 
+                "編集",
+                "View",
+                "表示",
+                "Window",
+                "ウィンドウ",
+                "Help",
+                "ヘルプ",
+                "Toolbar",
+                "ツールバー",
+                "Back",
+                "戻る",
+                "Forward", 
+                "進む",
+                "Reload",
+                "再読み込み",
+                "Home",
+                "ホーム",
+                "Bookmarks",
+                "ブックマーク",
+                "History",
+                "履歴",
+                "Downloads",
+                "ダウンロード",
+                "Settings",
+                "設定",
+                "Preferences",
+                "環境設定"
+            ]
+            
+            if excludedTitles.contains(title) {
+                return true
+            }
+            
+            // 短すぎるタイトル（ボタンなど）を除外
+            if title.count <= 2 {
+                return true
+            }
+        }
+        
+        return false
+    }
+    
+    /// AXUIElementのsubroleを取得
+    private func getSubrole(of element: AXUIElement) -> String? {
+        var subroleValue: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleValue)
+        if result == .success, let subrole = subroleValue as? String {
+            return subrole
+        }
+        return nil
+    }
+    
+    /// AXUIElementのtitleを取得
+    private func getTitle(of element: AXUIElement) -> String? {
+        var titleValue: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue)
+        if result == .success, let title = titleValue as? String {
+            return title
+        }
+        return nil
+    }
+    
+    /// テキストの品質をチェック（コンテンツとして有用かどうか）
+    /// - Parameters:
+    ///   - text: チェックするテキスト
+    ///   - role: 要素のrole
+    /// - Returns: 品質が高い場合はtrue
+    private func isQualityContent(text: String, role: String?) -> Bool {
+        let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        
+        // 空や短すぎるテキストを除外
+        guard !trimmedText.isEmpty, trimmedText.count >= 3 else {
+            return false
+        }
+        
+        // 単一文字の繰り返しを除外
+        let uniqueChars = Set(trimmedText)
+        if uniqueChars.count == 1 {
+            return false
+        }
+        
+        // よくあるUI文字列を除外
+        let commonUIStrings = [
+            "OK", "Cancel", "Yes", "No", "Apply", "Reset", "Save", "Delete", "Copy", "Paste",
+            "Cut", "Undo", "Redo", "Select All", "Print", "Share", "Export", "Import",
+            "はい", "いいえ", "キャンセル", "適用", "リセット", "保存", "削除", "コピー", "貼り付け",
+            "切り取り", "元に戻す", "やり直し", "すべて選択", "印刷", "共有", "書き出し", "読み込み",
+            "Loading...", "読み込み中...", "Please wait...", "お待ちください...",
+            "Error", "エラー", "Warning", "警告", "Info", "情報"
+        ]
+        
+        if commonUIStrings.contains(trimmedText) {
+            return false
+        }
+        
+        // URLっぽい文字列を除外（ただしリンクテキストは除く）
+        if role != "AXLink" && (trimmedText.hasPrefix("http") || trimmedText.hasPrefix("www.") || trimmedText.contains("://")) {
+            return false
+        }
+        
+        // ファイルパスっぽい文字列を除外
+        if trimmedText.hasPrefix("/") || trimmedText.contains("\\") || trimmedText.hasSuffix(".app") || trimmedText.hasSuffix(".exe") {
+            return false
+        }
+        
+        // 数字や記号のみの文字列を除外
+        let numbersAndSymbols = CharacterSet.decimalDigits.union(.punctuationCharacters).union(.symbols)
+        if trimmedText.unicodeScalars.allSatisfy({ numbersAndSymbols.contains($0) }) {
+            return false
+        }
+        
+        // 非常に長い単語（プログラムコードなど）を除外
+        let words = trimmedText.components(separatedBy: .whitespacesAndNewlines)
+        if words.contains(where: { $0.count > 50 }) {
+            return false
+        }
+        
+        // role別の特別なチェック
+        switch role {
+        case "AXTextField", "AXTextArea":
+            // 入力フィールドはプレースホルダーを除外
+            let placeholders = ["Search...", "検索...", "Enter text...", "テキストを入力...", "Type here...", "ここに入力..."]
+            return !placeholders.contains(trimmedText)
+            
+        case "AXStaticText":
+            // 静的テキストは実際のコンテンツを優先
+            return trimmedText.count > 5 && trimmedText.contains(" ")
+            
+        case "AXLink":
+            // リンクは短くても有効
+            return trimmedText.count >= 2
+            
+        default:
+            // その他の要素は最低限の品質チェック
+            return trimmedText.count >= 5
         }
     }
 }

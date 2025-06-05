@@ -6,7 +6,7 @@
 //
 
 import Foundation
-import EfficientNGram
+import KanaKanjiConverterModule
 
 /// テキストデータの管理と処理を行うモデルクラス
 /// - テキストエントリの保存と読み込み
@@ -37,6 +37,17 @@ class TextModel: ObservableObject {
     private var autoLearningTimer: Timer?
     private var shareData: ShareData?
     
+    // 処理レベル制御（CPU負荷軽減）
+    enum ProcessingLevel {
+        case disabled       // 重複削除を無効
+        case minimal        // 完全一致のみ
+        case normal         // 完全一致 + 前方一致
+        case full           // 全処理（類似度検出含む）
+    }
+    
+    @Published var processingLevel: ProcessingLevel = .minimal
+    private var consecutiveHeavyProcessingCount = 0
+    
     // ファイル管理のためのプロパティ (追加)
     internal let fileManager: FileManaging
     private let appGroupIdentifier: String = "group.dev.ensan.inputmethod.azooKeyMac" // App Group ID (定数化)
@@ -50,6 +61,9 @@ class TextModel: ObservableObject {
         DispatchQueue.global(qos: .utility).async {
             self.createAppDirectory()
             self.printFileURL() // ファイルパスを表示
+            
+            // 破損したMARISAファイルのクリーンアップ
+            self.cleanupCorruptedMARISAFiles()
             
             // 自動学習のセットアップもバックグラウンドで実行
             DispatchQueue.main.async {
@@ -246,12 +260,14 @@ class TextModel: ObservableObject {
                 print("🐛 [TextModel] updateFile: Finished writing loop (\(linesWritten) lines written).") // Debug print
 
                 if linesWritten > 0 {
-                    print("💾 Saved \(linesWritten) entries to \(fileURL.lastPathComponent)")
+                    print("💾 [TextModel] ファイル保存完了: \(linesWritten)件を\(fileURL.lastPathComponent)に保存")
                     // Only update lastSavedDate if writing was successful
                     DispatchQueue.main.async {
                         self.lastSavedDate = Date()
-                        print("🐛 [TextModel] updateFile: Updated lastSavedDate.") // Debug print
+                        print("📅 [TextModel] 最終保存日時を更新")
                     }
+                } else {
+                    print("⚠️ [TextModel] ファイル保存: 書き込み対象なし")
                 }
 
                 // Trigger N-gram training only if writes were successful
@@ -297,7 +313,7 @@ class TextModel: ObservableObject {
     ///   - minTextLength: 最小テキスト長
     func addText(_ text: String, appName: String, saveLineTh: Int = 10, saveIntervalSec: Int = 30, avoidApps: [String], minTextLength: Int) {
         if !isDataSaveEnabled {
-            // print("⚠️ データ保存が無効化されています") // 必要ならコメント解除
+            print("⚠️ [TextModel] データ保存が無効化されています")
             return
         }
         
@@ -313,7 +329,6 @@ class TextModel: ObservableObject {
         
         // 直前の "正常に追加された" テキストとの重複チェック (修正)
         if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
-            // print("🔍 SKIP(Duplicate): [\(appName)] Same as last successfully added. Text: \(cleanedText)")
             return
         }
         
@@ -332,6 +347,10 @@ class TextModel: ObservableObject {
         lastAddedEntryText = cleanedText // 正常に追加されたので更新
         saveCounter += 1
         
+        // デバッグ用：エントリ追加時の出力
+        print("✅ [TextModel] エントリ追加: [\(appName)] (メモリ内: \(texts.count)件)")
+        print("   💬 追加されたテキスト: \"\(cleanedText)\"")
+        
         let intervalFlag : Bool = {
             if let lastSavedDate = lastSavedDate {
                 let interval = Date().timeIntervalSince(lastSavedDate)
@@ -342,7 +361,7 @@ class TextModel: ObservableObject {
         }()
         
         if (texts.count >= saveLineTh || intervalFlag) && !isUpdatingFile {
-            // print("💾 ファイル保存トリガー: ...") // 必要なら維持・調整
+            print("💾 [TextModel] ファイル保存トリガー: \(texts.count)件 (閾値:\(saveLineTh), 間隔:\(intervalFlag))")
             updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
         }
         
@@ -540,13 +559,31 @@ class TextModel: ObservableObject {
         }
     }
     
-    /// 手動でoriginal_marisaの再構築を実行
+    /// 手動でoriginal_marisaの再構築を実行（データ完全クリーニング付き）
     func trainOriginalModelManually() async {
-        print("Starting manual original_marisa training...")
+        print("🧹 Starting original_marisa training with full data cleaning...")
+        
+        // 完全クリーニングを先に実行
+        await performFullCleaningBeforeOriginalTraining()
+        
+        // クリーニング後にモデル学習実行
         await trainNGramFromTextEntries(ngramSize: ngramSize, baseFilePattern: "original")
         await MainActor.run {
             self.lastOriginalModelTrainingDate = Date()
-            print("Manual original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+            print("✅ Manual original_marisa training completed at \(self.lastOriginalModelTrainingDate!)")
+        }
+    }
+    
+    /// original_marisa更新前の完全クリーニング
+    private func performFullCleaningBeforeOriginalTraining() async {
+        return await withCheckedContinuation { continuation in
+            print("🧽 original_marisa更新前の完全データクリーニングを開始...")
+            
+            // セクション分割による完全purifyを実行
+            self.purifyFile(avoidApps: [], minTextLength: 5, isFullClean: true) {
+                print("✅ original_marisa更新前のクリーニング完了")
+                continuation.resume()
+            }
         }
     }
     
