@@ -284,6 +284,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ///   - element: 対象のAXUIElement
     ///   - appName: アプリケーション名
     private func extractTextFromElement(_ element: AXUIElement, appName: String) {
+        // 要素の有効性を事前チェック
+        guard isValidAXUIElement(element) else {
+            return
+        }
+        
         let role = self.getRole(of: element)
         
         // UI要素やツールバー要素を除外
@@ -314,9 +319,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // グループ要素の場合は子要素を優先的に処理
         if role == "AXGroup" {
-            var childValue: AnyObject?
-            let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
-            if childResult == .success, let children = childValue as? [AXUIElement] {
+            if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+               let children = childValue as? [AXUIElement] {
                 for child in children {
                     extractTextFromElement(child, appName: appName)
                 }
@@ -326,9 +330,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // リンク要素の場合は特別な処理
         if role == "AXLink" {
-            var linkText: AnyObject?
-            let linkResult = AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &linkText)
-            if linkResult == .success, let text = linkText as? String, !text.isEmpty {
+            if let linkText = safeGetAttributeValue(from: element, attribute: kAXValueAttribute as CFString),
+               let text = linkText as? String, !text.isEmpty {
                 // print("🔗 リンクテキストを取得: [\(appName)] \(text)") // os_logに戻す
                 os_log("リンクテキスト [アプリ: %@] [%@] %@", 
                        log: OSLog.default, 
@@ -351,9 +354,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         
         // 複数の属性からテキスト取得を試みる
         for attribute in textAttributes {
-            var value: AnyObject?
-            let result = AXUIElementCopyAttributeValue(element, attribute, &value)
-            if result == .success {
+            guard let value = safeGetAttributeValue(from: element, attribute: attribute) else {
+                continue
+            }
+            
+            if true { // result == .success に相当
                 if let text = value as? String {
                     // print("📝 テキストを取得: ...") // os_logに戻す
                     os_log("取得テキスト [アプリ: %@] [%@] [%@] %@", 
@@ -399,30 +404,69 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
 
-        // 子要素の探索を改善
-        var childValue: AnyObject?
-        let childResult = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &childValue)
-        if childResult == .success, let children = childValue as? [AXUIElement] {
+        // 子要素の探索を安全に実行
+        if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+           let children = childValue as? [AXUIElement] {
             for child in children {
-                // 再帰的にテキストを取得
+                // 再帰的にテキストを取得（各子要素の有効性は extractTextFromElement 内でチェック）
                 extractTextFromElement(child, appName: appName)
             }
         }
     }
 
-    /// AXUIElementのroleを取得するメソッド
+    /// AXUIElementのroleを取得するメソッド（安全性チェック付き）
     private func getRole(of element: AXUIElement) -> String? {
+        // 要素の有効性を事前チェック
+        guard isValidAXUIElement(element) else {
+            return nil
+        }
+        
         var roleValue: CFTypeRef?
+        
+        // アクセス権限とバリデーションを確認
+        guard hasAccessibilityPermission() else {
+            return nil
+        }
+        
         let roleResult = AXUIElementCopyAttributeValue(element, kAXRoleAttribute as CFString, &roleValue)
         
         if roleResult == .success, let role = roleValue as? String {
             return role
         }
         
-        if roleResult != .success {
-            os_log("Error getting role attribute: %{public}@", log: OSLog.default, type: .error, String(describing: roleResult))
-        } else {
-            os_log("Failed to cast role value to String.", log: OSLog.default, type: .error)
+        // エラーログは詳細レベルを下げる（頻繁に発生する可能性があるため）
+        if roleResult != .success && roleResult != .attributeUnsupported {
+            os_log("Failed to get role attribute: %{public}@", log: OSLog.default, type: .debug, String(describing: roleResult))
+        }
+        
+        return nil
+    }
+    
+    /// AXUIElementの有効性をチェックするヘルパーメソッド
+    private func isValidAXUIElement(_ element: AXUIElement) -> Bool {
+        // AXUIElementが有効かどうかを確認する軽量なチェック
+        var attributeNames: CFArray?
+        let result = AXUIElementCopyAttributeNames(element, &attributeNames)
+        return result == .success || result == .attributeUnsupported
+    }
+    
+    /// 安全にAXUIElementの属性値を取得するヘルパーメソッド
+    private func safeGetAttributeValue(from element: AXUIElement, attribute: CFString) -> AnyObject? {
+        // 要素の有効性を再確認
+        guard isValidAXUIElement(element) else {
+            return nil
+        }
+        
+        var value: CFTypeRef?
+        let result = AXUIElementCopyAttributeValue(element, attribute, &value)
+        
+        if result == .success {
+            return value
+        }
+        
+        // 特定のエラーのみログ出力（頻繁なエラーを避けるため）
+        if result == .invalidUIElement || result == .cannotComplete {
+            os_log("Accessibility element became invalid during attribute access", log: OSLog.default, type: .debug)
         }
         
         return nil
@@ -628,22 +672,20 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     /// AXUIElementのsubroleを取得
     private func getSubrole(of element: AXUIElement) -> String? {
-        var subroleValue: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, kAXSubroleAttribute as CFString, &subroleValue)
-        if result == .success, let subrole = subroleValue as? String {
-            return subrole
+        guard let value = safeGetAttributeValue(from: element, attribute: kAXSubroleAttribute as CFString),
+              let subrole = value as? String else {
+            return nil
         }
-        return nil
+        return subrole
     }
     
     /// AXUIElementのtitleを取得
     private func getTitle(of element: AXUIElement) -> String? {
-        var titleValue: CFTypeRef?
-        let result = AXUIElementCopyAttributeValue(element, kAXTitleAttribute as CFString, &titleValue)
-        if result == .success, let title = titleValue as? String {
-            return title
+        guard let value = safeGetAttributeValue(from: element, attribute: kAXTitleAttribute as CFString),
+              let title = value as? String else {
+            return nil
         }
-        return nil
+        return title
     }
     
     /// テキストの品質をチェック（コンテンツとして有用かどうか）
