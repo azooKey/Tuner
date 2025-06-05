@@ -303,6 +303,28 @@ class TextModel: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
     
+    /// テキストを改行や連続空白で分割して複数のエントリに分ける
+    func splitTextIntoEntries(_ text: String) -> [String] {
+        // 改行、複数の空白、タブで分割
+        var components: [String] = []
+        
+        // まず改行とタブで分割
+        let primaryComponents = text.components(separatedBy: CharacterSet(charactersIn: "\n\r\t"))
+        
+        // 各コンポーネントをさらに連続する空白で分割
+        for component in primaryComponents {
+            let secondaryComponents = component.components(separatedBy: "  ") // 2つ以上の連続空白
+            for subComponent in secondaryComponents {
+                let trimmed = subComponent.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty && trimmed.count >= 3 { // 短すぎるフラグメントは除外
+                    components.append(trimmed)
+                }
+            }
+        }
+        
+        return components
+    }
+    
     /// テキストエントリを追加し、条件に応じてファイルに保存
     /// - Parameters:
     ///   - text: 追加するテキスト
@@ -325,31 +347,48 @@ class TextModel: ObservableObject {
             return
         }
         
-        let cleanedText = removeExtraNewlines(from: text)
+        // テキストを分割して複数のエントリとして処理
+        let textFragments = splitTextIntoEntries(text)
         
-        // 直前の "正常に追加された" テキストとの重複チェック (修正)
-        if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
+        if textFragments.isEmpty {
             return
         }
         
-        if cleanedText.utf16.isSymbolOrNumber {
-            return
-        }
-        
-        if avoidApps.contains(appName) {
-            return
-        }
-        
+        var addedCount = 0
         let timestamp = Date()
-        let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
         
-        texts.append(newTextEntry)
-        lastAddedEntryText = cleanedText // 正常に追加されたので更新
-        saveCounter += 1
+        for fragment in textFragments {
+            let cleanedText = removeExtraNewlines(from: fragment)
+            
+            // 直前の "正常に追加された" テキストとの重複チェック
+            if let lastAdded = lastAddedEntryText, lastAdded == cleanedText {
+                continue
+            }
+            
+            if cleanedText.utf16.isSymbolOrNumber {
+                continue
+            }
+            
+            if avoidApps.contains(appName) {
+                continue
+            }
+            
+            let newTextEntry = TextEntry(appName: appName, text: cleanedText, timestamp: timestamp)
+            texts.append(newTextEntry)
+            lastAddedEntryText = cleanedText
+            saveCounter += 1
+            addedCount += 1
+        }
         
-        // デバッグ用：エントリ追加時の出力
-        print("✅ [TextModel] エントリ追加: [\(appName)] (メモリ内: \(texts.count)件)")
-        print("   💬 追加されたテキスト: \"\(cleanedText)\"")
+        if addedCount > 0 {
+            // デバッグ用：エントリ追加時の出力
+            print("✅ [TextModel] エントリ追加: [\(appName)] \(addedCount)件追加 (メモリ内: \(texts.count)件)")
+            if addedCount == 1 {
+                print("   💬 追加されたテキスト: \"\(textFragments.first!)\"")
+            } else {
+                print("   💬 分割されたテキスト例: \"\(textFragments.first!)\" ... (他\(addedCount-1)件)")
+            }
+        }
         
         let intervalFlag : Bool = {
             if let lastSavedDate = lastSavedDate {
