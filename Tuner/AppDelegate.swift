@@ -321,6 +321,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             roleSpecificAttributes = [kAXTitleAttribute as CFString, kAXValueAttribute as CFString]
         case "AXList", "AXContentList":
             roleSpecificAttributes = [kAXValueAttribute as CFString, kAXDescriptionAttribute as CFString]
+        case "AXGroup":
+            // グループ要素は複数の属性からテキストを探す
+            roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString, kAXDescriptionAttribute as CFString, kAXSelectedTextAttribute as CFString]
         default:
             roleSpecificAttributes = [kAXValueAttribute as CFString, kAXTitleAttribute as CFString, kAXDescriptionAttribute as CFString]
         }
@@ -330,7 +333,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // 特定のroleに対する優先的処理
         switch role {
         case "AXGroup":
-            // グループ要素は子要素を優先的に処理
+            // グループ要素は自身のテキストを取得してから子要素も処理
+            extractAttributesFromElement(element, appName: appName, role: role, attributes: roleSpecificAttributes)
             if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
                let children = childValue as? [AXUIElement] {
                 for child in children {
@@ -660,7 +664,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
         }
         
-        // タイトルでフィルタリング（UI要素の一般的なタイトルを除外）
+        // タイトルでフィルタリング（明確なUI要素のみ除外）
         if let title = getTitle(of: element) {
             let excludedTitles = [
                 "Close",
@@ -669,44 +673,23 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 "最小化",
                 "Zoom",
                 "拡大/縮小",
-                "File",
-                "ファイル",
-                "Edit", 
-                "編集",
-                "View",
-                "表示",
-                "Window",
-                "ウィンドウ",
-                "Help",
-                "ヘルプ",
-                "Toolbar",
-                "ツールバー",
                 "Back",
                 "戻る",
                 "Forward", 
                 "進む",
                 "Reload",
                 "再読み込み",
-                "Home",
-                "ホーム",
                 "Bookmarks",
                 "ブックマーク",
                 "History",
                 "履歴",
                 "Downloads",
                 "ダウンロード",
-                "Settings",
-                "設定",
                 "Preferences",
                 "環境設定"
             ]
             
             if excludedTitles.contains(title) {
-                return true
-            }
-            
-            // 短すぎるタイトル（ボタンなど）を除外
-            if title.count <= 2 {
                 return true
             }
         }
@@ -813,31 +796,34 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ///   - text: チェックするテキスト
     ///   - role: 要素のrole
     /// - Returns: 品質が高い場合はtrue
-    private func isQualityContent(text: String, role: String?) -> Bool {
+    internal func isQualityContent(text: String, role: String?) -> Bool {
         let trimmedText = text.trimmingCharacters(in: .whitespacesAndNewlines)
         
-        // 空や短すぎるテキストを除外
-        guard !trimmedText.isEmpty, trimmedText.count >= 3 else {
+        // 空テキストを除外
+        guard !trimmedText.isEmpty else {
             return false
         }
         
-        // 単一文字の繰り返しを除外
+        // 単一文字の繰り返しを除外（ただし2文字以下は例外）
         let uniqueChars = Set(trimmedText)
-        if uniqueChars.count == 1 {
+        if uniqueChars.count == 1 && trimmedText.count > 2 {
             return false
         }
         
-        // よくあるUI文字列を除外
+        // よくあるUI文字列を除外（ただしメッセージや特定の役割では許可）
         let commonUIStrings = [
-            "OK", "Cancel", "Yes", "No", "Apply", "Reset", "Save", "Delete", "Copy", "Paste",
+            "Cancel", "Apply", "Reset", "Save", "Delete", "Copy", "Paste",
             "Cut", "Undo", "Redo", "Select All", "Print", "Share", "Export", "Import",
-            "はい", "いいえ", "キャンセル", "適用", "リセット", "保存", "削除", "コピー", "貼り付け",
+            "キャンセル", "適用", "リセット", "保存", "削除", "コピー", "貼り付け",
             "切り取り", "元に戻す", "やり直し", "すべて選択", "印刷", "共有", "書き出し", "読み込み",
             "Loading...", "読み込み中...", "Please wait...", "お待ちください...",
-            "Error", "エラー", "Warning", "警告", "Info", "情報"
+            "Error", "エラー", "Warning", "警告", "Info", "情報",
+            "Navigation", "ナビゲーション", "Menu", "メニュー", "Toolbar", "ツールバー",
+            "Header", "ヘッダー", "Footer", "フッター", "Sidebar", "サイドバー"
         ]
         
-        if commonUIStrings.contains(trimmedText) {
+        // メッセージやテキスト要素では短いレスポンスも有効
+        if role != "AXMessage" && role != "AXText" && role != "AXGroup" && commonUIStrings.contains(trimmedText) {
             return false
         }
         
@@ -851,9 +837,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return false
         }
         
-        // 数字や記号のみの文字列を除外
-        let numbersAndSymbols = CharacterSet.decimalDigits.union(.punctuationCharacters).union(.symbols)
-        if trimmedText.unicodeScalars.allSatisfy({ numbersAndSymbols.contains($0) }) {
+        // 数字や記号のみの文字列を除外（ただし絵文字や一部の記号は除く）
+        let numbersAndBasicSymbols = CharacterSet.decimalDigits.union(CharacterSet(charactersIn: "!@#$%^&*()_+-=[]{}|;':\",./<>?"))
+        if trimmedText.unicodeScalars.allSatisfy({ numbersAndBasicSymbols.contains($0) }) {
             return false
         }
         
@@ -871,12 +857,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return !placeholders.contains(trimmedText)
             
         case "AXStaticText":
-            // 静的テキストは実際のコンテンツを優先
-            return trimmedText.count > 5 && trimmedText.contains(" ")
+            // 静的テキストは1文字から有効（ウェブアプリ対応）
+            return trimmedText.count >= 1
             
         case "AXLink":
             // リンクは短くても有効
-            return trimmedText.count >= 2
+            return trimmedText.count >= 1
             
         case "AXMessage":
             // メッセージは短くても有効（Slackメッセージ）
@@ -891,7 +877,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     return true
                 }
             }
-            return trimmedText.count >= 3
+            return trimmedText.count >= 2
             
         case "AXText":
             // テキスト要素は1文字でも有効（絵文字や短いテキスト）
@@ -905,14 +891,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             // リスト要素は内容次第
             return trimmedText.count >= 1
             
+        case "AXGroup":
+            // グループ要素内のテキストも積極的に取得（ウェブアプリ対応）
+            return trimmedText.count >= 1
+            
         default:
             // その他の要素は緩い品質チェック（ウェブアプリ対応）
-            return trimmedText.count >= 2
+            return trimmedText.count >= 1
         }
     }
     
     /// ユーザー名として有効なパターンかどうかを判定
-    private func isValidNamePattern(_ text: String) -> Bool {
+    internal func isValidNamePattern(_ text: String) -> Bool {
         // 基本的な文字、数字、および一般的な区切り文字のみを許可
         let allowedCharacterSet = CharacterSet.alphanumerics
             .union(.whitespaces)
