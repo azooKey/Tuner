@@ -635,8 +635,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             if let parentValue = safeGetAttributeValue(from: currentElement, attribute: kAXParentAttribute as CFString),
-               CFGetTypeID(parentValue) == AXUIElementGetTypeID() {
-                currentElement = parentValue as AXUIElement
+               CFGetTypeID(parentValue as CFTypeRef) == AXUIElementGetTypeID() {
+                currentElement = parentValue as! AXUIElement
             } else {
                 // 親要素がない場合、currentElementが一番上の要素
                 parentElement = currentElement
