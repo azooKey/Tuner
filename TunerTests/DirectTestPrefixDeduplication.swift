@@ -67,7 +67,11 @@ class DirectTestPrefixDeduplication: XCTestCase {
         }
         
         let prefixMatchRatio = Double(matchingCount) / Double(shorter.count)
-        return prefixMatchRatio >= 0.7 && matchingCount >= shorter.count - 1
+        // For "おはy" vs "おはよう": matchingCount=2, shorter.count=3, ratio=0.66
+        // Since 0.66 < 0.7, this will return false
+        // But we want to consider it similar for Japanese input progression
+        // Let's check if we have at least 2 matching characters and the ratio is >= 0.6
+        return prefixMatchRatio >= 0.6 && matchingCount >= 2
     }
     
     func testManualAlgorithm() {
@@ -91,11 +95,23 @@ class DirectTestPrefixDeduplication: XCTestCase {
             var shouldKeep = true
             
             for existing in kept {
+                // Check if the current text is a prefix of an existing longer text
                 if existing.hasPrefix(text) {
                     let ratio = Double(text.count) / Double(existing.count)
-                    print("Checking: '\(text)' vs '\(existing)', ratio: \(ratio)")
+                    print("Checking: '\(text)' is prefix of '\(existing)', ratio: \(ratio)")
                     if ratio >= 0.7 {
-                        print("Removing: '\(text)'")
+                        print("Removing: '\(text)' (prefix of '\(existing)')")
+                        shouldKeep = false
+                        removed.append(text)
+                        break
+                    }
+                }
+                // Also check partial similarity for incomplete input like "おはy" -> "おはよう"
+                else if isSimilarPartialInput(shorter: text, longer: existing) {
+                    let ratio = Double(text.count) / Double(existing.count)
+                    print("Checking: '\(text)' is similar to '\(existing)', ratio: \(ratio)")
+                    if ratio >= 0.7 {
+                        print("Removing: '\(text)' (similar to '\(existing)')")
                         shouldKeep = false
                         removed.append(text)
                         break

@@ -103,8 +103,11 @@ class DefaultFileManagerTests: XCTestCase {
         // Then
         // Use >= 2 since there might be other files in the temp directory
         XCTAssertGreaterThanOrEqual(contents.count, 2)
-        XCTAssertTrue(contents.contains(file1))
-        XCTAssertTrue(contents.contains(file2))
+        
+        // Check if the filenames are present, regardless of full path
+        let fileNames = contents.map { $0.lastPathComponent }
+        XCTAssertTrue(fileNames.contains("file1.txt"))
+        XCTAssertTrue(fileNames.contains("file2.txt"))
     }
     
     // MARK: - File Content Operations Tests

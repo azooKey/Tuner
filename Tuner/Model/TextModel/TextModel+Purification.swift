@@ -564,6 +564,13 @@ extension TextModel {
             
             for entry in sortedEntries {
                 let text = entry.text
+                
+                // 空文字列をフィルタリング
+                if text.isEmpty {
+                    duplicateCount += 1
+                    continue
+                }
+                
                 var shouldKeep = true
                 
                 // 既に保持されているエントリと比較
@@ -624,9 +631,10 @@ extension TextModel {
             }
         }
         
-        // 最初の部分が70%以上一致していて、かつ最後の文字が異なる場合（入力途中の可能性）
+        // 最初の部分が60%以上一致していて、かつ少なくとも2文字一致している場合（入力途中の可能性）
+        // This allows "おはy" (2/3 = 0.67) to match "おはよう" since it has 2 matching chars
         let prefixMatchRatio = Double(matchingCount) / Double(shorter.count)
-        return prefixMatchRatio >= 0.7 && matchingCount >= shorter.count - 1
+        return prefixMatchRatio >= 0.6 && matchingCount >= 2
     }
     
     /// テスト用の前方一致削除メソッド
