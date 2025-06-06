@@ -377,14 +377,14 @@ class TextModelTests: XCTestCase {
 
     func testRemoveExtraNewlines_HandlesMixedContent() {
         let input = """
-        First line with emoji 😊
-        
-        Second line with special chars \t\r
-        
-        Third line with numbers 123
-        
-        Fourth line with symbols !@#
-        """
+First line with emoji 😊
+
+Second line with special chars \t\r
+
+Third line with numbers 123
+
+Fourth line with symbols !@#
+"""
         let expected = "First line with emoji 😊 Second line with special chars Third line with numbers 123 Fourth line with symbols !@#"
         let result = textModel.removeExtraNewlines(from: input)
         XCTAssertEqual(result, expected)
