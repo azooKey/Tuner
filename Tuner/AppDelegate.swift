@@ -58,9 +58,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     
                     if !self.shareData.avoidApps.contains(frontAppName), self.hasAccessibilityPermission() {
                         if let axApp = self.getActiveApplicationAXUIElement() {
-                            self.fetchTextElements(from: axApp, appName: frontAppName)
-                            DispatchQueue.main.async {
-                                self.startMonitoringApp(axApp, appName: frontAppName)
+                            // AXUIElementの有効性をチェック
+                            if self.isValidAXUIElement(axApp) {
+                                self.fetchTextElements(from: axApp, appName: frontAppName)
+                                DispatchQueue.main.async {
+                                    self.startMonitoringApp(axApp, appName: frontAppName)
+                                }
+                            } else {
+                                os_log("Invalid initial AXUIElement for app: %@", log: OSLog.default, type: .debug, frontAppName)
                             }
                         }
                     }
@@ -167,9 +172,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             }
             
             if let axApp = getActiveApplicationAXUIElement() {
-                os_log("ポーリング実行: %@", log: OSLog.default, type: .debug, activeApplicationName)
-                fetchTextElements(from: axApp, appName: activeApplicationName)
-                // ポーリング時の浄化処理呼び出しは削除（専用タイマーで行うため）
+                // AXUIElementの有効性をチェック
+                if isValidAXUIElement(axApp) {
+                    os_log("ポーリング実行: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                    fetchTextElements(from: axApp, appName: activeApplicationName)
+                    // ポーリング時の浄化処理呼び出しは削除（専用タイマーで行うため）
+                } else {
+                    os_log("Invalid AXUIElement during polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                }
             }
         }
     }
@@ -250,8 +260,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             if let axApp = getActiveApplicationAXUIElement() {
-                fetchTextElements(from: axApp, appName: activeApplicationName)
-                startMonitoringApp(axApp, appName: activeApplicationName)
+                // AXUIElementの有効性をチェック
+                if isValidAXUIElement(axApp) {
+                    fetchTextElements(from: axApp, appName: activeApplicationName)
+                    startMonitoringApp(axApp, appName: activeApplicationName)
+                } else {
+                    os_log("Invalid AXUIElement for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                }
             }
         }
     }
@@ -270,9 +285,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     ///   - element: 対象のAXUIElement
     ///   - appName: アプリケーション名
     private func fetchTextElements(from element: AXUIElement, appName: String) {
-        var value: AnyObject?
-        let result = AXUIElementCopyAttributeValue(element, kAXChildrenAttribute as CFString, &value)
-        if result == .success, let children = value as? [AXUIElement] {
+        // 要素の有効性をチェック
+        guard isValidAXUIElement(element) else {
+            os_log("Invalid AXUIElement in fetchTextElements", log: OSLog.default, type: .debug)
+            return
+        }
+        
+        if let children = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString) as? [AXUIElement] {
             for child in children {
                 extractTextFromElement(child, appName: appName)
             }
@@ -520,6 +539,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // アプリケーションの監視を開始するメソッド
     private func startMonitoringApp(_ app: AXUIElement, appName: String) {
+        // 要素の有効性をチェック
+        guard isValidAXUIElement(app) else {
+            os_log("Invalid AXUIElement in startMonitoringApp", log: OSLog.default, type: .debug)
+            return
+        }
+        
         os_log("Start monitoring app: %@", log: OSLog.default, type: .debug, String(describing: getAppNameFromAXUIElement(app)))
         if let observer = observer {
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
@@ -538,23 +563,44 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let newObserver = newObserver {
-            AXObserverAddNotification(newObserver, app, kAXValueChangedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
-            AXObserverAddNotification(newObserver, app, kAXUIElementDestroyedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
-            CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(newObserver), .defaultMode)
-            self.observer = newObserver
+            // 通知の追加時もエラーチェック
+            let valueChangeResult = AXObserverAddNotification(newObserver, app, kAXValueChangedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            let destroyResult = AXObserverAddNotification(newObserver, app, kAXUIElementDestroyedNotification as CFString, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()))
+            
+            if valueChangeResult == .success && destroyResult == .success {
+                CFRunLoopAddSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(newObserver), .defaultMode)
+                self.observer = newObserver
+            } else {
+                os_log("Failed to add notifications: value=%@, destroy=%@", log: OSLog.default, type: .error, String(describing: valueChangeResult), String(describing: destroyResult))
+            }
         }
     }
 
     static let axObserverCallback: AXObserverCallback = { observer, element, notificationName, userInfo in
         guard let userInfo = userInfo else { return }
-        let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
-        delegate.handleAXEvent(element: element, notification: notificationName as String)
+        
+        // エラーハンドリングを追加
+        do {
+            let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
+            // メインスレッドで実行して安全性を確保
+            DispatchQueue.main.async {
+                delegate.handleAXEvent(element: element, notification: notificationName as String)
+            }
+        } catch {
+            os_log("Error in axObserverCallback: %@", log: OSLog.default, type: .error, error.localizedDescription)
+        }
     }
 
     func handleAXEvent(element: AXUIElement, notification: String) {
         // インポートフォルダ選択パネル表示中は処理をスキップ
         guard !shareData.isImportPanelShowing else {
             os_log("インポートパネル表示中のため handleAXEvent をスキップ", log: OSLog.default, type: .debug)
+            return
+        }
+
+        // 要素の有効性をチェック
+        guard isValidAXUIElement(element) else {
+            os_log("Invalid AXUIElement in handleAXEvent", log: OSLog.default, type: .debug)
             return
         }
 
@@ -572,29 +618,37 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     // AXUIElementからアプリケーションの名前を取得するメソッド
     func getAppNameFromAXUIElement(_ element: AXUIElement) -> String? {
+        // 要素の有効性をチェック
+        guard isValidAXUIElement(element) else {
+            return nil
+        }
+        
         var currentElement = element
         var parentElement: AXUIElement? = nil
+        var iterationCount = 0
+        let maxIterations = 100 // 無限ループ防止
 
         // ヒエラルキーの一番上の要素まで遡る
-        while true {
-            var newParentElement: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(currentElement, kAXParentAttribute as CFString, &newParentElement)
-
-            if result != .success || newParentElement == nil {
+        while iterationCount < maxIterations {
+            iterationCount += 1
+            
+            // 現在の要素の有効性をチェック
+            guard isValidAXUIElement(currentElement) else {
+                break
+            }
+            
+            if let newParentElement = safeGetAttributeValue(from: currentElement, attribute: kAXParentAttribute as CFString) as? AXUIElement {
+                currentElement = newParentElement
+            } else {
                 // 親要素がない場合、currentElementが一番上の要素
                 parentElement = currentElement
                 break
-            } else {
-                currentElement = newParentElement as! AXUIElement
             }
         }
 
         // 最上位の要素からアプリケーション名を取得
         if let appElement = parentElement {
-            var appName: CFTypeRef?
-            let result = AXUIElementCopyAttributeValue(appElement, kAXTitleAttribute as CFString, &appName)
-
-            if result == .success, let appNameString = appName as? String {
+            if let appNameString = safeGetAttributeValue(from: appElement, attribute: kAXTitleAttribute as CFString) as? String {
                 return appNameString
             }
         }
@@ -626,8 +680,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 return
             }
             if let axApp = getActiveApplicationAXUIElement() {
-                os_log("Polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
-                fetchTextElements(from: axApp, appName: activeApplicationName)
+                // AXUIElementの有効性をチェック
+                if isValidAXUIElement(axApp) {
+                    os_log("Polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                    fetchTextElements(from: axApp, appName: activeApplicationName)
+                } else {
+                    os_log("Invalid AXUIElement during timer polling for app: %@", log: OSLog.default, type: .debug, activeApplicationName)
+                }
             }
         }
     }
