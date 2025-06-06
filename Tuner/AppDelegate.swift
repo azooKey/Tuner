@@ -291,7 +291,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
         
-        if let children = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString) as? [AXUIElement] {
+        if let childrenValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
+           let children = childrenValue as? [AXUIElement] {
             for child in children {
                 extractTextFromElement(child, appName: appName)
             }
@@ -579,15 +580,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     static let axObserverCallback: AXObserverCallback = { observer, element, notificationName, userInfo in
         guard let userInfo = userInfo else { return }
         
-        // エラーハンドリングを追加
-        do {
-            let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
-            // メインスレッドで実行して安全性を確保
-            DispatchQueue.main.async {
-                delegate.handleAXEvent(element: element, notification: notificationName as String)
-            }
-        } catch {
-            os_log("Error in axObserverCallback: %@", log: OSLog.default, type: .error, error.localizedDescription)
+        // 安全にデリゲートを取得
+        let delegate = Unmanaged<AppDelegate>.fromOpaque(userInfo).takeUnretainedValue()
+        // メインスレッドで実行して安全性を確保
+        DispatchQueue.main.async {
+            delegate.handleAXEvent(element: element, notification: notificationName as String)
         }
     }
 
@@ -637,8 +634,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 break
             }
             
-            if let newParentElement = safeGetAttributeValue(from: currentElement, attribute: kAXParentAttribute as CFString) as? AXUIElement {
-                currentElement = newParentElement
+            if let parentValue = safeGetAttributeValue(from: currentElement, attribute: kAXParentAttribute as CFString),
+               CFGetTypeID(parentValue) == AXUIElementGetTypeID() {
+                currentElement = parentValue as AXUIElement
             } else {
                 // 親要素がない場合、currentElementが一番上の要素
                 parentElement = currentElement
@@ -648,7 +646,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 最上位の要素からアプリケーション名を取得
         if let appElement = parentElement {
-            if let appNameString = safeGetAttributeValue(from: appElement, attribute: kAXTitleAttribute as CFString) as? String {
+            if let titleValue = safeGetAttributeValue(from: appElement, attribute: kAXTitleAttribute as CFString),
+               let appNameString = titleValue as? String {
                 return appNameString
             }
         }
