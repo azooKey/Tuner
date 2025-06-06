@@ -551,30 +551,53 @@ extension TextModel {
         return (uniqueEntries, duplicateCount)
     }
     
-    /// 前方一致の効率的な除去（O(n log n)）
+    /// 前方一致の効率的な除去（O(n²)）- 長い文字列を優先
     private func removePrefixDuplicates(entries: [TextEntry]) -> ([TextEntry], Int) {
-        // 同じアプリ内でテキスト長順にソート
         let groupedByApp = Dictionary(grouping: entries) { $0.appName }
         var uniqueEntries: [TextEntry] = []
         var duplicateCount = 0
         
         for (_, appEntries) in groupedByApp {
-            let sortedByLength = appEntries.sorted { $0.text.count < $1.text.count }
             var appUniqueEntries: [TextEntry] = []
             
-            for entry in sortedByLength {
-                var isPrefixDuplicate = false
+            for entry in appEntries {
+                let text = entry.text
+                var shouldKeep = true
+                var indexToRemove: Int? = nil
                 
-                // 既存のエントリと前方一致チェック（短い→長い順なので効率的）
-                for existingEntry in appUniqueEntries {
-                    if existingEntry.text.hasPrefix(entry.text) || entry.text.hasPrefix(existingEntry.text) {
-                        isPrefixDuplicate = true
-                        duplicateCount += 1
-                        break
+                // 既存のエントリと比較
+                for (index, existingEntry) in appUniqueEntries.enumerated() {
+                    let existingText = existingEntry.text
+                    
+                    // Case 1: 現在のテキストが既存のテキストの前方一致（現在のが短い）
+                    if existingText.hasPrefix(text) {
+                        let matchRatio = Double(text.count) / Double(existingText.count)
+                        if matchRatio >= 0.7 {
+                            // 短い方（現在のテキスト）を削除
+                            shouldKeep = false
+                            duplicateCount += 1
+                            break
+                        }
+                    }
+                    // Case 2: 既存のテキストが現在のテキストの前方一致（既存のが短い）
+                    else if text.hasPrefix(existingText) {
+                        let matchRatio = Double(existingText.count) / Double(text.count)
+                        if matchRatio >= 0.7 {
+                            // 短い方（既存のテキスト）を削除
+                            indexToRemove = index
+                            duplicateCount += 1
+                            break
+                        }
                     }
                 }
                 
-                if !isPrefixDuplicate {
+                // 既存の短いエントリを削除
+                if let removeIndex = indexToRemove {
+                    appUniqueEntries.remove(at: removeIndex)
+                }
+                
+                // 現在のエントリを追加
+                if shouldKeep {
                     appUniqueEntries.append(entry)
                 }
             }
@@ -583,6 +606,56 @@ extension TextModel {
         }
         
         return (uniqueEntries, duplicateCount)
+    }
+    
+    /// テスト用の前方一致削除メソッド
+    public func testRemovePrefixDuplicates(entries: [TextEntry]) -> ([TextEntry], Int) {
+        print("🔍 Input entries: \(entries.map { $0.text })")
+        let result = removePrefixDuplicates(entries: entries)
+        print("🔍 Output: unique=\(result.0.map { $0.text }), duplicates=\(result.1)")
+        return result
+    }
+    
+    /// 前方一致検出用のTrie構造
+    private class PrefixTrie {
+        class TrieNode {
+            var children: [Character: TrieNode] = [:]
+            var isEndOfWord: Bool = false
+        }
+        
+        private let root = TrieNode()
+        
+        func insert(_ word: String) {
+            var current = root
+            for char in word {
+                if current.children[char] == nil {
+                    current.children[char] = TrieNode()
+                }
+                current = current.children[char]!
+            }
+            current.isEndOfWord = true
+        }
+        
+        /// 与えられた文字列の最長の前方一致を見つける
+        func findLongestPrefix(of word: String) -> String? {
+            var current = root
+            var longestPrefix = ""
+            var lastValidPrefix: String? = nil
+            
+            for char in word {
+                guard let next = current.children[char] else {
+                    break
+                }
+                longestPrefix.append(char)
+                current = next
+                
+                if current.isEndOfWord {
+                    lastValidPrefix = longestPrefix
+                }
+            }
+            
+            return lastValidPrefix
+        }
     }
     
     /// バッチ処理による類似度検出（CPU使用率制御）
