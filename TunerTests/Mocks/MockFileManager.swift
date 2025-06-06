@@ -233,6 +233,14 @@ class MockFileManager: FileManaging {
         guard let data = files[path] else { return nil }
         return String(data: data, encoding: encoding)
     }
+    
+    func addCreatedDirectory(_ path: String) {
+        createdDirectories.insert(path)
+    }
+    
+    func removeCreatedDirectory(_ path: String) {
+        createdDirectories.remove(path)
+    }
 }
 
 // MockError definition (assuming it's needed here if not defined elsewhere)

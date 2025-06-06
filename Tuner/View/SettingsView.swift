@@ -476,7 +476,7 @@ extension SettingsView {
                         }
                     }
                     
-                    Text("インポートフォルダ内の.txtファイルを読み込みます")
+                    Text("インポートフォルダ内の.txt、.md、.pdfファイルを読み込みます")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -722,7 +722,7 @@ extension SettingsView {
         openPanel.canChooseDirectories = true
         openPanel.allowsMultipleSelection = false
         openPanel.title = "インポートフォルダを選択"
-        openPanel.message = "テキストファイルを含むフォルダを選択してください"
+        openPanel.message = "テキストファイル（.txt、.md、.pdf）を含むフォルダを選択してください"
         openPanel.prompt = "選択"
 
         shareData.isImportPanelShowing = true

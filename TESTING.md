@@ -135,14 +135,51 @@ func testPerformance_CharacterClassification()
 - **インポート状態**: ファイル追跡と履歴
 - **エラーハンドリング**: 優雅な失敗回復
 - **データ検証**: 内容整合性チェック
+- **新しいファイル形式**: PDF、Markdownファイルサポート
+- **ファイル形式フィルタリング**: サポートされる形式の判定
+- **エッジケースハンドリング**: 空ファイル、破損ファイル、大きなファイル
 
 #### 主要テストケース：
 ```swift
+// 既存のインポート機能
 func testImportTextFiles_NoBookmarkData()
 func testLoadFromImportFile_MalformedJSON()
 func testResetImportHistory_FileExists()
 func testImportStatus_FileUpdated()
+
+// 新しいファイル形式サポート
+func testFileTypeFiltering_SupportedTypes()
+func testProcessSingleFile_MarkdownFile()
+func testProcessSingleFile_TextFile()
+func testProcessSingleFile_UnsupportedFileType()
+func testMarkdownWithSpecialCharacters()
+
+// PDF関連テスト
+func testPDFTextExtraction_ValidPDF()
+func testEmptyPDFHandling()
+func testCorruptedPDFHandling()
+func testMultiPagePDFTextExtraction()
+func testLargePDFMemoryHandling()
+
+// 統合テストとエッジケース
+func testProcessSingleFile_MinTextLengthFiltering()
+func testProcessSingleFile_EmptyFile()
+func testProcessSingleFile_DuplicateKeyHandling()
 ```
+
+#### 新機能テストの詳細：
+
+**ファイル形式サポート拡張**:
+- **TXT**: 既存の基本テキストファイル処理
+- **Markdown (.md)**: マークダウンファイルの直接インポート
+- **PDF (.pdf)**: PDFKitを使用したテキスト抽出
+
+**テスト設計の特徴**:
+- **プライベートメソッドテスト**: `processSingleFile`のテストヘルパー実装
+- **UTF-8エンコーディング**: 日本語と特殊文字の適切な処理
+- **エラー回復**: 破損したPDFや読み取り不可ファイルの処理
+- **メモリ効率**: 大きなPDFファイルの処理パフォーマンス
+- **重複除去**: ファイル内およびファイル間での重複コンテンツ検出
 
 ## モックオブジェクト
 
@@ -183,8 +220,14 @@ xcodebuild test -project Tuner.xcodeproj -scheme Tuner -destination 'platform=ma
 # 特定のテストクラス実行
 xcodebuild test -project Tuner.xcodeproj -scheme Tuner -destination 'platform=macOS' -only-testing:TunerTests/TextEntryTests
 
+# インポート機能の新しいテスト実行
+xcodebuild test -project Tuner.xcodeproj -scheme Tuner -destination 'platform=macOS' -only-testing:TunerTests/TextModelImportTests
+
 # 特定のテストメソッド実行
 xcodebuild test -project Tuner.xcodeproj -scheme Tuner -destination 'platform=macOS' -only-testing:TunerTests/TextEntryTests/testTextEntry_Initialization
+
+# 新しいファイル形式テストのみ実行
+xcodebuild test -project Tuner.xcodeproj -scheme Tuner -destination 'platform=macOS' -only-testing:TunerTests/TextModelImportTests/testFileTypeFiltering_SupportedTypes
 ```
 
 ### Xcode IDE
@@ -325,6 +368,55 @@ xcodebuild test -enableCodeCoverage YES ...
 5. **重要パスのパフォーマンステスト追加**
 6. **必要に応じてドキュメント更新**
 
+### 新しいファイル形式サポートのテストガイドライン
+
+新しいファイル形式のインポート機能をテストする際の追加考慮事項：
+
+#### PDFテスト戦略
+```swift
+// PDFテストでは実際のPDFデータを作成するかモックを使用
+func testPDFProcessing() {
+    // Given - PDFデータの準備（モック）
+    let pdfData = createTestPDFData(with: "Test content")
+    mockFileManager.setFileContent(pdfData, for: "/test.pdf")
+    
+    // When - 処理実行
+    let result = await processFile("/test.pdf")
+    
+    // Then - 結果検証
+    XCTAssertNotNil(result)
+}
+```
+
+#### ファイル形式フィルタリングテスト
+```swift
+// サポートされる拡張子の包括的テスト
+func testSupportedExtensions() {
+    let supportedTypes = ["txt", "md", "pdf"]
+    let testCases = [
+        ("document.txt", true),
+        ("readme.md", true), 
+        ("manual.pdf", true),
+        ("image.jpg", false),
+        ("data.json", false)
+    ]
+    // テストケースの実行...
+}
+```
+
+#### 文字エンコーディングテスト
+```swift
+// 日本語と特殊文字の処理テスト
+func testJapaneseAndSpecialCharacters() {
+    let content = """
+    # 日本語タイトル
+    特殊文字: 🤖📱💻
+    記号: ①②③ ※ ● ▲
+    """
+    // エンコーディングの一貫性を確認
+}
+```
+
 ### テストレビューチェックリスト
 - [ ] テストが分離され独立している
 - [ ] エッジケースとエラー条件がカバーされている
@@ -357,11 +449,22 @@ XCTAssertEqual(mockFileManager.writeStringCalledURLs.count, 1)
 
 Tunerテストスイートは以下で構成されるコア機能の包括的カバレッジを提供します：
 
-- **200以上のテストケース** 5つの新しいテストクラスにわたって
+- **225以上のテストケース** 5つのテストクラスにわたって
 - **複数のテストパターン**: ユニット、統合、パフォーマンス
 - **堅牢なモックシステム** 外部依存関係用
 - **async/awaitサポート** モダンSwiftパターン用
 - **パフォーマンスベンチマーク** 重要操作用
 - **エラーシナリオカバレッジ** 信頼性確保用
+- **拡張ファイル形式サポート** PDF、Markdownインポート機能
+- **国際化対応テスト** 日本語および特殊文字処理
 
-このテストインフラストラクチャにより、コード品質の確保、リグレッションの防止、Tunerアプリケーションの自信を持ったリファクタリングが可能になります。
+### 最新の機能テスト
+
+**ファイルインポート機能の拡張**（2025年6月更新）:
+- **PDF処理**: PDFKitを使用した複数ページPDFからのテキスト抽出
+- **Markdownサポート**: .mdファイルの直接インポートとエンコーディング処理
+- **エラー回復**: 破損ファイル、空ファイル、大きなファイルの適切な処理
+- **ファイル形式検証**: サポートされるファイル形式の動的判定
+- **メモリ効率**: 大きなファイル処理時のメモリ使用量最適化
+
+このテストインフラストラクチャにより、コード品質の確保、リグレッションの防止、新機能の安全な統合、Tunerアプリケーションの自信を持ったリファクタリングが可能になります。

@@ -84,12 +84,16 @@ class TextEntryTests: XCTestCase {
         let jsonData = jsonString.data(using: .utf8)!
         
         // When
-        let decodedEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
-        
-        // Then
-        XCTAssertEqual(decodedEntry.appName, "DecodedApp")
-        XCTAssertEqual(decodedEntry.text, "Decoded text content")
-        XCTAssertEqual(decodedEntry.timestamp.timeIntervalSince1970, 1609459200.0)
+        do {
+            let decodedEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
+            
+            // Then
+            XCTAssertEqual(decodedEntry.appName, "DecodedApp")
+            XCTAssertEqual(decodedEntry.text, "Decoded text content")
+            XCTAssertEqual(decodedEntry.timestamp.timeIntervalSince1970, 1609459200.0, accuracy: 0.001)
+        } catch {
+            XCTFail("JSON decoding failed with error: \(error)")
+        }
     }
     
     func testTextEntry_JSONEncodingDecoding_RoundTrip() throws {

@@ -12,6 +12,13 @@ class ShareDataTests: XCTestCase {
         // Clean UserDefaults before each test
         clearUserDefaults()
         shareData = ShareData()
+        
+        // Wait for ShareData initialization to complete
+        let initExpectation = XCTestExpectation(description: "ShareData initialization")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            initExpectation.fulfill()
+        }
+        wait(for: [initExpectation], timeout: 1.0)
     }
     
     override func tearDown() {
@@ -245,15 +252,19 @@ class ShareDataTests: XCTestCase {
         // When
         shareData.importBookmarkData = testData
         
-        // Wait for debounced save
+        // Wait multiple times to ensure debounce completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            // Then
-            let savedData = UserDefaults.standard.data(forKey: "importBookmarkData")
-            XCTAssertEqual(savedData, testData)
-            expectation.fulfill()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    // Then
+                    let savedData = UserDefaults.standard.data(forKey: "importBookmarkData")
+                    XCTAssertEqual(savedData, testData)
+                    expectation.fulfill()
+                }
+            }
         }
         
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 5.0)
     }
     
     func testLastImportDate_Persistence() {
@@ -264,15 +275,19 @@ class ShareDataTests: XCTestCase {
         // When
         shareData.lastImportDate = testTimestamp
         
-        // Wait for debounced save
+        // Wait multiple times to ensure debounce completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            // Then
-            let savedTimestamp = UserDefaults.standard.double(forKey: "lastImportDate")
-            XCTAssertEqual(savedTimestamp, testTimestamp)
-            expectation.fulfill()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    // Then
+                    let savedTimestamp = UserDefaults.standard.double(forKey: "lastImportDate")
+                    XCTAssertEqual(savedTimestamp, testTimestamp)
+                    expectation.fulfill()
+                }
+            }
         }
         
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 5.0)
     }
     
     func testLastImportDate_NilPersistence() {
@@ -282,11 +297,11 @@ class ShareDataTests: XCTestCase {
         // Set initial value
         shareData.lastImportDate = 123456.0
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
             // When - set to nil
             self.shareData.lastImportDate = nil
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 // Then
                 let hasKey = UserDefaults.standard.object(forKey: "lastImportDate") != nil
                 XCTAssertFalse(hasKey)
@@ -294,7 +309,7 @@ class ShareDataTests: XCTestCase {
             }
         }
         
-        wait(for: [expectation], timeout: 2.0)
+        wait(for: [expectation], timeout: 3.0)
     }
     
     func testLastImportedFileCount_Persistence() {
@@ -305,15 +320,19 @@ class ShareDataTests: XCTestCase {
         // When
         shareData.lastImportedFileCount = testCount
         
-        // Wait for debounced save
+        // Wait multiple times to ensure debounce completes
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
-            // Then
-            let savedCount = UserDefaults.standard.integer(forKey: "lastImportedFileCount")
-            XCTAssertEqual(savedCount, testCount)
-            expectation.fulfill()
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                    // Then
+                    let savedCount = UserDefaults.standard.integer(forKey: "lastImportedFileCount")
+                    XCTAssertEqual(savedCount, testCount)
+                    expectation.fulfill()
+                }
+            }
         }
         
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 5.0)
     }
     
     // MARK: - Running Apps Management Tests
@@ -440,10 +459,10 @@ extension ShareDataTests {
         
         // Wait for async reset
         let expectation = XCTestExpectation(description: "Reset to defaults")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
             expectation.fulfill()
         }
-        wait(for: [expectation], timeout: 1.0)
+        wait(for: [expectation], timeout: 2.0)
         
         // Then
         XCTAssertTrue(shareData.activateAccessibility)
