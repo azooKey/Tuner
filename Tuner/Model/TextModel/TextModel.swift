@@ -316,7 +316,7 @@ class TextModel: ObservableObject {
             let secondaryComponents = component.components(separatedBy: "  ") // 2つ以上の連続空白
             for subComponent in secondaryComponents {
                 let trimmed = subComponent.trimmingCharacters(in: .whitespacesAndNewlines)
-                if !trimmed.isEmpty && trimmed.count >= 3 { // 短すぎるフラグメントは除外
+                if !trimmed.isEmpty { // 空でないフラグメントのみ追加（長さフィルタリングは後で実行）
                     components.append(trimmed)
                 }
             }
@@ -365,8 +365,8 @@ class TextModel: ObservableObject {
         for fragment in textFragments {
             let cleanedText = removeExtraNewlines(from: fragment)
             
-            // 最大文字数チェック（分割後の各フラグメントに対しても適用）
-            if cleanedText.count > maxTextLength {
+            // 最小・最大文字数チェック（分割後の各フラグメントに対しても適用）
+            if cleanedText.count < minTextLength || cleanedText.count > maxTextLength {
                 continue
             }
             

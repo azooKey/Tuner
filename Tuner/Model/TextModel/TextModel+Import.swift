@@ -1,7 +1,34 @@
 import Foundation
+import PDFKit
+
+// MARK: - Import Error Types
+enum ImportError: LocalizedError {
+    case invalidPDFFile(url: URL)
+    case passwordProtectedPDF(url: URL)
+    case pdfTooLarge(url: URL, size: Int)
+    case memoryPressure(url: URL)
+    case pdfCorrupted(url: URL)
+    
+    var errorDescription: String? {
+        switch self {
+        case .invalidPDFFile(let url):
+            return "PDFファイルを開くことができませんでした: \(url.lastPathComponent)"
+        case .passwordProtectedPDF(let url):
+            return "パスワード保護されたPDFファイルはサポートされていません: \(url.lastPathComponent)"
+        case .pdfTooLarge(let url, let size):
+            return "PDFファイルが大きすぎます (\(ByteCountFormatter.string(fromByteCount: Int64(size), countStyle: .file))): \(url.lastPathComponent)"
+        case .memoryPressure(let url):
+            return "メモリ不足のためPDFファイルを処理できませんでした: \(url.lastPathComponent)"
+        case .pdfCorrupted(let url):
+            return "PDFファイルが破損している可能性があります: \(url.lastPathComponent)"
+        }
+    }
+}
 
 // MARK: - テキストファイルからのインポート処理
 extension TextModel {
+    // サポートされているファイル拡張子
+    private static let supportedFileExtensions = ["txt", "md", "pdf"]
     /// テキストファイルからインポートを実行
     /// - Parameters:
     ///   - shareData: 共有データオブジェクト (インポートパスとブックマークを含む)
@@ -65,7 +92,8 @@ extension TextModel {
             let fileURLs = try fileManager.contentsOfDirectory(at: folderURL, includingPropertiesForKeys: [URLResourceKey](), options: [])
             
             if fileURLs.isEmpty {
-                print("インポートフォルダに処理対象のファイル(.txt)が見つかりません: \(folderURL.path)")
+                let extensions = Self.supportedFileExtensions.map { ".\($0)" }.joined(separator: ", ")
+                print("インポートフォルダに処理対象のファイル(\(extensions))が見つかりません: \(folderURL.path)")
             } else {
                 print("インポートフォルダから \(fileURLs.count) 個のアイテムを検出: \(folderURL.path)")
             }
@@ -77,9 +105,27 @@ extension TextModel {
                 let fileName = fileURL.lastPathComponent
                 print("[DEBUG] Processing file: \(fileName)")
                 
-                if fileURL.pathExtension.lowercased() != "txt" {
-                    print("[DEBUG] Skipping non-txt file: \(fileName)")
+                let fileExtension = fileURL.pathExtension.lowercased()
+                if !Self.supportedFileExtensions.contains(fileExtension) {
+                    print("[DEBUG] Skipping unsupported file type: \(fileName)")
                     continue
+                }
+                
+                // PDFファイルのサイズ制限チェック
+                if fileExtension == "pdf" {
+                    do {
+                        let resourceValues = try fileURL.resourceValues(forKeys: [.fileSizeKey])
+                        let fileSize = resourceValues.fileSize ?? 0
+                        let maxPDFSize = 50 * 1024 * 1024 // 50MB制限
+                        
+                        if fileSize > maxPDFSize {
+                            print("[WARNING] Skipping large PDF file: \(fileName) (\(ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)))")
+                            continue
+                        }
+                    } catch {
+                        print("[WARNING] Could not check file size for: \(fileName)")
+                        continue
+                    }
                 }
                 
                 if isFileImported(fileName) {
@@ -113,13 +159,26 @@ extension TextModel {
         await updateImportShareData(shareData: shareData, importedCount: importedFileCount, folderWasChecked: true)
     }
     
-    /// 単一のテキストファイルを処理し、新規エントリを返す
+    /// 単一のファイルを処理し、新規エントリを返す（TXT、MD、PDFをサポート）
     private func processSingleFile(_ fileURL: URL, existingKeys: inout Set<String>, minTextLength: Int) async -> [TextEntry]? {
         var newEntriesForFile: [TextEntry] = []
         let fileAppName = fileURL.deletingPathExtension().lastPathComponent
+        let fileExtension = fileURL.pathExtension.lowercased()
         
         do {
-            let fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+            let fileContent: String
+            
+            // ファイル種類に応じてコンテンツを抽出
+            switch fileExtension {
+            case "txt", "md":
+                fileContent = try String(contentsOf: fileURL, encoding: .utf8)
+            case "pdf":
+                fileContent = try extractTextFromPDF(fileURL)
+            default:
+                print("❌ Unsupported file type: \(fileExtension)")
+                return nil
+            }
+            
             let lines = fileContent.components(separatedBy: .newlines)
             
             for line in lines {
@@ -140,6 +199,78 @@ extension TextModel {
         } catch {
             print("❌ Error processing file content for \(fileURL.lastPathComponent): \(error.localizedDescription)")
             return nil // エラー時は nil を返す
+        }
+    }
+    
+    /// PDFファイルからテキストを抽出する
+    private func extractTextFromPDF(_ fileURL: URL) throws -> String {
+        // PDF文書を開く
+        guard let pdfDocument = PDFDocument(url: fileURL) else {
+            throw ImportError.invalidPDFFile(url: fileURL)
+        }
+        
+        // パスワード保護の確認
+        if pdfDocument.isLocked {
+            throw ImportError.passwordProtectedPDF(url: fileURL)
+        }
+        
+        // ページ数の確認
+        let pageCount = pdfDocument.pageCount
+        if pageCount == 0 {
+            throw ImportError.pdfCorrupted(url: fileURL)
+        }
+        
+        // メモリ使用量の監視開始
+        let initialMemory = getMemoryUsage()
+        let maxMemoryIncrease = 100 * 1024 * 1024 // 100MB増加まで許可
+        
+        var pageTexts: [String] = []
+        
+        // ページごとにテキストを抽出
+        for pageIndex in 0..<pageCount {
+            autoreleasepool {
+                guard let page = pdfDocument.page(at: pageIndex) else { return }
+                
+                // メモリ使用量チェック
+                if pageIndex % 10 == 0 { // 10ページごとにチェック
+                    let currentMemory = getMemoryUsage()
+                    if currentMemory - initialMemory > maxMemoryIncrease {
+                        print("[WARNING] High memory usage detected while processing PDF: \(fileURL.lastPathComponent)")
+                    }
+                }
+                
+                if let pageText = page.string {
+                    pageTexts.append(pageText)
+                }
+            }
+        }
+        
+        // 配列を結合してフルテキストを作成
+        let fullText = pageTexts.joined(separator: "\n")
+        
+        // 抽出されたテキストが空の場合
+        if fullText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            print("[WARNING] No text extracted from PDF: \(fileURL.lastPathComponent)")
+        }
+        
+        return fullText
+    }
+    
+    /// 現在のメモリ使用量を取得する
+    private func getMemoryUsage() -> Int {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        
+        let kerr: kern_return_t = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        
+        if kerr == KERN_SUCCESS {
+            return Int(info.resident_size)
+        } else {
+            return 0
         }
     }
     

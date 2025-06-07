@@ -902,8 +902,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // 非常に長い単語（プログラムコードなど）を除外
+        // ただし、日本語などスペースを使わない言語に配慮
         let words = trimmedText.components(separatedBy: .whitespacesAndNewlines)
-        if words.contains(where: { $0.count > 50 }) {
+        if words.contains(where: { word in
+            // 50文字を超える単語をチェック
+            if word.count > 50 {
+                // 日本語・中国語・韓国語などの文字が含まれている場合は許可
+                let containsCJK = word.unicodeScalars.contains { scalar in
+                    (0x3040...0x309F).contains(scalar.value) ||  // ひらがな
+                    (0x30A0...0x30FF).contains(scalar.value) ||  // カタカナ
+                    (0x4E00...0x9FAF).contains(scalar.value) ||  // 漢字
+                    (0xAC00...0xD7AF).contains(scalar.value)     // ハングル
+                }
+                return !containsCJK  // CJK文字が含まれていない場合のみ除外
+            }
+            return false
+        }) {
             return false
         }
         
