@@ -45,6 +45,18 @@ class ShareData: ObservableObject {
     /// 自動学習を実行する時刻（分）
     @AppStorage("autoLearningMinute") var autoLearningMinute: Int = 0
     
+    /// メモリ使用量の上限 (MB単位)
+    @AppStorage("memoryLimitMB") var memoryLimitMB: Int = 2048
+    
+    /// メモリ使用量の上限（パーセント）
+    @AppStorage("memoryLimitPercent") var memoryLimitPercent: Int = 50
+    
+    /// 現在のメモリ使用量 (MB単位) - 表示用、永続化しない
+    @Published var currentMemoryUsageMB: Int = 0
+    
+    /// 現在のメモリ使用量 (パーセント) - 表示用、永続化しない
+    @Published var currentMemoryUsagePercent: Double = 0.0
+    
     /// ユーザーが設定したテキストインポートフォルダのパス (表示用)
     @AppStorage("importTextPath") var importTextPath: String = ""
     /// ユーザーが設定したテキストインポートフォルダへのアクセス権を保持するブックマークデータ
@@ -71,6 +83,8 @@ class ShareData: ObservableObject {
     private let autoLearningEnabledKey = "autoLearningEnabled"
     private let autoLearningHourKey = "autoLearningHour"
     private let autoLearningMinuteKey = "autoLearningMinute"
+    private let memoryLimitMBKey = "memoryLimitMB"
+    private let memoryLimitPercentKey = "memoryLimitPercent"
     private let importTextPathKey = "importTextPath"
     private let importBookmarkDataKey = "importBookmarkData"
     private let lastImportDateKey = "lastImportDate"
@@ -214,9 +228,8 @@ class ShareData: ObservableObject {
 extension ShareData {
     /// デバッグ用：設定をデフォルト値にリセット
     func resetToDefaults() {
-        // @AppStorageで管理されているものはUserDefaultsから削除するだけで初期値に戻る
+        // @AppStorageで管理されているものはUserDefaultsから削除した後、明示的にデフォルト値を設定
         UserDefaults.standard.removeObject(forKey: activateAccessibilityKey)
-        // avoidAppsDataはData型なので、キー削除でデフォルト値に戻る
         UserDefaults.standard.removeObject(forKey: avoidAppsKey)
         UserDefaults.standard.removeObject(forKey: pollingIntervalKey)
         UserDefaults.standard.removeObject(forKey: saveLineThKey)
@@ -231,10 +244,23 @@ extension ShareData {
         UserDefaults.standard.removeObject(forKey: lastImportDateKey)
         UserDefaults.standard.removeObject(forKey: lastImportedFileCountKey)
         
-        // @Publishedなプロパティは直接初期化
+        // @AppStorageプロパティを明示的にデフォルト値に設定
         DispatchQueue.main.async {
+            self.activateAccessibility = true
+            self.avoidAppsData = ShareData.encodeAvoidApps(["Finder", "Tuner"])
+            self.pollingInterval = 5
+            self.saveLineTh = 10
+            self.saveIntervalSec = 5
+            self.minTextLength = 3
+            self.maxTextLength = 1000
+            self.autoLearningEnabled = true
+            self.autoLearningHour = 3
+            self.autoLearningMinute = 0
+            self.importTextPath = ""
+            
+            // @Publishedなプロパティは直接初期化
             self.apps = []
-            self.importBookmarkData = nil // Publishedプロパティもリセット
+            self.importBookmarkData = nil
             self.lastImportDate = nil
             self.lastImportedFileCount = -1
         }

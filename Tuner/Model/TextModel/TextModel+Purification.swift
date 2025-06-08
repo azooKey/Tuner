@@ -558,18 +558,26 @@ extension TextModel {
         var duplicateCount = 0
         
         for (_, appEntries) in groupedByApp {
+            // 長い順にソートしてから処理
+            let sortedEntries = appEntries.sorted { $0.text.count > $1.text.count }
             var appUniqueEntries: [TextEntry] = []
             
-            for entry in appEntries {
+            for entry in sortedEntries {
                 let text = entry.text
-                var shouldKeep = true
-                var indexToRemove: Int? = nil
                 
-                // 既存のエントリと比較
-                for (index, existingEntry) in appUniqueEntries.enumerated() {
+                // 空文字列をフィルタリング
+                if text.isEmpty {
+                    duplicateCount += 1
+                    continue
+                }
+                
+                var shouldKeep = true
+                
+                // 既に保持されているエントリと比較
+                for existingEntry in appUniqueEntries {
                     let existingText = existingEntry.text
                     
-                    // Case 1: 現在のテキストが既存のテキストの前方一致（現在のが短い）
+                    // 前方一致チェック
                     if existingText.hasPrefix(text) {
                         let matchRatio = Double(text.count) / Double(existingText.count)
                         if matchRatio >= 0.7 {
@@ -579,21 +587,15 @@ extension TextModel {
                             break
                         }
                     }
-                    // Case 2: 既存のテキストが現在のテキストの前方一致（既存のが短い）
-                    else if text.hasPrefix(existingText) {
-                        let matchRatio = Double(existingText.count) / Double(text.count)
+                    // 部分的な類似性チェック（前方一致でない場合の補完入力対応）
+                    else if isSimilarPartialInput(shorter: text, longer: existingText) {
+                        let matchRatio = Double(text.count) / Double(existingText.count)
                         if matchRatio >= 0.7 {
-                            // 短い方（既存のテキスト）を削除
-                            indexToRemove = index
+                            shouldKeep = false
                             duplicateCount += 1
                             break
                         }
                     }
-                }
-                
-                // 既存の短いエントリを削除
-                if let removeIndex = indexToRemove {
-                    appUniqueEntries.remove(at: removeIndex)
                 }
                 
                 // 現在のエントリを追加
@@ -606,6 +608,33 @@ extension TextModel {
         }
         
         return (uniqueEntries, duplicateCount)
+    }
+    
+    /// 部分的な入力の類似性をチェック（ローマ字入力途中などを考慮）
+    private func isSimilarPartialInput(shorter: String, longer: String) -> Bool {
+        // 最小長チェック
+        guard shorter.count >= 2 && longer.count > shorter.count else { return false }
+        
+        let shorterChars = Array(shorter)
+        let longerChars = Array(longer)
+        
+        // 共通する文字数をカウント
+        var matchingCount = 0
+        let maxCheckLength = min(shorterChars.count, longerChars.count)
+        
+        for i in 0..<maxCheckLength {
+            if shorterChars[i] == longerChars[i] {
+                matchingCount += 1
+            } else {
+                // 連続する不一致が見つかったら早期終了
+                break
+            }
+        }
+        
+        // 最初の部分が60%以上一致していて、かつ少なくとも2文字一致している場合（入力途中の可能性）
+        // This allows "おはy" (2/3 = 0.67) to match "おはよう" since it has 2 matching chars
+        let prefixMatchRatio = Double(matchingCount) / Double(shorter.count)
+        return prefixMatchRatio >= 0.6 && matchingCount >= 2
     }
     
     /// テスト用の前方一致削除メソッド
@@ -664,7 +693,8 @@ extension TextModel {
         var uniqueEntries: [TextEntry] = []
         var duplicateCount = 0
         var potentialDuplicates: [(TextEntry, TextEntry, Double)] = []
-        var signatureCache: [String: [Int]] = [:]
+        // LRUキャッシュを使用（容量は2000）
+        let signatureCache = LRUCache<String, [Int]>(capacity: 2000)
         
         // バッチ単位で処理
         for startIndex in stride(from: 0, to: entries.count, by: batchSize) {
@@ -676,21 +706,21 @@ extension TextModel {
                 
                 // キャッシュからシグネチャを取得またはキャッシュに保存
                 let signature: [Int]
-                if let cachedSignature = signatureCache[entry.text] {
+                if let cachedSignature = signatureCache.get(entry.text) {
                     signature = cachedSignature
                 } else {
                     signature = minHash.computeMinHashSignature(for: entry.text)
-                    signatureCache[entry.text] = signature
+                    signatureCache.set(entry.text, value: signature)
                 }
                 
                 // 類似度チェック（既存のuniqueEntriesとのみ比較）
                 for uniqueEntry in uniqueEntries {
                     let uniqueSignature: [Int]
-                    if let cachedSignature = signatureCache[uniqueEntry.text] {
+                    if let cachedSignature = signatureCache.get(uniqueEntry.text) {
                         uniqueSignature = cachedSignature
                     } else {
                         uniqueSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
-                        signatureCache[uniqueEntry.text] = uniqueSignature
+                        signatureCache.set(uniqueEntry.text, value: uniqueSignature)
                     }
                     
                     let similarity = minHash.computeJaccardSimilarity(signature1: signature, signature2: uniqueSignature)
@@ -712,10 +742,7 @@ extension TextModel {
                 }
             }
             
-            // メモリ使用量制御：キャッシュが大きくなりすぎた場合はクリア
-            if signatureCache.count > 2000 {
-                signatureCache.removeAll(keepingCapacity: true)
-            }
+            // LRUキャッシュが自動的にメモリを管理するため、手動クリアは不要
             
             // CPU使用率制御：より頻繁な待機
             if startIndex > 0 && startIndex % (batchSize * 2) == 0 {

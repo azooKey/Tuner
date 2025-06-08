@@ -7,7 +7,8 @@ import Foundation
 class MockFileManager: FileManaging {
 
     // MARK: - State Properties
-
+    
+    private let queue = DispatchQueue(label: "MockFileManager.queue", attributes: .concurrent)
     private var files: [String: Data] = [:]
     private(set) var createdDirectories: Set<String> = []
     var mockContainerURL: URL?
@@ -46,7 +47,10 @@ class MockFileManager: FileManaging {
     }
 
     func containerURL(forSecurityApplicationGroupIdentifier groupIdentifier: String) -> URL? {
-        containerURLCalledIdentifiers.append(groupIdentifier)
+        // Thread-safe append using barrier
+        queue.sync(flags: .barrier) {
+            containerURLCalledIdentifiers.append(groupIdentifier)
+        }
         return mockContainerURL
     }
 
@@ -232,6 +236,14 @@ class MockFileManager: FileManaging {
     func getFileContentAsString(for path: String, encoding: String.Encoding = .utf8) -> String? {
         guard let data = files[path] else { return nil }
         return String(data: data, encoding: encoding)
+    }
+    
+    func addCreatedDirectory(_ path: String) {
+        createdDirectories.insert(path)
+    }
+    
+    func removeCreatedDirectory(_ path: String) {
+        createdDirectories.remove(path)
     }
 }
 

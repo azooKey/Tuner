@@ -325,6 +325,72 @@ extension SettingsView {
                     .font(.headline)
             }
             
+            // メモリ管理設定セクション
+            GroupBox {
+                VStack(alignment: .leading, spacing: 12) {
+                    // 現在のメモリ使用状況
+                    HStack {
+                        Image(systemName: "memorychip")
+                            .foregroundColor(shareData.currentMemoryUsageMB > shareData.memoryLimitMB ? .red : .blue)
+                        Text("現在のメモリ使用量:")
+                            .font(.caption)
+                        Text("\(shareData.currentMemoryUsageMB) MB")
+                            .font(.caption)
+                            .fontWeight(.medium)
+                            .foregroundColor(shareData.currentMemoryUsageMB > shareData.memoryLimitMB ? .red : .primary)
+                        Text("(\(String(format: "%.1f", shareData.currentMemoryUsagePercent))%)")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                    }
+                    
+                    Divider()
+                    
+                    // メモリ上限設定 (MB)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Label("上限 (MB)", systemImage: "slider.horizontal.below.square.and.square.filled")
+                                .font(.caption)
+                                .frame(width: 100, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(shareData.memoryLimitMB) },
+                                set: { shareData.memoryLimitMB = Int($0) }
+                            ), in: 512...8192, step: 256)
+                            Text("\(shareData.memoryLimitMB) MB")
+                                .font(.caption)
+                                .frame(width: 70, alignment: .trailing)
+                                .monospacedDigit()
+                        }
+                        Text("メモリ使用量がこの値を超えると低メモリモードに移行します")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    // メモリ上限設定 (パーセント)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack {
+                            Label("上限 (%)", systemImage: "percent")
+                                .font(.caption)
+                                .frame(width: 100, alignment: .leading)
+                            Slider(value: Binding(
+                                get: { Double(shareData.memoryLimitPercent) },
+                                set: { shareData.memoryLimitPercent = Int($0) }
+                            ), in: 20...80, step: 5)
+                            Text("\(shareData.memoryLimitPercent)%")
+                                .font(.caption)
+                                .frame(width: 70, alignment: .trailing)
+                                .monospacedDigit()
+                        }
+                        Text("物理メモリに対する使用割合の上限")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+            } label: {
+                Label("メモリ管理", systemImage: "memorychip")
+                    .font(.headline)
+            }
+            
             // ステータス表示
             if let lastSavedDate = textModel.lastSavedDate {
                 HStack {
@@ -476,7 +542,7 @@ extension SettingsView {
                         }
                     }
                     
-                    Text("インポートフォルダ内の.txtファイルを読み込みます")
+                    Text("インポートフォルダ内の.txt、.md、.pdfファイルを読み込みます")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -722,7 +788,7 @@ extension SettingsView {
         openPanel.canChooseDirectories = true
         openPanel.allowsMultipleSelection = false
         openPanel.title = "インポートフォルダを選択"
-        openPanel.message = "テキストファイルを含むフォルダを選択してください"
+        openPanel.message = "テキストファイル（.txt、.md、.pdf）を含むフォルダを選択してください"
         openPanel.prompt = "選択"
 
         shareData.isImportPanelShowing = true

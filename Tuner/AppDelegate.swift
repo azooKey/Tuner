@@ -26,6 +26,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     // 浄化処理の実行間隔（秒）例: 1時間ごと
     let purifyInterval: TimeInterval = 3600
     
+    // メモリ管理用のプロパティ
+    private var memoryWarningCount = 0
+    private var isLowMemoryMode = false
+    private var lastMemoryCheck = Date()
+    private let memoryCheckInterval: TimeInterval = 30 // 30秒ごとにチェック
+    private var memoryMonitorTimer: Timer?
+    
+    // CPU使用率管理用のプロパティ
+    private var isIdleMode = false
+    private var lastActivityTime = Date()
+    private let idleThreshold: TimeInterval = 60 // 60秒間操作なしでアイドルモード
+    
     override init() {
         // TextModelの初期化をsuperの前に行う
         textModel = TextModel(shareData: shareData)
@@ -81,6 +93,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                     self.startPurifyTimer()
                     self.lastPurifyTime = Date() // 開始時刻を記録
                 }
+                
+                // メモリ監視タイマーを開始
+                DispatchQueue.main.async {
+                    self.startMemoryMonitorTimer()
+                    // 初回のメモリ使用量を取得
+                    self.checkMemoryUsage()
+                }
             }
         }
     }
@@ -90,11 +109,18 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - 浄化タイマーの停止
     /// - 最終的なデータ浄化の実行
     func applicationWillTerminate(_ aNotification: Notification) {
-        // ポーリングタイマーを停止
+        // すべてのタイマーを停止
         stopTextPollingTimer()
-        // 浄化タイマーを停止
         purifyTimer?.invalidate()
         purifyTimer = nil
+        memoryMonitorTimer?.invalidate()
+        memoryMonitorTimer = nil
+        
+        // オブザーバーのクリーンアップ
+        if let observer = observer {
+            CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+            self.observer = nil
+        }
         
         // アプリ終了前に最後の浄化処理を実行
         print("Running final purify before termination...")
@@ -149,6 +175,111 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         lastPurifyTime = Date() // 実行時刻を更新
     }
+    
+    /// メモリ監視タイマーを開始
+    private func startMemoryMonitorTimer() {
+        memoryMonitorTimer?.invalidate()
+        memoryMonitorTimer = Timer.scheduledTimer(timeInterval: memoryCheckInterval, target: self, selector: #selector(checkMemoryUsage), userInfo: nil, repeats: true)
+    }
+    
+    /// メモリ使用状況をチェックし、必要に応じて対策を実行
+    @objc private func checkMemoryUsage() {
+        let processInfo = ProcessInfo.processInfo
+        let physicalMemory = processInfo.physicalMemory
+        let memoryUsage = getMemoryUsage()
+        let memoryUsageMB = memoryUsage / (1024 * 1024)
+        let memoryUsagePercent = (Double(memoryUsage) / Double(physicalMemory)) * 100
+        
+        // ShareDataに現在のメモリ使用量を更新
+        DispatchQueue.main.async {
+            self.shareData.currentMemoryUsageMB = Int(memoryUsageMB)
+            self.shareData.currentMemoryUsagePercent = memoryUsagePercent
+        }
+        
+        // メモリ使用量が設定値を超えた場合
+        if memoryUsageMB > UInt64(shareData.memoryLimitMB) || memoryUsagePercent > Double(shareData.memoryLimitPercent) {
+            memoryWarningCount += 1
+            os_log("⚠️ High memory usage detected: %{public}d MB (%.1f%%)", log: OSLog.default, type: .error, Int(memoryUsageMB), memoryUsagePercent)
+            
+            if !isLowMemoryMode {
+                isLowMemoryMode = true
+                enterLowMemoryMode()
+            }
+            
+            // 3回連続で高メモリ使用を検出したら、強制的にクリーンアップ
+            if memoryWarningCount >= 3 {
+                performMemoryCleanup()
+                memoryWarningCount = 0
+            }
+        } else {
+            memoryWarningCount = 0
+            // メモリ使用量が設定値の半分以下になったら通常モードに復帰
+            if isLowMemoryMode && memoryUsageMB < UInt64(shareData.memoryLimitMB / 2) {
+                isLowMemoryMode = false
+                exitLowMemoryMode()
+            }
+        }
+        
+        lastMemoryCheck = Date()
+    }
+    
+    /// 現在のプロセスのメモリ使用量を取得
+    private func getMemoryUsage() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.resident_size : 0
+    }
+    
+    /// 低メモリモードに移行
+    private func enterLowMemoryMode() {
+        os_log("📉 Entering low memory mode", log: OSLog.default, type: .info)
+        
+        // ポーリング間隔を延長（CPU負荷軽減）
+        if shareData.pollingInterval < 10 {
+            shareData.pollingInterval = 10
+            stopTextPollingTimer()
+            startTextPollingTimer()
+        }
+        
+        // TextModelの処理レベルを下げる
+        textModel.processingLevel = .disabled
+        
+        // 浄化処理の間隔を延長
+        purifyTimer?.invalidate()
+        purifyTimer = Timer.scheduledTimer(timeInterval: purifyInterval * 2, target: self, selector: #selector(runPeriodicPurify), userInfo: nil, repeats: true)
+    }
+    
+    /// 低メモリモードから通常モードに復帰
+    private func exitLowMemoryMode() {
+        os_log("📈 Exiting low memory mode", log: OSLog.default, type: .info)
+        
+        // 設定を元に戻す
+        textModel.processingLevel = .minimal
+        
+        // 浄化タイマーを元の間隔に戻す
+        startPurifyTimer()
+    }
+    
+    /// メモリクリーンアップを実行
+    private func performMemoryCleanup() {
+        os_log("🧹 Performing memory cleanup", log: OSLog.default, type: .info)
+        
+        // TextModelのバッファをフラッシュ
+        textModel.forceFlushBuffers()
+        
+        // キャッシュのクリア
+        textModel.clearCaches()
+        
+        // 強制的にガベージコレクション（Swift/Objective-C混在環境用）
+        autoreleasepool {
+            // 一時的なオブジェクトの解放を促す
+        }
+    }
 
     /// アクティブアプリケーションからテキストを定期的に取得
     /// - アクセシビリティ権限の確認
@@ -163,6 +294,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         guard shareData.activateAccessibility, hasAccessibilityPermission() else {
             return
+        }
+        
+        // アイドル状態のチェック
+        let timeSinceLastActivity = Date().timeIntervalSince(lastActivityTime)
+        if timeSinceLastActivity > idleThreshold {
+            if !isIdleMode {
+                isIdleMode = true
+                os_log("💤 Entering idle mode - reducing polling frequency", log: OSLog.default, type: .info)
+                // アイドル時はポーリング頻度を下げる
+                stopTextPollingTimer()
+                pollingTimer = Timer.scheduledTimer(timeInterval: TimeInterval(shareData.pollingInterval * 3), target: self, selector: #selector(pollActiveAppForText), userInfo: nil, repeats: true)
+            }
+            // アイドル時は簡易チェックのみ
+            return
+        } else if isIdleMode {
+            isIdleMode = false
+            os_log("⏰ Exiting idle mode - resuming normal polling", log: OSLog.default, type: .info)
+            stopTextPollingTimer()
+            startTextPollingTimer()
         }
         
         if let activeApp = NSWorkspace.shared.frontmostApplication {
@@ -238,6 +388,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - 除外アプリのチェック
     /// - テキスト要素の取得と監視開始
     @objc func activeAppDidChange(_ notification: Notification) {
+        // アクティビティを記録（アイドル判定用）
+        lastActivityTime = Date()
+        
         // インポートフォルダ選択パネル表示中は処理をスキップ
         guard !shareData.isImportPanelShowing else {
             os_log("インポートパネル表示中のため activeAppDidChange をスキップ", log: OSLog.default, type: .debug)
@@ -294,7 +447,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let childrenValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
            let children = childrenValue as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child, appName: appName)
+                extractTextFromElement(child, appName: appName) // depth引数はextractTextFromElement内でデフォルト値が使用される
             }
         }
     }
@@ -303,11 +456,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     /// - Parameters:
     ///   - element: 対象のAXUIElement
     ///   - appName: アプリケーション名
-    private func extractTextFromElement(_ element: AXUIElement, appName: String) {
+    ///   - depth: 現在の再帰深度（デフォルト: 0）
+    ///   - maxDepth: 最大再帰深度（デフォルト: 10）
+    private func extractTextFromElement(_ element: AXUIElement, appName: String, depth: Int = 0, maxDepth: Int = 10) {
         // 要素の有効性を事前チェック
         guard isValidAXUIElement(element) else {
             return
         }
+        
+        // 深度制限チェック（CPU負荷軽減）
+        guard depth < maxDepth else {
+            os_log("⚠️ Maximum recursion depth reached for app: %@", log: OSLog.default, type: .debug, appName)
+            return
+        }
+        
+        // アクティビティを記録（アイドル判定用）
+        lastActivityTime = Date()
         
         let role = self.getRole(of: element)
         
@@ -358,14 +522,14 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
                let children = childValue as? [AXUIElement] {
                 for child in children {
-                    extractTextFromElement(child, appName: appName)
+                    extractTextFromElement(child, appName: appName, depth: depth + 1, maxDepth: maxDepth)
                 }
             }
             return
             
         case "AXMessage":
             // メッセージ要素の特別処理
-            handleMessageElement(element, appName: appName, role: role)
+            handleMessageElement(element, appName: appName, role: role, depth: depth, maxDepth: maxDepth)
             return
             
         case "AXTabPanel":
@@ -374,7 +538,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
                let children = childValue as? [AXUIElement] {
                 for child in children {
-                    extractTextFromElement(child, appName: appName)
+                    extractTextFromElement(child, appName: appName, depth: depth + 1, maxDepth: maxDepth)
                 }
             }
             return
@@ -385,7 +549,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
                let children = childValue as? [AXUIElement] {
                 for child in children {
-                    extractTextFromElement(child, appName: appName)
+                    extractTextFromElement(child, appName: appName, depth: depth + 1, maxDepth: maxDepth)
                 }
             }
             return
@@ -475,7 +639,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
            let children = childValue as? [AXUIElement] {
             for child in children {
                 // 再帰的にテキストを取得（各子要素の有効性は extractTextFromElement 内でチェック）
-                extractTextFromElement(child, appName: appName)
+                extractTextFromElement(child, appName: appName, depth: depth + 1, maxDepth: maxDepth)
             }
         }
     }
@@ -547,8 +711,15 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         os_log("Start monitoring app: %@", log: OSLog.default, type: .debug, String(describing: getAppNameFromAXUIElement(app)))
+        
+        // 既存のオブザーバーを適切にクリーンアップ
         if let observer = observer {
+            // 通知を削除
+            AXObserverRemoveNotification(observer, app, kAXValueChangedNotification as CFString)
+            AXObserverRemoveNotification(observer, app, kAXUIElementDestroyedNotification as CFString)
+            // RunLoopから削除
             CFRunLoopRemoveSource(CFRunLoopGetCurrent(), AXObserverGetRunLoopSource(observer), .defaultMode)
+            self.observer = nil
         }
 
         guard let activeApp = NSWorkspace.shared.frontmostApplication else {
@@ -774,7 +945,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     /// メッセージ要素の特別処理
-    private func handleMessageElement(_ element: AXUIElement, appName: String, role: String?) {
+    private func handleMessageElement(_ element: AXUIElement, appName: String, role: String?, depth: Int, maxDepth: Int) {
         // メッセージ要素は複数の属性からテキストを収集
         let messageAttributes = [
             kAXValueAttribute as CFString,
@@ -810,7 +981,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if let childValue = safeGetAttributeValue(from: element, attribute: kAXChildrenAttribute as CFString),
            let children = childValue as? [AXUIElement] {
             for child in children {
-                extractTextFromElement(child, appName: appName)
+                extractTextFromElement(child, appName: appName, depth: depth + 1, maxDepth: maxDepth)
             }
         }
     }
@@ -902,8 +1073,22 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
         
         // 非常に長い単語（プログラムコードなど）を除外
+        // ただし、日本語などスペースを使わない言語に配慮
         let words = trimmedText.components(separatedBy: .whitespacesAndNewlines)
-        if words.contains(where: { $0.count > 50 }) {
+        if words.contains(where: { word in
+            // 50文字を超える単語をチェック
+            if word.count > 50 {
+                // 日本語・中国語・韓国語などの文字が含まれている場合は許可
+                let containsCJK = word.unicodeScalars.contains { scalar in
+                    (0x3040...0x309F).contains(scalar.value) ||  // ひらがな
+                    (0x30A0...0x30FF).contains(scalar.value) ||  // カタカナ
+                    (0x4E00...0x9FAF).contains(scalar.value) ||  // 漢字
+                    (0xAC00...0xD7AF).contains(scalar.value)     // ハングル
+                }
+                return !containsCJK  // CJK文字が含まれていない場合のみ除外
+            }
+            return false
+        }) {
             return false
         }
         
