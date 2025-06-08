@@ -693,7 +693,8 @@ extension TextModel {
         var uniqueEntries: [TextEntry] = []
         var duplicateCount = 0
         var potentialDuplicates: [(TextEntry, TextEntry, Double)] = []
-        var signatureCache: [String: [Int]] = [:]
+        // LRUキャッシュを使用（容量は2000）
+        let signatureCache = LRUCache<String, [Int]>(capacity: 2000)
         
         // バッチ単位で処理
         for startIndex in stride(from: 0, to: entries.count, by: batchSize) {
@@ -705,21 +706,21 @@ extension TextModel {
                 
                 // キャッシュからシグネチャを取得またはキャッシュに保存
                 let signature: [Int]
-                if let cachedSignature = signatureCache[entry.text] {
+                if let cachedSignature = signatureCache.get(entry.text) {
                     signature = cachedSignature
                 } else {
                     signature = minHash.computeMinHashSignature(for: entry.text)
-                    signatureCache[entry.text] = signature
+                    signatureCache.set(entry.text, value: signature)
                 }
                 
                 // 類似度チェック（既存のuniqueEntriesとのみ比較）
                 for uniqueEntry in uniqueEntries {
                     let uniqueSignature: [Int]
-                    if let cachedSignature = signatureCache[uniqueEntry.text] {
+                    if let cachedSignature = signatureCache.get(uniqueEntry.text) {
                         uniqueSignature = cachedSignature
                     } else {
                         uniqueSignature = minHash.computeMinHashSignature(for: uniqueEntry.text)
-                        signatureCache[uniqueEntry.text] = uniqueSignature
+                        signatureCache.set(uniqueEntry.text, value: uniqueSignature)
                     }
                     
                     let similarity = minHash.computeJaccardSimilarity(signature1: signature, signature2: uniqueSignature)
@@ -741,10 +742,7 @@ extension TextModel {
                 }
             }
             
-            // メモリ使用量制御：キャッシュが大きくなりすぎた場合はクリア
-            if signatureCache.count > 2000 {
-                signatureCache.removeAll(keepingCapacity: true)
-            }
+            // LRUキャッシュが自動的にメモリを管理するため、手動クリアは不要
             
             // CPU使用率制御：より頻繁な待機
             if startIndex > 0 && startIndex % (batchSize * 2) == 0 {

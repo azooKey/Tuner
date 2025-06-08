@@ -200,3 +200,104 @@ struct TextModelOptimizedWithLRU {
         return (uniqueEntries, duplicateCount)
     }
 }
+
+/// LRUキャッシュの実装
+/// - 最も使用されていないアイテムを自動的に削除
+/// - メモリ使用量を制限しながら高速アクセスを提供
+class LRUCache<Key: Hashable, Value> {
+    private class Node {
+        var key: Key
+        var value: Value
+        var prev: Node?
+        var next: Node?
+        
+        init(key: Key, value: Value) {
+            self.key = key
+            self.value = value
+        }
+    }
+    
+    private let capacity: Int
+    private var cache: [Key: Node] = [:]
+    private let head = Node(key: "" as! Key, value: "" as! Value) // ダミーヘッド
+    private let tail = Node(key: "" as! Key, value: "" as! Value) // ダミーテール
+    private let queue = DispatchQueue(label: "com.tuner.lrucache", attributes: .concurrent)
+    
+    init(capacity: Int) {
+        self.capacity = max(capacity, 1)
+        head.next = tail
+        tail.prev = head
+    }
+    
+    /// キャッシュから値を取得
+    func get(_ key: Key) -> Value? {
+        return queue.sync {
+            guard let node = cache[key] else { return nil }
+            // ノードを最前面に移動
+            moveToHead(node)
+            return node.value
+        }
+    }
+    
+    /// キャッシュに値を設定
+    func set(_ key: Key, value: Value) {
+        queue.async(flags: .barrier) {
+            if let node = self.cache[key] {
+                // 既存のノードを更新
+                node.value = value
+                self.moveToHead(node)
+            } else {
+                // 新しいノードを追加
+                let newNode = Node(key: key, value: value)
+                self.cache[key] = newNode
+                self.addToHead(newNode)
+                
+                // 容量を超えた場合は最も使用されていないノードを削除
+                if self.cache.count > self.capacity {
+                    if let tailNode = self.removeTail() {
+                        self.cache.removeValue(forKey: tailNode.key)
+                    }
+                }
+            }
+        }
+    }
+    
+    /// キャッシュをクリア
+    func clear() {
+        queue.async(flags: .barrier) {
+            self.cache.removeAll()
+            self.head.next = self.tail
+            self.tail.prev = self.head
+        }
+    }
+    
+    /// 現在のキャッシュサイズを取得
+    var count: Int {
+        return queue.sync { cache.count }
+    }
+    
+    // MARK: - Private Methods
+    
+    private func addToHead(_ node: Node) {
+        node.prev = head
+        node.next = head.next
+        head.next?.prev = node
+        head.next = node
+    }
+    
+    private func removeNode(_ node: Node) {
+        node.prev?.next = node.next
+        node.next?.prev = node.prev
+    }
+    
+    private func moveToHead(_ node: Node) {
+        removeNode(node)
+        addToHead(node)
+    }
+    
+    private func removeTail() -> Node? {
+        guard let tailNode = tail.prev, tailNode !== head else { return nil }
+        removeNode(tailNode)
+        return tailNode
+    }
+}

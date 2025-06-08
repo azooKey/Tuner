@@ -7,6 +7,7 @@
 
 import Foundation
 import KanaKanjiConverterModule
+import os.log
 
 /// テキストデータの管理と処理を行うモデルクラス
 /// - テキストエントリの保存と読み込み
@@ -414,13 +415,25 @@ class TextModel: ObservableObject {
             updateFile(avoidApps: avoidApps, minTextLength: minTextLength)
         }
         
-        // ★★★ purifyFile の呼び出しを元に戻す ★★★
-        // 高頻度でMinHashによる重複削除処理を実行
-        if saveCounter % 1000 == 0 { // 1000エントリごとに実行
-            // print("🔄 MinHashによる重複削除処理を開始 (saveCounter: \(saveCounter))") // 必要ならコメント解除
+        // 処理レベルに応じた purifyFile の呼び出し頻度を調整
+        let purifyThreshold: Int = {
+            switch processingLevel {
+            case .disabled:
+                return Int.max // 無効時は実行しない
+            case .minimal:
+                return 5000    // 最小処理時は5000エントリごと
+            case .normal:
+                return 2000    // 通常処理時は2000エントリごと  
+            case .full:
+                return 1000    // フル処理時は1000エントリごと
+            }
+        }()
+        
+        if saveCounter % purifyThreshold == 0 && processingLevel != .disabled {
+            os_log("🔄 Purification triggered (counter: %d, level: %@)", log: OSLog.default, type: .info, saveCounter, String(describing: processingLevel))
             Task {
                 await purifyFile(avoidApps: avoidApps, minTextLength: minTextLength) {
-                    // print("✅ MinHashによる重複削除処理が完了") // 必要ならコメント解除
+                    os_log("✅ Purification completed", log: OSLog.default, type: .info)
                 }
             }
         }
@@ -430,9 +443,11 @@ class TextModel: ObservableObject {
         texts = []
     }
     
-    /// ファイルからテキストエントリを読み込む
-    /// - Parameter completion: 読み込み完了時に実行するコールバック
-    func loadFromFile(completion: @escaping ([TextEntry]) -> Void) {
+    /// ファイルからテキストエントリを読み込む（ストリーミング版）
+    /// - Parameters:
+    ///   - completion: 読み込み完了時に実行するコールバック
+    ///   - batchSize: 一度に処理する行数（メモリ使用量制御）
+    func loadFromFile(completion: @escaping ([TextEntry]) -> Void, batchSize: Int = 1000) {
         let fileURL = getFileURL()
         fileAccessQueue.async { [weak self] in
             guard let self = self else {
@@ -509,6 +524,102 @@ class TextModel: ObservableObject {
                 continuation.resume(returning: loadedTexts)
             }
         }
+    }
+    
+    /// ストリーミングでファイルを読み込む（大容量ファイル対応）
+    /// - Parameters:
+    ///   - processor: 各バッチを処理するクロージャ
+    ///   - batchSize: 一度に処理する行数
+    func streamFromFile(processor: @escaping ([TextEntry]) -> Void, batchSize: Int = 500) {
+        let fileURL = getFileURL()
+        
+        fileAccessQueue.async { [weak self] in
+            guard let self = self else { return }
+            
+            // ファイル存在チェック
+            guard self.fileManager.fileExists(atPath: fileURL.path) else {
+                return
+            }
+            
+            do {
+                // ファイルハンドルを取得してストリーミング読み込み
+                guard let fileHandle = FileHandle(forReadingAtPath: fileURL.path) else {
+                    return
+                }
+                defer { fileHandle.closeFile() }
+                
+                var buffer = Data()
+                var currentBatch: [TextEntry] = []
+                let chunkSize = 65536 // 64KB chunks
+                
+                while true {
+                    autoreleasepool {
+                        let chunk = fileHandle.readData(ofLength: chunkSize)
+                        guard !chunk.isEmpty else { return }
+                        
+                        buffer.append(chunk)
+                        
+                        // 改行で分割
+                        if let bufferString = String(data: buffer, encoding: .utf8) {
+                            let lines = bufferString.split(separator: "\n", omittingEmptySubsequences: false)
+                            
+                            // 最後の行は次のチャンクと結合する可能性があるので保持
+                            for i in 0..<lines.count - 1 {
+                                let line = lines[i]
+                                if line.isEmpty { continue }
+                                
+                                do {
+                                    if let jsonData = line.data(using: .utf8) {
+                                        let textEntry = try JSONDecoder().decode(TextEntry.self, from: jsonData)
+                                        currentBatch.append(textEntry)
+                                        
+                                        // バッチサイズに達したら処理
+                                        if currentBatch.count >= batchSize {
+                                            processor(currentBatch)
+                                            currentBatch.removeAll(keepingCapacity: true)
+                                            
+                                            // メモリ圧迫時は少し待機
+                                            if self.getMemoryUsage() > 1500 * 1024 * 1024 { // 1.5GB
+                                                Thread.sleep(forTimeInterval: 0.1)
+                                            }
+                                        }
+                                    }
+                                } catch {
+                                    continue
+                                }
+                            }
+                            
+                            // 最後の行をバッファとして保持
+                            if let lastLine = lines.last {
+                                buffer = lastLine.data(using: .utf8) ?? Data()
+                            } else {
+                                buffer = Data()
+                            }
+                        }
+                    }
+                }
+                
+                // 残りのバッチを処理
+                if !currentBatch.isEmpty {
+                    processor(currentBatch)
+                }
+                
+            } catch {
+                print("❌ Streaming file read error: \(error)")
+            }
+        }
+    }
+    
+    /// 現在のメモリ使用量を取得（バイト単位）
+    private func getMemoryUsage() -> UInt64 {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size) / 4
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: 1) {
+                task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count)
+            }
+        }
+        return result == KERN_SUCCESS ? info.resident_size : 0
     }
     
     // MARK: - Automatic Learning
@@ -638,5 +749,37 @@ class TextModel: ObservableObject {
     
     deinit {
         autoLearningTimer?.invalidate()
+    }
+    
+    // MARK: - Memory Management Methods
+    
+    /// バッファを強制的にフラッシュ
+    func forceFlushBuffers() {
+        // 保存前のエントリ数を記録
+        let entriesToFlush = texts.count
+        guard entriesToFlush > 0 else { return }
+        
+        os_log("💾 Force flushing %d text entries to disk", log: OSLog.default, type: .info, entriesToFlush)
+        
+        // 同期的にファイルに書き込み
+        updateFile(avoidApps: shareData?.avoidApps ?? [], minTextLength: shareData?.minTextLength ?? 5)
+        
+        // バッファをクリア
+        texts.removeAll(keepingCapacity: false)
+        saveCounter = 0
+    }
+    
+    /// キャッシュをクリア
+    func clearCaches() {
+        os_log("🗑️ Clearing all caches", log: OSLog.default, type: .info)
+        
+        // MinHashOptimizer内のキャッシュをクリア
+        minHashOptimizer = TextModelOptimizedWithLRU()
+        
+        // テキストハッシュセットをクリア（重複チェック用）
+        textHashes.removeAll(keepingCapacity: false)
+        
+        // 処理レベルを一時的にリセット
+        processingLevel = .minimal
     }
 }
